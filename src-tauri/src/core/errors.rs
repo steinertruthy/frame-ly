@@ -12,6 +12,10 @@ pub enum AppError {
     InvalidSettings(String),
     #[error("Window or runtime error: {0}")]
     Runtime(String),
+    #[error("Permission required: {0}")]
+    PermissionDenied(&'static str),
+    #[error("System API error: {0}")]
+    Platform(String),
 }
 
 impl AppError {
@@ -21,6 +25,8 @@ impl AppError {
             AppError::Json(_) => "json",
             AppError::InvalidSettings(_) => "invalid_settings",
             AppError::Runtime(_) => "runtime",
+            AppError::PermissionDenied(_) => "permission_denied",
+            AppError::Platform(_) => "platform",
         }
     }
 }

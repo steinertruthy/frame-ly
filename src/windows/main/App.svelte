@@ -70,6 +70,7 @@
   .shell {
     display: grid;
     grid-template-columns: 220px 1fr;
+    grid-template-rows: 100%;
     height: 100%;
   }
   .sidebar {
@@ -144,6 +145,7 @@
   }
   .page {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 56px var(--space-6) var(--space-6);
     animation: enter var(--dur-slow) var(--ease-out);

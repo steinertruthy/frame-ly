@@ -45,7 +45,15 @@ pub fn create_main(app: &AppHandle, theme: Theme) -> AppResult<WebviewWindow> {
             })
     };
 
-    Ok(builder.build()?)
+    let window = builder.build()?;
+    // Debug aid: `FRAMELY_DEVTOOLS=1 pnpm tauri dev` shows the window immediately and opens
+    // the Web Inspector, even if the UI fails before it can show itself.
+    #[cfg(debug_assertions)]
+    if std::env::var_os("FRAMELY_DEVTOOLS").is_some() {
+        let _ = window.show();
+        window.open_devtools();
+    }
+    Ok(window)
 }
 
 pub fn show_main(app: &AppHandle) {

@@ -2,16 +2,18 @@
 
 mod commands;
 mod core;
+mod platform;
 mod tray;
 mod windows;
 
 use crate::core::settings::{DefaultDirs, SettingsStore};
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 use tauri::{Manager, RunEvent, WindowEvent};
 
 /// Process-wide state shared with IPC commands.
 pub struct AppState {
     pub settings: SettingsStore,
+    pub backend: Arc<dyn platform::CaptureBackend>,
     pub log_dir: PathBuf,
     _log_guard: Option<tracing_appender::non_blocking::WorkerGuard>,
 }
@@ -40,6 +42,7 @@ pub fn run() {
             let initial = settings.get();
             app.manage(AppState {
                 settings,
+                backend: Arc::from(platform::backend()),
                 log_dir,
                 _log_guard: log_guard,
             });
@@ -63,6 +66,13 @@ pub fn run() {
             commands::system::app_info,
             commands::system::open_folder,
             commands::system::log_ui,
+            commands::capture::list_displays,
+            commands::capture::list_windows,
+            commands::capture::list_audio_inputs,
+            commands::capture::get_permissions,
+            commands::capture::request_permission,
+            commands::capture::open_permission_settings,
+            commands::capture::relaunch,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build FrameLy");

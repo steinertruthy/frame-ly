@@ -10,6 +10,9 @@
   import type { AppInfo, Folder, Language, Theme } from '$lib/ipc/types';
   import { settings } from '$lib/stores/settings.svelte';
   import { toast } from '$lib/stores/toasts.svelte';
+  import { system } from '$lib/stores/system.svelte';
+  import Badge from '$lib/components/Badge.svelte';
+  import PermissionRow from '$lib/components/PermissionRow.svelte';
 
   let { info }: { info: AppInfo } = $props();
   const s = $derived(settings.value);
@@ -75,6 +78,33 @@
     </SettingRow>
   </Section>
 
+  {#if system.permissions}
+    <Section title={t('settings.permissions')}>
+      <PermissionRow permission="screen" status={system.permissions.screen} platform={info.platform} />
+      <PermissionRow permission="microphone" status={system.permissions.microphone} platform={info.platform} />
+    </Section>
+  {/if}
+
+  <Section title={t('settings.devices')}>
+    {#each system.displays as d (d.id)}
+      <SettingRow
+        title={d.name}
+        hint={`${d.pixelWidth} × ${d.pixelHeight}${d.refreshRate ? ` · ${Math.round(d.refreshRate)} Hz` : ''}${d.scaleFactor !== 1 ? ` · ${d.scaleFactor}×` : ''}`}
+      >
+        <span class="kind">{t('settings.kind.display')}</span>
+        {#if d.isPrimary}<Badge tone="accent">{t('settings.primary')}</Badge>{/if}
+      </SettingRow>
+    {/each}
+    {#each system.audioInputs as m (m.id)}
+      <SettingRow title={m.name}>
+        <span class="kind">{t('settings.kind.microphone')}</span>
+        {#if m.isDefault}<Badge tone="accent">{t('settings.default')}</Badge>{/if}
+      </SettingRow>
+    {:else}
+      <SettingRow title={t('settings.noMicrophones')}><span></span></SettingRow>
+    {/each}
+  </Section>
+
   <Section title={t('settings.system')}>
     <SettingRow title={t('settings.version')}>
       <span class="value">FrameLy {info.version}</span>
@@ -93,6 +123,10 @@
     font-size: var(--text-xl);
     font-weight: 700;
     margin-bottom: var(--space-5);
+  }
+  .kind {
+    color: var(--text-3);
+    font-size: var(--text-sm);
   }
   .value {
     color: var(--text-2);

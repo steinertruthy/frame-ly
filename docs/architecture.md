@@ -29,6 +29,8 @@ plataforma (`CaptureBackend`, Etapa 1); não há outras camadas.
 |---|---|
 | `src-tauri/src/core/` | Lógica sem SO: `errors` (AppError → `{code,message}`), `settings` (versionado, migração, escrita atômica, backup de arquivo corrompido), `paths` (nomes de arquivo), `locale`, `logging`. |
 | `src-tauri/src/commands/` | Camada IPC fina: valida, delega ao core, emite eventos. |
+| `src-tauri/src/platform/` | Trait `CaptureBackend` e tipos compartilhados; `macos/` (FFI para FrameLyKit) e `windows/` (Win32/WinRT). Ver [platform.md](platform.md). |
+| `native/macos/FrameLyKit/` | Engine macOS em Swift (biblioteca estática). |
 | `src-tauri/src/windows.rs` | Criação das janelas nativas e aparência por SO (vibrancy no macOS). |
 | `src-tauri/src/tray.rs` | Ícone da bandeja/menu bar. |
 | `src/lib/design/tokens.css` | Design tokens (cores, tipografia, raio, movimento) com temas claro/escuro. |

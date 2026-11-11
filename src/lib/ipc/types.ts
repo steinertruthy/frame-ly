@@ -20,7 +20,44 @@ export interface AppInfo {
 
 export type Folder = 'recordings' | 'screenshots' | 'logs';
 
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface Display {
+  id: string;
+  name: string;
+  bounds: Rect;
+  pixelWidth: number;
+  pixelHeight: number;
+  scaleFactor: number;
+  refreshRate: number | null;
+  isPrimary: boolean;
+}
+
+export interface WindowInfo {
+  id: string;
+  title: string;
+  appName: string;
+  appId: string | null;
+  pid: number;
+  bounds: Rect;
+}
+
+export interface AudioDevice {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
+
+export type Permission = 'screen' | 'microphone';
+export type PermissionState = 'granted' | 'denied' | 'notDetermined' | 'restricted';
+export type Permissions = Record<Permission, PermissionState>;
+
 export interface AppError {
-  code: 'io' | 'json' | 'invalid_settings' | 'runtime' | string;
+  code: 'io' | 'json' | 'invalid_settings' | 'runtime' | 'permission_denied' | 'platform' | string;
   message: string;
 }

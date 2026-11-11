@@ -2,8 +2,9 @@
 
 Gravação de tela e screenshots para macOS e Windows — simples, rápido e leve.
 
-> Estado atual: **Etapa 0** (fundação). Janela principal, bandeja, ajustes persistentes
-> (idioma, tema, pastas) e logs estruturados. Captura e gravação chegam nas próximas etapas —
+> Estado atual: **Etapa 1**. Janela principal, bandeja, ajustes persistentes, logs estruturados,
+> engines nativas ligadas (macOS em Swift, Windows em Rust) com listagem de monitores, janelas e
+> microfones, e fluxo de permissões. Captura e gravação chegam nas próximas etapas —
 > veja [docs/roadmap.md](docs/roadmap.md).
 
 ## Stack

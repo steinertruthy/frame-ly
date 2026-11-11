@@ -6,6 +6,8 @@
   import type { AppInfo, Folder } from '$lib/ipc/types';
   import { settings } from '$lib/stores/settings.svelte';
   import { toast } from '$lib/stores/toasts.svelte';
+  import { system } from '$lib/stores/system.svelte';
+  import PermissionRow from '$lib/components/PermissionRow.svelte';
 
   let { info }: { info: AppInfo } = $props();
   const storage = $derived(settings.value?.storage);
@@ -25,6 +27,19 @@
   <h1>{t('home.greeting')}</h1>
   <p>{t('home.subtitle')}</p>
 </header>
+
+{#if system.permissions && !system.screenReady}
+  <section class="setup">
+    <div class="setup-head">
+      <h2>{t('perm.title')}</h2>
+      <p>{t('perm.subtitle')}</p>
+    </div>
+    <div class="card">
+      <PermissionRow permission="screen" status={system.permissions.screen} platform={info.platform} />
+      <PermissionRow permission="microphone" status={system.permissions.microphone} platform={info.platform} />
+    </div>
+  </section>
+{/if}
 
 {#if storage}
   <h2 class="label">{t('home.folders')}</h2>
@@ -74,6 +89,33 @@
     margin-top: 6px;
     color: rgba(233, 238, 252, 0.78);
     font-size: var(--text-lg);
+  }
+  .setup {
+    margin-top: var(--space-5);
+    animation: rise var(--dur-slow) var(--ease-out);
+  }
+  .setup-head {
+    margin: 0 0 var(--space-3) var(--space-1);
+  }
+  .setup-head h2 {
+    font-size: var(--text-lg);
+    font-weight: 650;
+  }
+  .setup-head p {
+    color: var(--text-2);
+    margin-top: 2px;
+  }
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
   }
   .label {
     margin: var(--space-6) 0 var(--space-3) var(--space-1);

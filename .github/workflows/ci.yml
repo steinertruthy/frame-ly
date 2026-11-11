@@ -17,7 +17,7 @@ jobs:
       matrix:
         include:
           - name: macOS (arm64)
-            os: macos-14
+            os: macos-15
           - name: Windows (x64)
             os: windows-latest
     runs-on: ${{ matrix.os }}
@@ -43,6 +43,11 @@ jobs:
         run: |
           pnpm check
           pnpm test
+
+      - name: Swift engine tests (FrameLyKit)
+        if: runner.os == 'macOS'
+        working-directory: native/macos/FrameLyKit
+        run: swift test
 
       - name: Rust checks
         working-directory: src-tauri

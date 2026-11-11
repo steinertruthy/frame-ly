@@ -6,3 +6,6 @@ src-tauri/gen/schemas/
 *.log
 .vscode/*
 !.vscode/extensions.json
+.build/
+*.xcodeproj/
+.swiftpm/

@@ -12,7 +12,9 @@
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && tsc -p tsconfig.node.json",
     "test": "vitest run",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "app:mac": "./scripts/macos-dev-app.sh",
+    "check:windows": "cd src-tauri && cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings"
   },
   "dependencies": {
     "@lucide/svelte": "^1.72.0",

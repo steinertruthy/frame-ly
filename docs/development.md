@@ -16,10 +16,20 @@
 | `cargo test` (em `src-tauri/`) | Testes unitários do core. |
 | `cargo clippy --all-targets -- -D warnings` | Lint. |
 | `pnpm tauri build` | Pacote de release (.app/.dmg, NSIS). |
+| `pnpm check:windows` | Clippy do código Windows a partir do macOS (requer `brew install llvm`). |
+| `pnpm app:mac` | Build de debug assinado com a identidade de dev e abre o app (testes de permissão). |
+| `swift test` (em `native/macos/FrameLyKit/`) | Testes da engine Swift. |
+| `cargo test -- --ignored` | Testes "ao vivo" contra as APIs reais do SO (lista monitores, janelas, áudio). |
 
-## Logs
+## Logs e depuração
 
-`FRAMELY_LOG=debug pnpm tauri dev` — no modo debug os logs também saem no terminal.
+- `FRAMELY_LOG=debug pnpm tauri dev` — no modo debug os logs também saem no terminal.
+- `FRAMELY_DEVTOOLS=1 pnpm tauri dev` — mostra a janela imediatamente e abre o Web Inspector.
+- Erros não tratados da UI aparecem no log com `"message":"ui"`.
+- O servidor de dev escuta em `127.0.0.1:1420` (IPv4 explícito). Com `localhost`, o Node pode escutar
+  só em `::1` e o WebKit não carrega a página — a janela fica vazia.
+- O WebKit não pinta janelas totalmente encobertas; uma captura de tela de uma janela atrás de outras
+  sai vazia mesmo com a UI funcionando.
 
 ## Windows
 
@@ -28,7 +38,14 @@ recursos do Windows). Use a VM Windows 11 ARM (Parallels) para rodar e testar, e
 
 ## Assinatura no macOS (sem Developer ID)
 
-A permissão de Gravação de Tela fica vinculada à assinatura do app. Builds sem assinatura estável podem
-perder a permissão a cada recompilação. A partir da Etapa 1 (quando a captura começa), o build de dev
-será assinado com um certificado local autoassinado fixo; o passo a passo estará aqui. A distribuição
-pública exige Developer ID + notarização (Etapa 9).
+O macOS vincula as permissões de Gravação de Tela e Microfone à assinatura do app. Para que elas
+persistam entre builds, assine sempre com a mesma identidade local:
+
+```bash
+./scripts/macos-dev-cert.sh   # uma vez; pede sua senha para confiar no certificado
+pnpm app:mac                  # build de debug assinado + abre o FrameLy.app
+```
+
+O script cria a identidade autoassinada "FrameLy Development" no seu Keychain de login. Para remover:
+`security delete-identity -c "FrameLy Development"`. A distribuição pública exige Developer ID +
+notarização (Etapa 9).
