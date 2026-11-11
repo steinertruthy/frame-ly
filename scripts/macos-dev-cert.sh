@@ -44,5 +44,5 @@ echo "→ Trusting the certificate for code signing (macOS will ask for your pas
 security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN" "$TMP/cert.pem"
 
 security find-identity -v -p codesigning | grep "\"$NAME\"" >/dev/null \
-  && echo "✓ '$NAME' is ready. Build with: pnpm app:mac" \
+  && echo "✓ '$NAME' is ready. Build with: ./scripts/macos-dev-app.sh" \
   || { echo "✗ Identity not valid for code signing."; exit 1; }
