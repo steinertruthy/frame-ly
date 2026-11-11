@@ -1,0 +1,101 @@
+<script lang="ts">
+  import { open as openDialog } from '@tauri-apps/plugin-dialog';
+  import { FolderOpen } from '@lucide/svelte';
+  import Button from '$lib/components/Button.svelte';
+  import Section from '$lib/components/Section.svelte';
+  import Segmented from '$lib/components/Segmented.svelte';
+  import SettingRow from '$lib/components/SettingRow.svelte';
+  import { t } from '$lib/i18n/index.svelte';
+  import { commands } from '$lib/ipc/commands';
+  import type { AppInfo, Folder, Language, Theme } from '$lib/ipc/types';
+  import { settings } from '$lib/stores/settings.svelte';
+  import { toast } from '$lib/stores/toasts.svelte';
+
+  let { info }: { info: AppInfo } = $props();
+  const s = $derived(settings.value);
+
+  async function chooseFolder(kind: 'recordingsDir' | 'screenshotsDir') {
+    if (!s) return;
+    const picked = await openDialog({ directory: true, defaultPath: s.storage[kind], title: t('settings.chooseFolder') });
+    if (typeof picked !== 'string' || picked === s.storage[kind]) return;
+    if (await settings.update((d) => (d.storage[kind] = picked))) toast('success', t('settings.saved'));
+  }
+
+  async function reveal(folder: Folder) {
+    try {
+      await commands.openFolder(folder);
+    } catch (e) {
+      console.error(e);
+      toast('error', t('error.io'));
+    }
+  }
+</script>
+
+<h1 class="title">{t('settings.title')}</h1>
+
+{#if s}
+  <Section title={t('settings.general')}>
+    <SettingRow title={t('settings.language')} hint={t('settings.language.hint')}>
+      <Segmented
+        label={t('settings.language')}
+        value={s.general.language}
+        options={[
+          { value: 'system' as Language, label: t('settings.language.system') },
+          { value: 'pt-BR' as Language, label: 'Português' },
+          { value: 'en' as Language, label: 'English' },
+        ]}
+        onchange={(v) => settings.update((d) => (d.general.language = v))}
+      />
+    </SettingRow>
+  </Section>
+
+  <Section title={t('settings.appearance')}>
+    <SettingRow title={t('settings.theme')} hint={t('settings.theme.hint')}>
+      <Segmented
+        label={t('settings.theme')}
+        value={s.appearance.theme}
+        options={[
+          { value: 'system' as Theme, label: t('settings.theme.system') },
+          { value: 'light' as Theme, label: t('settings.theme.light') },
+          { value: 'dark' as Theme, label: t('settings.theme.dark') },
+        ]}
+        onchange={(v) => settings.update((d) => (d.appearance.theme = v))}
+      />
+    </SettingRow>
+  </Section>
+
+  <Section title={t('settings.storage')}>
+    <SettingRow title={t('settings.recordingsDir')} hint={s.storage.recordingsDir}>
+      <Button size="sm" variant="ghost" onclick={() => reveal('recordings')}><FolderOpen size={14} />{t('settings.show')}</Button>
+      <Button size="sm" onclick={() => chooseFolder('recordingsDir')}>{t('settings.change')}</Button>
+    </SettingRow>
+    <SettingRow title={t('settings.screenshotsDir')} hint={s.storage.screenshotsDir}>
+      <Button size="sm" variant="ghost" onclick={() => reveal('screenshots')}><FolderOpen size={14} />{t('settings.show')}</Button>
+      <Button size="sm" onclick={() => chooseFolder('screenshotsDir')}>{t('settings.change')}</Button>
+    </SettingRow>
+  </Section>
+
+  <Section title={t('settings.system')}>
+    <SettingRow title={t('settings.version')}>
+      <span class="value">FrameLy {info.version}</span>
+    </SettingRow>
+    <SettingRow title={t('settings.platform')}>
+      <span class="value">{info.platform} · {info.arch}</span>
+    </SettingRow>
+    <SettingRow title={t('settings.logs')} hint={t('settings.logs.hint')}>
+      <Button size="sm" onclick={() => reveal('logs')}><FolderOpen size={14} />{t('settings.show')}</Button>
+    </SettingRow>
+  </Section>
+{/if}
+
+<style>
+  .title {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    margin-bottom: var(--space-5);
+  }
+  .value {
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
+  }
+</style>

@@ -1,0 +1,125 @@
+/*
+ * FrameLy design tokens.
+ * Brand: deep "Midnight" navy as the identity colour, an electric "Signal" blue for
+ * interaction, and a coral-red reserved exclusively for recording state.
+ */
+:root {
+  /* Brand scale */
+  --navy-950: #060d26;
+  --navy-900: #0a1534;
+  --navy-800: #0f2259;
+  --navy-700: #16307a;
+  --navy-600: #1e40a0;
+  --signal-500: #4a7bff;
+  --signal-400: #6f96ff;
+  --signal-300: #9cb7ff;
+  --rec-500: #ff4b5c;
+  --ok-500: #22c38e;
+  --warn-500: #f5a524;
+
+  /* Typography: native system faces keep the app feeling like part of the OS */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+
+  /* Shape & space */
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Motion: short, decelerating, never blocking */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --dur-fast: 120ms;
+  --dur-med: 200ms;
+  --dur-slow: 320ms;
+
+  /* Light theme (default) */
+  --bg: #f4f6fb;
+  --bg-sidebar: #eaeef7;
+  --surface: #ffffff;
+  --surface-2: #f6f8fc;
+  --surface-hover: #eef2fa;
+  --border: rgba(10, 21, 52, 0.09);
+  --border-strong: rgba(10, 21, 52, 0.16);
+  --text: #0a1534;
+  --text-2: #4a5677;
+  --text-3: #7d87a3;
+  --accent: #2f5fe6;
+  --accent-hover: #2552d1;
+  --accent-soft: rgba(47, 95, 230, 0.1);
+  --accent-text: #ffffff;
+  --focus-ring: 0 0 0 3px rgba(74, 123, 255, 0.35);
+  --shadow-sm: 0 1px 2px rgba(10, 21, 52, 0.06), 0 0 0 1px rgba(10, 21, 52, 0.04);
+  --shadow-md: 0 8px 24px -8px rgba(10, 21, 52, 0.18), 0 0 0 1px rgba(10, 21, 52, 0.05);
+  --hero: linear-gradient(135deg, #16307a 0%, #0f2259 55%, #0a1534 100%);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0b1226;
+    --bg-sidebar: #08101f;
+    --surface: #111a33;
+    --surface-2: #0e172d;
+    --surface-hover: #17223f;
+    --border: rgba(156, 183, 255, 0.09);
+    --border-strong: rgba(156, 183, 255, 0.16);
+    --text: #e9eefc;
+    --text-2: #a5b0cc;
+    --text-3: #6f7a98;
+    --accent: #4a7bff;
+    --accent-hover: #6f96ff;
+    --accent-soft: rgba(74, 123, 255, 0.16);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(156, 183, 255, 0.06);
+    --shadow-md: 0 12px 32px -10px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(156, 183, 255, 0.08);
+    --hero: linear-gradient(135deg, #1e40a0 0%, #0f2259 50%, #060d26 100%);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0b1226;
+  --bg-sidebar: #08101f;
+  --surface: #111a33;
+  --surface-2: #0e172d;
+  --surface-hover: #17223f;
+  --border: rgba(156, 183, 255, 0.09);
+  --border-strong: rgba(156, 183, 255, 0.16);
+  --text: #e9eefc;
+  --text-2: #a5b0cc;
+  --text-3: #6f7a98;
+  --accent: #4a7bff;
+  --accent-hover: #6f96ff;
+  --accent-soft: rgba(74, 123, 255, 0.16);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(156, 183, 255, 0.06);
+  --shadow-md: 0 12px 32px -10px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(156, 183, 255, 0.08);
+  --hero: linear-gradient(135deg, #1e40a0 0%, #0f2259 50%, #060d26 100%);
+  color-scheme: dark;
+}
+
+/* macOS: the sidebar shows the native vibrancy material behind the web view. */
+:root.platform-macos {
+  --bg-sidebar: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-med: 0ms;
+    --dur-slow: 0ms;
+  }
+}

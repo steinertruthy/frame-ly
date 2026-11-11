@@ -1,0 +1,4 @@
+//! Thin IPC layer: validates input, delegates to `core`, maps errors. No business logic here.
+
+pub mod settings;
+pub mod system;
