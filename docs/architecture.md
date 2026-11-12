@@ -181,8 +181,8 @@ AVCaptureSession (microfone escolhido, relógio convertido p/ host) ─┤→ Au
   início e fim da gravação) em WAV na memória — sem arquivos de áudio no pacote. Tocados via NSSound
   (macOS) e `PlaySoundW` assíncrono (Windows). O áudio do próprio FrameLy é excluído do som do
   sistema, mas o **microfone** capta o que sai dos alto-falantes; por isso nenhum sinal toca com a
-  captura ativa: o de início termina antes da gravação começar (nos últimos ~0,7 s da contagem, ou
-  com essa espera quando não há contagem), o de fim toca depois que o arquivo foi fechado, e o de
+  captura ativa: o de início termina antes da gravação começar (é curto, ~0,35 s, e termina junto
+  com a contagem; sem contagem, a gravação espera essa duração — o início nativo leva mais ~0,2 s), o de fim toca depois que o arquivo foi fechado, e o de
   screenshot fica mudo durante uma gravação. Verificado medindo o áudio do início dos vídeos.
 - Controles flutuantes (`recording.show_controls`, janela `recbar`): tempo, níveis de som, pausar
   e parar, no centro inferior do monitor gravado, arrastáveis, sem foco e fora do vídeo.

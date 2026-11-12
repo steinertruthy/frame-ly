@@ -27,7 +27,9 @@ const B5: f32 = 987.77;
 fn notes(cue: Cue) -> &'static [Note] {
     match cue {
         Cue::Shutter => &[(0.0, 1567.98, 0.10, 0.20), (0.04, 2093.0, 0.14, 0.15)],
-        Cue::RecordStart => &[(0.0, E5, 0.38, 0.22), (0.10, B5, 0.50, 0.20)],
+        // Short and crisp: it rings right at the end of the countdown and must be over
+        // before capture begins.
+        Cue::RecordStart => &[(0.0, E5, 0.20, 0.24), (0.07, B5, 0.26, 0.22)],
         Cue::RecordStop => &[(0.0, B5, 0.38, 0.20), (0.10, E5, 0.55, 0.22)],
     }
 }

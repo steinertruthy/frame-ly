@@ -35,9 +35,11 @@ pub const FINISHED_EVENT: &str = "recording://finished";
 pub const FAILED_EVENT: &str = "recording://failed";
 const COUNTDOWN: &str = "countdown";
 const CONTROLS: &str = "recbar";
-/// The start cue plus a little slack for the audio device's output latency.
+/// How long before capture the start cue begins: exactly its length. No extra slack: the native start itself takes ~200–350 ms before the first audio is
+/// captured, which keeps the cue out of the microphone while it still lands right before the
+/// recording starts.
 fn start_cue_lead() -> Duration {
-    crate::core::sounds::duration(Cue::RecordStart) + Duration::from_millis(120)
+    crate::core::sounds::duration(Cue::RecordStart)
 }
 const FRAME: &str = "rec-frame";
 
