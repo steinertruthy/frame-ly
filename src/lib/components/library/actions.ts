@@ -16,6 +16,13 @@ export const itemActions = {
       fail(e);
     }
   },
+  async edit(item: LibraryItem) {
+    try {
+      await commands.editorOpen(item.path);
+    } catch (e) {
+      fail(e);
+    }
+  },
   async reveal(item: LibraryItem) {
     try {
       await commands.libraryReveal(item.id);

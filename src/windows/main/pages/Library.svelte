@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Search, ExternalLink, FolderOpen, Copy, Pencil, Trash2, Images } from '@lucide/svelte';
+  import { Search, ExternalLink, FolderOpen, Copy, Pencil, Trash2, Images, PenLine } from '@lucide/svelte';
   import Segmented from '$lib/components/Segmented.svelte';
   import Select from '$lib/components/Select.svelte';
   import ContextMenu, { type MenuItem } from '$lib/components/ContextMenu.svelte';
@@ -38,6 +38,7 @@
 
   function menuItems(item: LibraryItem): MenuItem[] {
     return [
+      ...(item.kind === 'image' ? [{ label: t('editor.edit'), icon: PenLine, run: () => itemActions.edit(item) }] : []),
       { label: t('library.open'), icon: ExternalLink, run: () => itemActions.open(item) },
       { label: t('library.show'), icon: FolderOpen, run: () => itemActions.reveal(item) },
       { label: t('library.copy'), icon: Copy, run: () => itemActions.copy(item) },

@@ -2,10 +2,10 @@
 
 Gravação de tela e screenshots para macOS e Windows — simples, rápido e leve.
 
-> Estado atual: **Etapa 7**. Biblioteca com miniaturas, busca, filtros, agrupamento por data,
-> player e ações (renomear, copiar, mostrar na pasta, mover para a Lixeira); tela inicial com
-> recentes e uso de armazenamento. Painel rápido, atalhos globais, screenshots e gravação com áudio no
-> macOS. Gravação no Windows chega na Etapa 4 — veja [docs/roadmap.md](docs/roadmap.md).
+> Estado atual: **Etapa 8**. Editor de screenshots (recortar, redimensionar, setas, formas, texto,
+> destaque, desfoque, desfazer/refazer), biblioteca, painel rápido, atalhos globais, screenshots e
+> gravação com áudio no macOS. Gravação no Windows chega na Etapa 4 — veja
+> [docs/roadmap.md](docs/roadmap.md).
 
 ## Stack
 
@@ -59,4 +59,5 @@ Alfred, Atalhos do macOS ou AutoHotkey:
 /Applications/FrameLy.app/Contents/MacOS/framely --record screen     # region | window | screen | pause | stop
 /Applications/FrameLy.app/Contents/MacOS/framely --panel             # abre/fecha o painel rápido
 /Applications/FrameLy.app/Contents/MacOS/framely --show library      # home | library | settings
+/Applications/FrameLy.app/Contents/MacOS/framely --edit ~/Pictures/FrameLy/shot.png
 ```

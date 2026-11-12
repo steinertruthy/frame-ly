@@ -10,8 +10,8 @@
 | 5 | Áudio: microfone, sistema, mix, sincronização (macOS; Windows junto da Etapa 4) | ✅ |
 | 6 | Painel rápido da bandeja + atalhos globais | ✅ |
 | 7 | Biblioteca + Dashboard | ✅ |
-| 8 | Editor de screenshots | ⏳ |
-| 9 | Ajustes completos, polimento, instaladores, assinatura | |
+| 8 | Editor de screenshots | ✅ |
+| 9 | Ajustes completos, polimento, instaladores, assinatura | ⏳ |
 
 ## Limitações conhecidas (v1)
 

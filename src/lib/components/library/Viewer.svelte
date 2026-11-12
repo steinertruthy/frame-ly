@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { convertFileSrc } from '@tauri-apps/api/core';
-  import { X, ChevronLeft, ChevronRight, ExternalLink, FolderOpen, Copy, Trash2 } from '@lucide/svelte';
+  import { X, ChevronLeft, ChevronRight, ExternalLink, FolderOpen, Copy, Trash2, Pencil } from '@lucide/svelte';
   import ConfirmDialog from '../ConfirmDialog.svelte';
   import { t, locale } from '$lib/i18n/index.svelte';
   import { formatBytes, formatDuration } from '$lib/stores/format';
@@ -127,6 +127,9 @@
         <dd class="path" title={folder}>{folder}</dd>
       </dl>
       <div class="actions">
+        {#if item.kind === 'image'}
+          <button onclick={() => itemActions.edit(item)}><Pencil size={15} />{t('editor.edit')}</button>
+        {/if}
         <button onclick={() => itemActions.open(item)}><ExternalLink size={15} />{t('library.open')}</button>
         <button onclick={() => itemActions.reveal(item)}><FolderOpen size={15} />{t('library.show')}</button>
         <button onclick={() => itemActions.copy(item)}><Copy size={15} />{t('library.copy')}</button>

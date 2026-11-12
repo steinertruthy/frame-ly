@@ -37,6 +37,7 @@ plataforma (`CaptureBackend`, Etapa 1); não há outras camadas.
 | `src-tauri/src/recording.rs` | Fluxo de gravação: alvo, contagem, controle, entrega, recuperação. |
 | `src-tauri/src/core/recorder.rs`, `core/video.rs` | Estado/relógio da gravação; tamanho de saída e bitrate (puros, testados). |
 | `src-tauri/src/library.rs`, `core/library.rs` | Serviço da biblioteca; índice SQLite puro e testado. |
+| `src-tauri/src/editor.rs`, `src/windows/editor/` | Janela do editor (sessão, salvar/copiar) e editor em canvas. |
 | `src-tauri/src/protocol.rs` | Protocolo `framely://` para imagens em memória. |
 | `src-tauri/src/core/image.rs` | Quadros BGRA, recorte, PNG e BMP (puro, testado). |
 | `src/lib/design/tokens.css` | Design tokens (cores, tipografia, raio, movimento) com temas claro/escuro. |
@@ -143,6 +144,21 @@ AVCaptureSession (microfone escolhido, relógio convertido p/ host) ─┤→ Au
   para `<video>`), com escopo limitado às duas pastas de mídia.
 - **Excluir = mover para a Lixeira** (`trash`), sempre com confirmação. Renomear valida nomes que
   funcionam em macOS e Windows e preserva a extensão.
+
+## Editor de screenshots
+
+- **Modelo** (`windows/editor/model.ts`, testado): formas em coordenadas da imagem original (seta,
+  retângulo, elipse, texto, destaque, desfoque), recorte e tamanho de saída; histórico por snapshots
+  para desfazer/refazer; *hit testing* (contorno vs. preenchimento, distância à seta).
+- **Renderização única** (`render.ts`): a mesma função desenha a tela e o arquivo exportado, então o
+  que se vê é o que se salva. Desfoque = pixelização em blocos (≈ 1/140 da imagem) aplicada na
+  exportação — os pixels originais não ficam no arquivo.
+- **Segurança:** o editor só abre imagens dentro das pastas do FrameLy; a imagem chega por
+  `framely://localhost/edit-source` com CORS (o canvas continua exportável — verificado na abertura).
+- **Exportar:** o PNG vai para o Rust como bytes brutos no corpo do IPC (não JSON). "Salvar" nunca
+  sobrescreve o original: cria "nome (edited).png" ao lado e o registra na biblioteca. "Copiar" põe
+  a imagem na área de transferência.
+- Entradas: botão de editar na prévia pós-captura, no visualizador e no menu de contexto da biblioteca.
 
 ## Comportamento de ciclo de vida
 

@@ -38,6 +38,11 @@ pub fn respond(app: &AppHandle, path: &str) -> Response<Vec<u8>> {
             }
         };
     }
+    if path == "edit-source" || path.starts_with("edit-source/") {
+        return crate::editor::source_bytes()
+            .map(|b| image(if b.starts_with(b"\x89PNG") { "image/png" } else { "image/jpeg" }, b))
+            .unwrap_or_else(not_found);
+    }
     if path == "last-recording-thumb" {
         let thumb =
             app.state::<AppState>().recordings.last.lock().unwrap().as_ref().and_then(|l| l.thumb.clone());

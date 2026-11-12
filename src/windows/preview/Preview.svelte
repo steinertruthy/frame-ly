@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
-  import { Copy, Check, FolderOpen, Download, X, Play } from '@lucide/svelte';
+  import { Copy, Check, FolderOpen, Download, X, Play, Pencil } from '@lucide/svelte';
   import { commands, events } from '$lib/ipc/commands';
   import { framelyUrl } from '$lib/ipc/protocol';
   import { logUi } from '$lib/ipc/log';
@@ -88,6 +88,14 @@
     act(async () => {
       if (item?.kind === 'image') item = { kind: 'image', info: await commands.saveLastCapture() };
     });
+  const edit = () =>
+    act(async () => {
+      if (item?.kind !== 'image') return;
+      let p = item.info.path;
+      if (!p) p = (item = { kind: 'image', info: await commands.saveLastCapture() }).info.path;
+      if (p) await commands.editorOpen(p);
+      await close();
+    });
   const reveal = () => act(() => (isVideo ? commands.revealLastRecording() : commands.revealLastCapture()));
   const open = () =>
     act(async () => {
@@ -124,6 +132,9 @@
       {/if}
     </div>
     <div class="actions">
+      {#if !isVideo}
+        <button class="icon" onclick={edit} title={t('editor.edit')}><Pencil size={15} /></button>
+      {/if}
       <button class="icon" onclick={copy} title={t(copied ? 'preview.copied' : 'preview.copy')} class:ok={copied}>
         {#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}
       </button>

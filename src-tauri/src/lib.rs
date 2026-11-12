@@ -2,6 +2,7 @@
 
 mod commands;
 mod core;
+mod editor;
 mod library;
 mod panel;
 mod platform;
@@ -35,15 +36,20 @@ enum CliAction {
     TogglePause,
     Panel,
     Show(String),
+    Edit(std::path::PathBuf),
 }
 
-/// `framely --panel`, `framely --show home|library|settings`, `framely --capture region|window|screen|cancel` and
+/// `framely --panel`, `framely --show home|library|settings`, `framely --edit <image>`,
+/// `framely --capture region|window|screen|cancel` and
 /// `framely --record region|window|screen|stop|pause` (forwarded to the running instance) —
 /// lets people bind FrameLy in launchers and automation tools.
 fn cli_action(argv: &[String]) -> Option<CliAction> {
     use screenshot::{Request, SelectMode};
     if argv.iter().any(|a| a == "--panel") {
         return Some(CliAction::Panel);
+    }
+    if let Some(i) = argv.iter().position(|a| a == "--edit") {
+        return argv.get(i + 1).map(|p| CliAction::Edit(p.into()));
     }
     if let Some(i) = argv.iter().position(|a| a == "--show") {
         let page = argv.get(i + 1).cloned().unwrap_or_else(|| "home".into());
@@ -92,6 +98,11 @@ fn run_cli_action(app: &tauri::AppHandle, action: CliAction) {
             }
         }
         CliAction::Panel => panel::toggle(app, None),
+        CliAction::Edit(path) => {
+            if let Err(e) = editor::open(app, &path) {
+                tracing::warn!(error = %e, "edit from CLI failed");
+            }
+        }
         CliAction::Show(page) => {
             windows::show_main(app);
             let _ = app.emit_to(windows::MAIN, "main://navigate", page);
@@ -218,6 +229,10 @@ pub fn run() {
             commands::library::library_copy,
             commands::library::library_reveal,
             commands::library::library_open,
+            commands::editor::editor_open,
+            commands::editor::editor_source,
+            commands::editor::editor_save,
+            commands::editor::editor_copy,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build FrameLy");

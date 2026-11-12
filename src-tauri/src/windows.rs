@@ -19,10 +19,25 @@ pub fn create_main(app: &AppHandle, theme: Theme) -> AppResult<WebviewWindow> {
     let builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("main.html".into()))
         .title("FrameLy")
         .inner_size(1120.0, 740.0)
-        .min_inner_size(880.0, 580.0)
-        .center()
-        .visible(false)
-        .theme(to_tauri_theme(theme));
+        .min_inner_size(880.0, 580.0);
+    let window = app_window(builder, theme)?;
+    // Debug aid: `FRAMELY_DEVTOOLS=1 pnpm tauri dev` shows the window immediately and opens
+    // the Web Inspector, even if the UI fails before it can show itself.
+    #[cfg(debug_assertions)]
+    if std::env::var_os("FRAMELY_DEVTOOLS").is_some() {
+        let _ = window.show();
+        window.open_devtools();
+    }
+    Ok(window)
+}
+
+/// Shared chrome for FrameLy's full windows (main, editor): hidden until first paint, native
+/// title bar overlay and sidebar vibrancy on macOS.
+pub fn app_window(
+    builder: WebviewWindowBuilder<'_, tauri::Wry, AppHandle>,
+    theme: Theme,
+) -> AppResult<WebviewWindow> {
+    let builder = builder.center().visible(false).theme(to_tauri_theme(theme));
 
     #[cfg(target_os = "macos")]
     let builder = {
@@ -45,15 +60,7 @@ pub fn create_main(app: &AppHandle, theme: Theme) -> AppResult<WebviewWindow> {
             })
     };
 
-    let window = builder.build()?;
-    // Debug aid: `FRAMELY_DEVTOOLS=1 pnpm tauri dev` shows the window immediately and opens
-    // the Web Inspector, even if the UI fails before it can show itself.
-    #[cfg(debug_assertions)]
-    if std::env::var_os("FRAMELY_DEVTOOLS").is_some() {
-        let _ = window.show();
-        window.open_devtools();
-    }
-    Ok(window)
+    Ok(builder.build()?)
 }
 
 pub fn show_main(app: &AppHandle) {

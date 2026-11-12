@@ -79,6 +79,11 @@ export const commands = {
   libraryCopy: (id: number) => invoke<void>('library_copy', { id }),
   libraryReveal: (id: number) => invoke<void>('library_reveal', { id }),
   libraryOpen: (id: number) => invoke<void>('library_open', { id }),
+  editorOpen: (path: string) => invoke<void>('editor_open', { path }),
+  editorSource: () => invoke<{ path: string; name: string }>('editor_source'),
+  /** Raw PNG bytes travel as the request body (not JSON). */
+  editorSave: (png: Uint8Array) => invoke<{ path: string; name: string }>('editor_save', png),
+  editorCopy: (png: Uint8Array) => invoke<void>('editor_copy', png),
 };
 
 export const events = {
@@ -94,6 +99,7 @@ export const events = {
     listen<RecordingWarning>('recording://warning', (e) => cb(e.payload)),
   onPanelShown: (cb: () => void): Promise<UnlistenFn> => listen('panel://shown', () => cb()),
   onLibraryChanged: (cb: () => void): Promise<UnlistenFn> => listen('library://changed', () => cb()),
+  onEditorLoad: (cb: () => void): Promise<UnlistenFn> => listen('editor://load', () => cb()),
   onNavigate: (cb: (page: string) => void): Promise<UnlistenFn> => listen<string>('main://navigate', (e) => cb(e.payload)),
   onShortcutStatus: (cb: (s: ShortcutStatus) => void): Promise<UnlistenFn> =>
     listen<ShortcutStatus>('shortcuts://status', (e) => cb(e.payload)),

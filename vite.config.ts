@@ -32,6 +32,7 @@ export default defineConfig({
         countdown: resolve(import.meta.dirname, 'countdown.html'),
         frame: resolve(import.meta.dirname, 'frame.html'),
         panel: resolve(import.meta.dirname, 'panel.html'),
+        editor: resolve(import.meta.dirname, 'editor.html'),
       },
     },
   },

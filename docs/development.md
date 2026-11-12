@@ -25,6 +25,7 @@
 | `<app>/Contents/MacOS/framely --record screen` | Controla gravações (`region`, `window`, `screen`, `pause`, `stop`). |
 | `<app>/Contents/MacOS/framely --panel` | Abre/fecha o painel rápido. |
 | `<app>/Contents/MacOS/framely --show library` | Abre a janela principal numa página (`home`, `library`, `settings`). |
+| `<app>/Contents/MacOS/framely --edit <imagem>` | Abre uma imagem das pastas do FrameLy no editor. |
 
 ## Logs e depuração
 

@@ -58,7 +58,11 @@ pub fn copy_file(path: &std::path::Path) -> AppResult<()> {
 
 /// Copies an image file (PNG/JPEG) as image data.
 pub fn copy_image_file(path: &std::path::Path) -> AppResult<()> {
-    let bytes = std::fs::read(path)?;
+    copy_image_bytes(std::fs::read(path)?)
+}
+
+/// Copies encoded image bytes (PNG/JPEG) as image data.
+pub fn copy_image_bytes(bytes: Vec<u8>) -> AppResult<()> {
     let is_png = bytes.starts_with(b"\x89PNG");
     let rgba = ::image::load_from_memory(&bytes)
         .map_err(|e| AppError::Platform(format!("cannot read image: {e}")))?
