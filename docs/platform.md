@@ -56,6 +56,13 @@ Coordenadas: pixels físicos (o processo é per-monitor DPI aware); `scaleFactor
 A UI relê permissões e dispositivos sempre que a janela recebe foco (ex.: ao voltar dos Ajustes).
 O FrameLy nunca tenta contornar esses mecanismos.
 
+## Assinatura e entitlements (macOS)
+
+O app é assinado com o Hardened Runtime (exigido para notarização). Sob ele, o microfone só funciona
+com o entitlement `com.apple.security.device.audio-input` (`src-tauri/Entitlements.plist`). Sem
+ele o macOS nega o acesso em silêncio: nenhum aviso aparece e o app nem surge em Ajustes do Sistema ›
+Privacidade › Microfone. Gravação de Tela não precisa de entitlement.
+
 ## Limitações conhecidas
 
 - `tauri dev` no macOS: as permissões são atribuídas ao app que lançou o processo (Terminal, IDE). Para
