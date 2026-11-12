@@ -30,6 +30,10 @@ pub fn update_settings(
     if previous.general.language != saved.general.language {
         crate::tray::refresh_labels(&app, saved.general.language);
     }
+    if previous.storage != saved.storage {
+        crate::library::allow_media_dirs(&app);
+        crate::library::refresh(&app);
+    }
     if previous.shortcuts != saved.shortcuts {
         crate::shortcuts::apply(&app, &saved.shortcuts, state.backend.supports_recording());
     }

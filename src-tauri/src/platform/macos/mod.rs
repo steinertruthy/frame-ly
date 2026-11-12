@@ -33,6 +33,13 @@ extern "C" {
     fn fl_mic_monitor_start(device_id: *const c_char) -> *mut c_char;
     fn fl_mic_monitor_level() -> f32;
     fn fl_mic_monitor_stop();
+    fn fl_media_info(path: *const c_char) -> *mut c_char;
+    fn fl_thumbnail(path: *const c_char, dest: *const c_char, max_pixels: i32) -> *mut c_char;
+}
+
+fn c_path(p: &std::path::Path) -> AppResult<std::ffi::CString> {
+    std::ffi::CString::new(p.to_string_lossy().as_bytes())
+        .map_err(|_| AppError::Platform("invalid path".into()))
 }
 
 /// Rust side of the recorder's event callback. FrameLyKit calls `on_recording_event` (any
@@ -259,6 +266,34 @@ impl CaptureBackend for MacBackend {
     fn mic_monitor_stop(&self) {
         // SAFETY: no arguments.
         unsafe { fl_mic_monitor_stop() }
+    }
+
+    fn video_info(&self, path: &std::path::Path) -> AppResult<crate::core::library::Meta> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Info {
+            width: Option<u32>,
+            height: Option<u32>,
+            duration_ms: Option<u64>,
+        }
+        let info: Info = call_with(fl_media_info, &path.to_string_lossy())?;
+        Ok(crate::core::library::Meta {
+            width: info.width,
+            height: info.height,
+            duration_ms: info.duration_ms,
+        })
+    }
+
+    fn thumbnail(&self, path: &std::path::Path, dest: &std::path::Path, max_pixels: u32) -> AppResult<()> {
+        let (p, d) = (c_path(path)?, c_path(dest)?);
+        // SAFETY: both strings outlive the call; the returned envelope is owned and freed once.
+        let json = unsafe {
+            let ptr = fl_thumbnail(p.as_ptr(), d.as_ptr(), max_pixels as i32);
+            let s = CStr::from_ptr(ptr).to_string_lossy().into_owned();
+            fl_free_string(ptr);
+            s
+        };
+        decode::<bool>(&json).map(|_| ())
     }
 }
 

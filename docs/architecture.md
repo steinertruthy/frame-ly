@@ -36,6 +36,7 @@ plataforma (`CaptureBackend`, Etapa 1); não há outras camadas.
 | `src-tauri/src/screenshot.rs` | Sessão de captura, overlays, entrega (PNG, pasta, clipboard) e prévia. |
 | `src-tauri/src/recording.rs` | Fluxo de gravação: alvo, contagem, controle, entrega, recuperação. |
 | `src-tauri/src/core/recorder.rs`, `core/video.rs` | Estado/relógio da gravação; tamanho de saída e bitrate (puros, testados). |
+| `src-tauri/src/library.rs`, `core/library.rs` | Serviço da biblioteca; índice SQLite puro e testado. |
 | `src-tauri/src/protocol.rs` | Protocolo `framely://` para imagens em memória. |
 | `src-tauri/src/core/image.rs` | Quadros BGRA, recorte, PNG e BMP (puro, testado). |
 | `src/lib/design/tokens.css` | Design tokens (cores, tipografia, raio, movimento) com temas claro/escuro. |
@@ -127,6 +128,22 @@ AVCaptureSession (microfone escolhido, relógio convertido p/ host) ─┤→ Au
   falha é reportada por ação e aparece nos Ajustes. Enquanto o usuário grava um novo atalho, os
   atuais ficam suspensos.
 
+## Biblioteca
+
+- **Fonte da verdade são as pastas.** O índice SQLite (`core/library.rs`, em
+  `app_data_dir/library.sqlite3`) guarda metadados para busca, filtros e ordenação instantâneos.
+  `reconcile` adiciona, atualiza (tamanho/data mudaram) e remove itens comparando com o disco; só
+  arquivos novos ou alterados são sondados. Roda no início, ao abrir a biblioteca e ao mudar as pastas.
+- **Novas capturas entram na hora:** screenshots e gravações são registradas com os metadados que o
+  FrameLy já conhece, sem sondagem.
+- **Metadados e miniaturas:** vídeos via AVFoundation (duração, tamanho com rotação; quadro a ~1 s);
+  imagens via ImageIO no macOS e `image` no Windows. Miniaturas JPEG (≤ 480 px) geradas sob demanda
+  em `framely://localhost/thumb/<id>` e guardadas em cache (chave inclui o tamanho do arquivo).
+- **Reprodução:** o visualizador usa o asset protocol do Tauri (suporta *range requests*, necessário
+  para `<video>`), com escopo limitado às duas pastas de mídia.
+- **Excluir = mover para a Lixeira** (`trash`), sempre com confirmação. Renomear valida nomes que
+  funcionam em macOS e Windows e preserva a extensão.
+
 ## Comportamento de ciclo de vida
 
 - Fechar a janela principal a **esconde**; o app continua na bandeja (gravações sobrevivem).
@@ -142,6 +159,6 @@ AVCaptureSession (microfone escolhido, relógio convertido p/ host) ─┤→ Au
 
 ## Segurança
 
-- CSP restritiva; o asset protocol está desligado até a biblioteca precisar dele.
+- CSP restritiva; o asset protocol só alcança as pastas de gravações e screenshots.
 - A UI não tem permissão genérica de abrir caminhos: `open_folder` só aceita as pastas do FrameLy, e
   as ações da prévia só operam sobre a última captura feita pelo próprio app.

@@ -420,6 +420,14 @@ async fn deliver(app: &AppHandle, frame: Frame) -> AppResult<()> {
         copied = info.copied,
         "screenshot delivered"
     );
+    if let Some(path) = &last.path {
+        let meta = crate::core::library::Meta {
+            width: Some(last.width),
+            height: Some(last.height),
+            duration_ms: None,
+        };
+        crate::library::add(app, path, meta);
+    }
     *state(app).screenshots.last.lock().unwrap() = Some(Arc::new(last));
     app.emit(COMPLETED_EVENT, &info)?;
     if settings.capture.show_preview {
@@ -449,6 +457,14 @@ pub fn save_last(app: &AppHandle) -> AppResult<CaptureInfo> {
         copied: last.copied,
     });
     let info = updated.info();
+    if let Some(path) = &updated.path {
+        let meta = crate::core::library::Meta {
+            width: Some(updated.width),
+            height: Some(updated.height),
+            duration_ms: None,
+        };
+        crate::library::add(app, path, meta);
+    }
     *guard = Some(updated);
     Ok(info)
 }

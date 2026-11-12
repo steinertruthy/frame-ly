@@ -29,6 +29,15 @@ pub fn respond(app: &AppHandle, path: &str) -> Response<Vec<u8>> {
             .map(|b| image("image/bmp", b))
             .unwrap_or_else(not_found);
     }
+    if let Some(id) = path.strip_prefix("thumb/").and_then(|s| s.parse::<i64>().ok()) {
+        return match crate::library::thumbnail(app, id) {
+            Ok(bytes) => image("image/jpeg", bytes),
+            Err(e) => {
+                tracing::debug!(id, error = %e, "thumbnail unavailable");
+                not_found()
+            }
+        };
+    }
     if path == "last-recording-thumb" {
         let thumb =
             app.state::<AppState>().recordings.last.lock().unwrap().as_ref().and_then(|l| l.thumb.clone());

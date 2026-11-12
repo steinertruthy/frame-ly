@@ -3,6 +3,7 @@
 
 pub mod errors;
 pub mod image;
+pub mod library;
 pub mod locale;
 pub mod logging;
 #[allow(dead_code)] // consumed by the capture pipeline from Stage 2

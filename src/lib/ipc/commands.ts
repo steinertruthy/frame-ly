@@ -6,6 +6,9 @@ import type {
   AudioDevice,
   CaptureInfo,
   CaptureRequest,
+  LibraryItem,
+  LibraryOverview,
+  LibraryQuery,
   OverlayInit,
   RecordRequest,
   RecordingInfo,
@@ -68,6 +71,14 @@ export const commands = {
   shortcutStatus: () => invoke<ShortcutStatus>('shortcut_status'),
   suspendShortcuts: () => invoke<void>('suspend_shortcuts'),
   resumeShortcuts: () => invoke<void>('resume_shortcuts'),
+  libraryList: (query: LibraryQuery) => invoke<LibraryItem[]>('library_list', { query }),
+  libraryOverview: () => invoke<LibraryOverview>('library_overview'),
+  libraryRefresh: () => invoke<void>('library_refresh'),
+  libraryRename: (id: number, name: string) => invoke<LibraryItem>('library_rename', { id, name }),
+  libraryTrash: (id: number) => invoke<void>('library_trash', { id }),
+  libraryCopy: (id: number) => invoke<void>('library_copy', { id }),
+  libraryReveal: (id: number) => invoke<void>('library_reveal', { id }),
+  libraryOpen: (id: number) => invoke<void>('library_open', { id }),
 };
 
 export const events = {
@@ -82,6 +93,7 @@ export const events = {
   onRecordingWarning: (cb: (code: RecordingWarning) => void): Promise<UnlistenFn> =>
     listen<RecordingWarning>('recording://warning', (e) => cb(e.payload)),
   onPanelShown: (cb: () => void): Promise<UnlistenFn> => listen('panel://shown', () => cb()),
+  onLibraryChanged: (cb: () => void): Promise<UnlistenFn> => listen('library://changed', () => cb()),
   onNavigate: (cb: (page: string) => void): Promise<UnlistenFn> => listen<string>('main://navigate', (e) => cb(e.payload)),
   onShortcutStatus: (cb: (s: ShortcutStatus) => void): Promise<UnlistenFn> =>
     listen<ShortcutStatus>('shortcuts://status', (e) => cb(e.payload)),

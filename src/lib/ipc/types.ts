@@ -141,3 +141,35 @@ export interface CaptureInfo {
 
 /** Per-action registration error from the OS (null = registered). Missing = disabled. */
 export type ShortcutStatus = Partial<Record<ShortcutAction, string | null>>;
+
+export type MediaKind = 'video' | 'image';
+export type LibraryFilter = 'all' | 'video' | 'image';
+export type LibrarySort = 'newest' | 'oldest' | 'name' | 'size';
+
+export interface LibraryItem {
+  id: number;
+  kind: MediaKind;
+  path: string;
+  name: string;
+  /** Unix ms. */
+  createdAt: number;
+  size: number;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+}
+
+export interface LibraryQuery {
+  search: string;
+  filter: LibraryFilter;
+  sort: LibrarySort;
+  limit?: number;
+}
+
+export interface LibraryOverview {
+  videos: number;
+  videoBytes: number;
+  images: number;
+  imageBytes: number;
+  freeBytes: number | null;
+}

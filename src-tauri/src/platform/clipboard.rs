@@ -55,3 +55,20 @@ pub fn copy_file(path: &std::path::Path) -> AppResult<()> {
         arboard::Clipboard::new().map_err(|e| AppError::Platform(format!("clipboard: {e}")))?;
     clipboard.set().file_list(&[path]).map_err(|e| AppError::Platform(format!("clipboard: {e}")))
 }
+
+/// Copies an image file (PNG/JPEG) as image data.
+pub fn copy_image_file(path: &std::path::Path) -> AppResult<()> {
+    let bytes = std::fs::read(path)?;
+    let is_png = bytes.starts_with(b"\x89PNG");
+    let rgba = ::image::load_from_memory(&bytes)
+        .map_err(|e| AppError::Platform(format!("cannot read image: {e}")))?
+        .to_rgba8();
+    let (w, h) = rgba.dimensions();
+    let mut bgra = rgba.into_raw();
+    for px in bgra.chunks_exact_mut(4) {
+        px.swap(0, 2);
+    }
+    let frame = Frame::new(w, h, bgra)?;
+    let png = if is_png { bytes } else { crate::core::image::encode_png(&frame)? };
+    copy_image(&png, &frame)
+}

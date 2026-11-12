@@ -11,6 +11,7 @@ use crate::core::{errors::AppResult, image::Frame};
 use serde::{Deserialize, Serialize};
 
 pub mod clipboard;
+pub mod disk;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(windows)]
@@ -139,6 +140,11 @@ pub trait CaptureBackend: Send + Sync {
     fn mic_monitor_start(&self, device_id: Option<&str>) -> AppResult<()>;
     fn mic_monitor_level(&self) -> f32;
     fn mic_monitor_stop(&self);
+
+    /// Duration and size of a video file.
+    fn video_info(&self, path: &std::path::Path) -> AppResult<crate::core::library::Meta>;
+    /// JPEG thumbnail (longest side ≤ `max_pixels`) of an image or video at `dest`.
+    fn thumbnail(&self, path: &std::path::Path, dest: &std::path::Path, max_pixels: u32) -> AppResult<()>;
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]

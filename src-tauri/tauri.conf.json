@@ -21,7 +21,7 @@
         "connect-src": "'self' ipc: http://ipc.localhost"
       },
       "assetProtocol": {
-        "enable": false,
+        "enable": true,
         "scope": []
       }
     }

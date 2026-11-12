@@ -2,6 +2,7 @@
 
 mod commands;
 mod core;
+mod library;
 mod panel;
 mod platform;
 mod protocol;
@@ -13,7 +14,7 @@ mod windows;
 
 use crate::core::settings::{DefaultDirs, SettingsStore};
 use std::{path::PathBuf, sync::Arc};
-use tauri::{Manager, RunEvent, WindowEvent};
+use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
 /// Process-wide state shared with IPC commands.
 pub struct AppState {
@@ -21,6 +22,7 @@ pub struct AppState {
     pub backend: Arc<dyn platform::CaptureBackend>,
     pub screenshots: screenshot::Screenshots,
     pub recordings: recording::Recordings,
+    pub library: library::LibraryService,
     pub log_dir: PathBuf,
     _log_guard: Option<tracing_appender::non_blocking::WorkerGuard>,
 }
@@ -32,15 +34,20 @@ enum CliAction {
     StopRecording,
     TogglePause,
     Panel,
+    Show(String),
 }
 
-/// `framely --panel`, `framely --capture region|window|screen|cancel` and
+/// `framely --panel`, `framely --show home|library|settings`, `framely --capture region|window|screen|cancel` and
 /// `framely --record region|window|screen|stop|pause` (forwarded to the running instance) —
 /// lets people bind FrameLy in launchers and automation tools.
 fn cli_action(argv: &[String]) -> Option<CliAction> {
     use screenshot::{Request, SelectMode};
     if argv.iter().any(|a| a == "--panel") {
         return Some(CliAction::Panel);
+    }
+    if let Some(i) = argv.iter().position(|a| a == "--show") {
+        let page = argv.get(i + 1).cloned().unwrap_or_else(|| "home".into());
+        return Some(CliAction::Show(page));
     }
     if let Some(i) = argv.iter().position(|a| a == "--record") {
         return match argv.get(i + 1).map(String::as_str) {
@@ -85,6 +92,10 @@ fn run_cli_action(app: &tauri::AppHandle, action: CliAction) {
             }
         }
         CliAction::Panel => panel::toggle(app, None),
+        CliAction::Show(page) => {
+            windows::show_main(app);
+            let _ = app.emit_to(windows::MAIN, "main://navigate", page);
+        }
     }
 }
 
@@ -124,11 +135,15 @@ pub fn run() {
                 backend: Arc::from(platform::backend()),
                 screenshots: Default::default(),
                 recordings: Default::default(),
+                library: Default::default(),
                 log_dir,
                 _log_guard: log_guard,
             });
 
             recording::recover(&handle);
+            if let Err(e) = library::init(&handle) {
+                tracing::error!(error = %e, "library unavailable");
+            }
             windows::create_main(&handle, initial.appearance.theme)?;
             if let Some(action) = cli_action(&std::env::args().collect::<Vec<_>>()) {
                 run_cli_action(&handle, action);
@@ -195,6 +210,14 @@ pub fn run() {
             commands::system::shortcut_status,
             commands::system::suspend_shortcuts,
             commands::system::resume_shortcuts,
+            commands::library::library_list,
+            commands::library::library_overview,
+            commands::library::library_refresh,
+            commands::library::library_rename,
+            commands::library::library_trash,
+            commands::library::library_copy,
+            commands::library::library_reveal,
+            commands::library::library_open,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build FrameLy");

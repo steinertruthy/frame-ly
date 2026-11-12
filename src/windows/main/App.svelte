@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { House, Settings as SettingsIcon } from '@lucide/svelte';
+  import { House, Images, Settings as SettingsIcon } from '@lucide/svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import LogoMark from '$lib/components/LogoMark.svelte';
   import Toaster from '$lib/components/Toaster.svelte';
@@ -8,12 +8,14 @@
   import { events } from '$lib/ipc/commands';
   import Home from './pages/Home.svelte';
   import Settings from './pages/Settings.svelte';
+  import Library from './pages/Library.svelte';
 
   let { info }: { info: AppInfo } = $props();
 
-  type Page = 'home' | 'settings';
+  type Page = 'home' | 'library' | 'settings';
   const nav: { id: Page; label: MessageKey; icon: typeof House }[] = [
     { id: 'home', label: 'nav.home', icon: House },
+    { id: 'library', label: 'nav.library', icon: Images },
     { id: 'settings', label: 'nav.settings', icon: SettingsIcon },
   ];
   let page = $state<Page>('home');
@@ -21,7 +23,7 @@
   // The quick panel and tray can open a specific page.
   $effect(() => {
     const un = events.onNavigate((p) => {
-      if (p === 'home' || p === 'settings') page = p;
+      if (p === 'home' || p === 'library' || p === 'settings') page = p;
     });
     return () => void un.then((u) => u());
   });
@@ -64,7 +66,9 @@
     {#key page}
       <div class="page">
         {#if page === 'home'}
-          <Home {info} />
+          <Home {info} onnavigate={(p: Page) => (page = p)} />
+        {:else if page === 'library'}
+          <Library />
         {:else}
           <Settings {info} />
         {/if}

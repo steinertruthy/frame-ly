@@ -16,7 +16,7 @@
 | `cargo test` (em `src-tauri/`) | Testes unitários do core. |
 | `cargo clippy --all-targets -- -D warnings` | Lint. |
 | `pnpm tauri build` | Pacote de release (.app/.dmg, NSIS). |
-| `pnpm check:windows` | Clippy do código Windows a partir do macOS (requer `brew install llvm`). |
+| `pnpm check:windows` | Clippy do código Windows a partir do macOS (alvo `x86_64-pc-windows-gnu`; requer `brew install mingw-w64` e `rustup target add x86_64-pc-windows-gnu`). |
 | `pnpm app:mac` | Build de debug assinado com a identidade de dev e abre o app (testes de permissão). |
 | `swift test` (em `native/macos/FrameLyKit/`) | Testes da engine Swift. |
 | `cargo test -- --ignored` | Testes "ao vivo" contra as APIs reais do SO (lista, captura). |
@@ -24,6 +24,7 @@
 | `<app>/Contents/MacOS/framely --capture region` | Dispara ações no app aberto (`region`, `window`, `screen`, `cancel`). |
 | `<app>/Contents/MacOS/framely --record screen` | Controla gravações (`region`, `window`, `screen`, `pause`, `stop`). |
 | `<app>/Contents/MacOS/framely --panel` | Abre/fecha o painel rápido. |
+| `<app>/Contents/MacOS/framely --show library` | Abre a janela principal numa página (`home`, `library`, `settings`). |
 
 ## Logs e depuração
 
@@ -37,8 +38,9 @@
 
 ## Windows
 
-O código Windows não pode ser compilado por completo no macOS (`tauri-build` precisa do compilador de
-recursos do Windows). Use a VM Windows 11 ARM (Parallels) para rodar e testar, e o CI para x64.
+No macOS, `pnpm check:windows` verifica o código Windows pelo alvo GNU (mingw-w64), que traz os
+headers C necessários para compilar o SQLite embutido. O build real (MSVC) roda no CI e na VM
+Windows 11 ARM (Parallels), onde o app é executado e testado.
 
 ## Assinatura no macOS (sem Developer ID)
 

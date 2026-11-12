@@ -107,4 +107,13 @@ impl CaptureBackend for WinBackend {
     }
 
     fn mic_monitor_stop(&self) {}
+
+    // Video metadata/thumbnails come with Media Foundation in Stage 4.
+    fn video_info(&self, _: &std::path::Path) -> AppResult<crate::core::library::Meta> {
+        Err(AppError::Platform("video metadata is not available on Windows yet".into()))
+    }
+
+    fn thumbnail(&self, path: &std::path::Path, dest: &std::path::Path, max_pixels: u32) -> AppResult<()> {
+        crate::core::image::thumbnail_file(path, dest, max_pixels)
+    }
 }

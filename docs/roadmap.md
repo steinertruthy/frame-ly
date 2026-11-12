@@ -9,8 +9,8 @@
 | 4 | Gravação de vídeo no Windows (WGC + Media Foundation) | ⏳ |
 | 5 | Áudio: microfone, sistema, mix, sincronização (macOS; Windows junto da Etapa 4) | ✅ |
 | 6 | Painel rápido da bandeja + atalhos globais | ✅ |
-| 7 | Biblioteca + Dashboard | ⏳ |
-| 8 | Editor de screenshots | |
+| 7 | Biblioteca + Dashboard | ✅ |
+| 8 | Editor de screenshots | ⏳ |
 | 9 | Ajustes completos, polimento, instaladores, assinatura | |
 
 ## Limitações conhecidas (v1)
@@ -24,3 +24,6 @@
 - H.264 é limitado a 4096×2304 pelo hardware: gravações nativas de telas 5K em H.264 são reduzidas
   proporcionalmente (use HEVC para manter a resolução total).
 - Gravação de vídeo ainda não está disponível no Windows (Etapa 4); a interface esconde esses botões lá.
+  Na biblioteca do Windows, vídeos aparecem sem duração/miniatura até a Etapa 4 (Media Foundation).
+- A biblioteca lista os arquivos diretamente nas pastas de gravações e screenshots (sem subpastas) e
+  se atualiza ao abrir a biblioteca; não há monitoramento contínuo do sistema de arquivos.

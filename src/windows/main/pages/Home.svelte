@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { Film, Image, FolderOpen } from '@lucide/svelte';
-  import Button from '$lib/components/Button.svelte';
+  import { onMount } from 'svelte';
+  import MediaTile from '$lib/components/library/MediaTile.svelte';
+  import Viewer from '$lib/components/library/Viewer.svelte';
+  import StorageCard from '$lib/components/library/StorageCard.svelte';
+  import { library } from '$lib/stores/library.svelte';
   import { t } from '$lib/i18n/index.svelte';
-  import { commands } from '$lib/ipc/commands';
-  import type { AppInfo, Folder } from '$lib/ipc/types';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { toast } from '$lib/stores/toasts.svelte';
+  import type { AppInfo } from '$lib/ipc/types';
   import { system } from '$lib/stores/system.svelte';
   import PermissionRow from '$lib/components/PermissionRow.svelte';
   import CaptureActions from '$lib/components/CaptureActions.svelte';
@@ -14,17 +14,9 @@
   import AudioBar from '$lib/components/AudioBar.svelte';
   import { recording } from '$lib/stores/recording.svelte';
 
-  let { info }: { info: AppInfo } = $props();
-  const storage = $derived(settings.value?.storage);
-
-  async function open(folder: Folder) {
-    try {
-      await commands.openFolder(folder);
-    } catch (e) {
-      console.error(e);
-      toast('error', t('error.io'));
-    }
-  }
+  let { info, onnavigate }: { info: AppInfo; onnavigate: (page: 'library') => void } = $props();
+  let viewing = $state<number | null>(null);
+  onMount(() => void library.init());
 </script>
 
 <header class="hero">
@@ -59,20 +51,25 @@
 <h2 class="label">{t('capture.title')}</h2>
 <CaptureActions disabled={!system.screenReady || recording.active} />
 
-{#if storage}
-  <h2 class="label">{t('home.folders')}</h2>
-  <div class="grid">
-    {#each [{ id: 'recordings' as const, icon: Film, title: t('home.folders.recordings'), path: storage.recordingsDir }, { id: 'screenshots' as const, icon: Image, title: t('home.folders.screenshots'), path: storage.screenshotsDir }] as f (f.id)}
-      <article class="folder">
-        <div class="icon"><f.icon size={18} /></div>
-        <div class="meta">
-          <div class="name">{f.title}</div>
-          <div class="path" title={f.path}><span>{f.path}</span></div>
-        </div>
-        <Button size="sm" onclick={() => open(f.id)}><FolderOpen size={14} />{t('home.open')}</Button>
-      </article>
+{#if library.recent.length}
+  <div class="label-row">
+    <h2 class="label">{t('home.recent')}</h2>
+    <button class="see-all" onclick={() => onnavigate('library')}>{t('home.seeAll')}</button>
+  </div>
+  <div class="recent">
+    {#each library.recent as item (item.id)}
+      <MediaTile {item} onopen={(i) => (viewing = i.id)} />
     {/each}
   </div>
+{/if}
+
+{#if library.overview}
+  <h2 class="label">{t('home.storage')}</h2>
+  <StorageCard overview={library.overview} />
+{/if}
+
+{#if viewing !== null}
+  <Viewer items={library.recent} bind:id={viewing} onclose={() => (viewing = null)} />
 {/if}
 
 <p class="foot">FrameLy {info.version} · {info.platform} {info.arch}</p>
@@ -81,7 +78,7 @@
   .hero {
     position: relative;
     overflow: hidden;
-    padding: 36px 32px;
+    padding: 22px 28px;
     border-radius: var(--radius-xl);
     background: var(--hero);
     color: #fff;
@@ -99,14 +96,14 @@
   }
   .hero h1 {
     position: relative;
-    font-size: var(--text-2xl);
+    font-size: var(--text-xl);
     font-weight: 700;
   }
   .hero p {
     position: relative;
     margin-top: 6px;
     color: rgba(233, 238, 252, 0.78);
-    font-size: var(--text-lg);
+    font-size: var(--text-md);
   }
   .setup {
     margin-top: var(--space-5);
@@ -143,57 +140,22 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
   }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: var(--space-3);
-  }
-  .folder {
+  .label-row {
     display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-    box-shadow: var(--shadow-sm);
-    transition:
-      transform var(--dur-med) var(--ease-out),
-      box-shadow var(--dur-med) var(--ease-out);
+    align-items: baseline;
+    justify-content: space-between;
   }
-  .folder:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-  }
-  .icon {
-    display: grid;
-    place-items: center;
-    width: 38px;
-    height: 38px;
-    border-radius: var(--radius-md);
-    background: var(--accent-soft);
+  .see-all {
+    border: 0;
+    background: none;
     color: var(--accent);
-    flex-shrink: 0;
-  }
-  .meta {
-    flex: 1;
-    min-width: 0;
-  }
-  .name {
+    font-size: var(--text-sm);
     font-weight: 600;
   }
-  .path {
-    color: var(--text-3);
-    font-size: var(--text-sm);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    /* Truncate from the left so the meaningful end of the path stays visible. */
-    direction: rtl;
-    text-align: left;
-  }
-  .path span {
-    direction: ltr;
-    unicode-bidi: isolate;
+  .recent {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: var(--space-3);
   }
   .foot {
     margin-top: var(--space-6);

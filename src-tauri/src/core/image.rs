@@ -134,9 +134,38 @@ pub fn encode_bmp(frame: &Frame) -> Vec<u8> {
     out
 }
 
+/// Pixel size of an image file, read from its header only.
+pub fn image_dimensions(path: &std::path::Path) -> Option<(u32, u32)> {
+    ::image::image_dimensions(path).ok()
+}
+
+/// Portable JPEG thumbnail of a PNG/JPEG file (used where no native thumbnailer exists:
+/// Windows; macOS uses ImageIO through FrameLyKit).
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn thumbnail_file(path: &std::path::Path, dest: &std::path::Path, max_pixels: u32) -> AppResult<()> {
+    let img = ::image::open(path).map_err(|e| AppError::Platform(format!("cannot read image: {e}")))?;
+    let thumb = img.thumbnail(max_pixels, max_pixels).to_rgb8();
+    thumb
+        .save_with_format(dest, ::image::ImageFormat::Jpeg)
+        .map_err(|e| AppError::Platform(format!("cannot write thumbnail: {e}")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn portable_thumbnail_and_dimensions() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("shot.png");
+        let bgra: Vec<u8> = (0..300 * 150).flat_map(|i| [(i % 255) as u8, 80, 160, 255]).collect();
+        std::fs::write(&src, encode_png(&Frame::new(300, 150, bgra).unwrap()).unwrap()).unwrap();
+        assert_eq!(image_dimensions(&src), Some((300, 150)));
+        let dest = tmp.path().join("t.jpg");
+        thumbnail_file(&src, &dest, 100).unwrap();
+        assert_eq!(image_dimensions(&dest), Some((100, 50)));
+        assert!(thumbnail_file(&tmp.path().join("missing.png"), &dest, 100).is_err());
+    }
 
     /// 4x3 frame where pixel (x, y) = B:x G:y R:7 A:255.
     fn sample() -> Frame {

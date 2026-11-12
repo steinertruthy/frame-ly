@@ -18,6 +18,10 @@ pub enum AppError {
     Platform(String),
     #[error("Nothing was recorded")]
     EmptyRecording,
+    #[error("Item not found")]
+    NotFound,
+    #[error("Invalid file name: {0}")]
+    InvalidName(String),
 }
 
 impl AppError {
@@ -30,6 +34,8 @@ impl AppError {
             AppError::PermissionDenied(_) => "permission_denied",
             AppError::Platform(_) => "platform",
             AppError::EmptyRecording => "empty_recording",
+            AppError::NotFound => "not_found",
+            AppError::InvalidName(_) => "invalid_name",
         }
     }
 }

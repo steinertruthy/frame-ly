@@ -599,6 +599,15 @@ async fn deliver(app: &AppHandle, active: Active, stats: RecordingStats) -> AppR
     .await?;
     let info = last.info();
     tracing::info!(path = %info.path, duration_ms = info.duration_ms, bytes = info.bytes, frames = stats.frames, "recording saved");
+    crate::library::add(
+        app,
+        &last.path,
+        crate::core::library::Meta {
+            width: Some(last.width),
+            height: Some(last.height),
+            duration_ms: Some(last.duration_ms),
+        },
+    );
     *state(app).recordings.last.lock().unwrap() = Some(Arc::new(last));
     app.emit(FINISHED_EVENT, &info)?;
     screenshot::show_preview(app, PreviewKind::Video)?;
