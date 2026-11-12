@@ -40,6 +40,10 @@ export const en = {
   'home.storage.free': '{size} free on this disk',
 
   // Recording setup
+  'rec.options.title': 'Recording options',
+  'rec.options.close': 'Close',
+  'rec.options.area': 'Capture area',
+  'rec.options.fps': 'Frame rate',
   'rec.what': 'What to record',
   'rec.sound': 'Sound',
   'rec.more': 'More options',

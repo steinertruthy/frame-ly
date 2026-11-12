@@ -36,6 +36,10 @@ export const de: Messages = {
   'home.storage.images': '{n} Bildschirmfotos',
   'home.storage.free': '{size} frei auf diesem Laufwerk',
 
+  'rec.options.title': 'Aufnahmeoptionen',
+  'rec.options.close': 'Schließen',
+  'rec.options.area': 'Aufnahmebereich',
+  'rec.options.fps': 'Bildrate',
   'rec.what': 'Was aufnehmen',
   'rec.sound': 'Ton',
   'rec.more': 'Weitere Optionen',

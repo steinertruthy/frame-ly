@@ -1,11 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { slide } from 'svelte/transition';
   import { ArrowRight, Camera, Mic, MicOff, SlidersHorizontal, Video, Volume2, VolumeX } from '@lucide/svelte';
   import MediaTile from '$lib/components/library/MediaTile.svelte';
   import Viewer from '$lib/components/library/Viewer.svelte';
   import PermissionRow from '$lib/components/PermissionRow.svelte';
-  import RecordSetup from '$lib/components/RecordSetup.svelte';
+  import RecordOptions from '$lib/components/RecordOptions.svelte';
   import RecordingBanner from '$lib/components/RecordingBanner.svelte';
   import Segmented from '$lib/components/Segmented.svelte';
   import { commands, isAppError } from '$lib/ipc/commands';
@@ -23,6 +22,7 @@
   let { info, onnavigate }: { info: AppInfo; onnavigate: (page: 'library' | 'settings') => void } = $props();
   let viewing = $state<{ items: LibraryItem[]; id: number } | null>(null);
   let customizing = $state(false);
+  let customizeBtn: HTMLButtonElement | undefined = $state();
 
   onMount(() => void library.init());
 
@@ -133,20 +133,26 @@
           <button class="chip" aria-pressed={s?.audio.systemAudio ?? false} onclick={() => toggleAudio('systemAudio')} title={t('audio.system')}>
             {#if s?.audio.systemAudio}<Volume2 size={14} />{:else}<VolumeX size={14} />{/if}<span>{t('home.rec.system')}</span>
           </button>
-          <button class="ghost" class:on={customizing} onclick={() => (customizing = !customizing)} aria-expanded={customizing} title={t('home.rec.customize')}>
-            <SlidersHorizontal size={14} /><span>{t('home.rec.customize')}</span>
-          </button>
+          <span class="anchor">
+            <button
+              class="ghost"
+              class:on={customizing}
+              bind:this={customizeBtn}
+              onclick={() => (customizing = !customizing)}
+              aria-expanded={customizing}
+              aria-haspopup="dialog"
+              title={t('home.rec.customize')}
+            >
+              <SlidersHorizontal size={14} /><span>{t('home.rec.customize')}</span>
+            </button>
+            {#if customizing}<RecordOptions anchor={customizeBtn} onclose={() => (customizing = false)} />{/if}
+          </span>
         </div>
         <button class="btn record" disabled={busy} onclick={record}>
           <span class="dot" aria-hidden="true"></span><span>{t('home.rec.start')}</span>
         </button>
       </div>
     </div>
-    {#if customizing}
-      <div class="setup-body" transition:slide={{ duration: 240 }}>
-        <RecordSetup />
-      </div>
-    {/if}
   {/if}
 </section>
 
@@ -236,7 +242,6 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     border-radius: 14px;
-    overflow: hidden;
     background: var(--surface);
     box-shadow: inset 0 0 0 1px var(--border);
   }
@@ -250,7 +255,11 @@
     padding: 22px 24px 24px;
   }
   .shot {
+    border-radius: 14px 0 0 14px;
     background: var(--hero);
+  }
+  .single .shot {
+    border-radius: 14px;
   }
   .rec {
     box-shadow: inset 1px 0 0 var(--border);
@@ -302,10 +311,9 @@
   .actions :global(.seg) {
     min-width: 0;
   }
-  .setup-body {
-    grid-column: 1 / -1;
-    padding: 18px 24px 22px;
-    box-shadow: inset 0 1px 0 var(--border);
+  .anchor {
+    position: relative;
+    display: inline-flex;
   }
 
   /* Keyboard shortcut chip: "⌥ ⇧ ⌘ 4" */
@@ -515,6 +523,9 @@
     }
     .rec {
       box-shadow: inset 0 1px 0 var(--border);
+    }
+    .shot {
+      border-radius: 14px 14px 0 0;
     }
   }
   @media (max-width: 560px) {

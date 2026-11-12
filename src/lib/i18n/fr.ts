@@ -36,6 +36,10 @@ export const fr: Messages = {
   'home.storage.images': '{n} captures',
   'home.storage.free': '{size} libres sur ce disque',
 
+  'rec.options.title': 'Options d’enregistrement',
+  'rec.options.close': 'Fermer',
+  'rec.options.area': 'Zone de capture',
+  'rec.options.fps': 'Images par seconde',
   'rec.what': 'Quoi enregistrer',
   'rec.sound': 'Son',
   'rec.more': 'Plus d’options',

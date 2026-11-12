@@ -36,6 +36,10 @@ export const ptBR: Messages = {
   'home.storage.images': '{n} screenshots',
   'home.storage.free': '{size} livres neste disco',
 
+  'rec.options.title': 'Opções de gravação',
+  'rec.options.close': 'Fechar',
+  'rec.options.area': 'Área de captura',
+  'rec.options.fps': 'Taxa de quadros',
   'rec.what': 'O que gravar',
   'rec.sound': 'Som',
   'rec.more': 'Mais opções',
