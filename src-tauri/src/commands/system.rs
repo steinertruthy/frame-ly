@@ -155,3 +155,9 @@ pub fn storage_cleanup(app: AppHandle, state: State<'_, AppState>) -> AppResult<
     let _ = state;
     Ok(CacheInfo { bytes: freed })
 }
+
+/// Plays the screenshot cue so people hear what "Sounds" means right after turning it on.
+#[tauri::command]
+pub fn preview_sound() {
+    crate::platform::sound::play_wav(crate::core::sounds::wav_bytes(crate::core::sounds::Cue::Shutter));
+}

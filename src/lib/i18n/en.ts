@@ -243,6 +243,8 @@ export const en = {
   'settings.general.closeToTray.hint.win': 'Your shortcuts and the tray icon keep working.',
   'settings.general.notifications': 'Notifications',
   'settings.general.notifications.hint': 'A short notice when a file is saved and no preview is shown.',
+  'settings.general.sounds': 'Sounds',
+  'settings.general.sounds.hint': 'A soft chime when you take a screenshot and when a recording starts or stops.',
   'settings.permissions': 'Permissions',
   'settings.captures.folder': 'Where to save screenshots',
   'settings.captures.format': 'File type',

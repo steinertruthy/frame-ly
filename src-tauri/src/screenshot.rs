@@ -408,6 +408,7 @@ fn write_capture(dir: &std::path::Path, bytes: &[u8], ext: &str) -> AppResult<Pa
 /// Encodes, saves and/or copies the capture, then shows the preview (or a notification).
 /// `png` may be passed when already encoded (annotated captures come in as PNG).
 pub async fn deliver(app: &AppHandle, frame: Frame, png: Option<Vec<u8>>, intent: Intent) -> AppResult<()> {
+    crate::notify::cue(app, crate::core::sounds::Cue::Shutter);
     let settings = state(app).settings.get();
     let dir = settings.storage.screenshots_dir.clone();
     let opts = settings.capture.clone();

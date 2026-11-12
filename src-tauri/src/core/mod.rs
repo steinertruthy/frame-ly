@@ -11,4 +11,5 @@ pub mod paths;
 pub mod recorder;
 pub mod settings;
 pub mod shortcuts;
+pub mod sounds;
 pub mod video;

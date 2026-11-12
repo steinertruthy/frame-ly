@@ -158,6 +158,16 @@
               <SettingRow title={t('settings.general.notifications')} hint={t('settings.general.notifications.hint')}>
                 <Toggle label={t('settings.general.notifications')} checked={s.general.notifications} onchange={(v) => set((d) => (d.general.notifications = v))} />
               </SettingRow>
+              <SettingRow title={t('settings.general.sounds')} hint={t('settings.general.sounds.hint')}>
+                <Toggle
+                  label={t('settings.general.sounds')}
+                  checked={s.general.sounds}
+                  onchange={(v) => {
+                    set((d) => (d.general.sounds = v));
+                    if (v) void commands.previewSound(); // let people hear what they just turned on
+                  }}
+                />
+              </SettingRow>
             </Section>
             {#if system.permissions}
               <Section title={t('settings.permissions')}>

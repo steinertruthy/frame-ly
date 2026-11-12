@@ -400,6 +400,7 @@ async fn start_native(
         codec = ?config.codec,
         "recording started"
     );
+    crate::notify::cue(app, crate::core::sounds::Cue::RecordStart);
     let st = state(app);
     let mut inner = st.recordings.inner.lock().unwrap();
     inner.recorder.started(Instant::now())?;
@@ -540,6 +541,8 @@ async fn finish(app: AppHandle, system_stats: Option<RecordingStats>) {
         }
         None => on_worker(move || backend.stop_recording()).await,
     };
+    // After the native stop, so the cue can't leak into the file via loopback audio.
+    crate::notify::cue(&app, crate::core::sounds::Cue::RecordStop);
     let active = state(&app).recordings.inner.lock().unwrap().active.take();
     let result = match (stats, active) {
         (Ok(stats), Some(active)) => deliver(&app, active, stats).await,

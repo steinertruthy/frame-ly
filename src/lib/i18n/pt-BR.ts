@@ -229,6 +229,8 @@ export const ptBR: Messages = {
   'settings.general.closeToTray.hint.win': 'Seus atalhos e o ícone na bandeja continuam funcionando.',
   'settings.general.notifications': 'Notificações',
   'settings.general.notifications.hint': 'Um aviso rápido quando um arquivo é salvo e nenhuma prévia aparece.',
+  'settings.general.sounds': 'Sons',
+  'settings.general.sounds.hint': 'Um som suave ao tirar uma captura e ao iniciar ou terminar uma gravação.',
   'settings.permissions': 'Permissões',
   'settings.captures.folder': 'Onde salvar seus screenshots?',
   'settings.captures.format': 'Tipo de arquivo',

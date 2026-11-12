@@ -74,6 +74,7 @@ export const commands = {
   startupShouldShow: () => invoke<boolean>('startup_should_show'),
   storageCache: () => invoke<{ bytes: number }>('storage_cache'),
   storageCleanup: () => invoke<{ bytes: number }>('storage_cleanup'),
+  previewSound: () => invoke<void>('preview_sound'),
   showMainWindow: (page: 'home' | 'library' | 'settings' | null = null) => invoke<void>('show_main_window', { page }),
   shortcutStatus: () => invoke<ShortcutStatus>('shortcut_status'),
   suspendShortcuts: () => invoke<void>('suspend_shortcuts'),

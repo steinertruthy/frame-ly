@@ -228,6 +228,7 @@ pub fn run() {
             commands::system::startup_should_show,
             commands::system::storage_cache,
             commands::system::storage_cleanup,
+            commands::system::preview_sound,
             commands::recording::start_recording,
             commands::recording::pause_recording,
             commands::recording::resume_recording,

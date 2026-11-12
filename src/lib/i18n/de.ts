@@ -229,6 +229,8 @@ export const de: Messages = {
   'settings.general.closeToTray.hint.win': 'Deine Kurzbefehle und das Symbol im Infobereich bleiben aktiv.',
   'settings.general.notifications': 'Mitteilungen',
   'settings.general.notifications.hint': 'Ein kurzer Hinweis, wenn eine Datei ohne Vorschau gesichert wurde.',
+  'settings.general.sounds': 'Töne',
+  'settings.general.sounds.hint': 'Ein sanfter Klang beim Bildschirmfoto sowie beim Starten und Beenden einer Aufnahme.',
   'settings.permissions': 'Berechtigungen',
   'settings.captures.folder': 'Wo sollen Bildschirmfotos landen?',
   'settings.captures.format': 'Dateityp',

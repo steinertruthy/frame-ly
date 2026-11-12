@@ -177,6 +177,11 @@ AVCaptureSession (microfone escolhido, relógio convertido p/ host) ─┤→ Au
 - `general`: idioma, iniciar com o sistema (`tauri-plugin-autostart`, abre com `--background`),
   mostrar a janela ao abrir, continuar na bandeja ao fechar, notificações
   (`tauri-plugin-notification`, usadas quando a prévia está desligada).
+- Sons (`general.sounds`, ligado por padrão): `core/sounds.rs` sintetiza três sinais curtos (captura,
+  início e fim da gravação) em WAV na memória — sem arquivos de áudio no pacote. Tocados via NSSound
+  (macOS) e `PlaySoundW` assíncrono (Windows). No macOS o áudio do próprio FrameLy é excluído das
+  gravações; o sinal de fim toca só depois que o arquivo foi fechado. No Windows 10 (loopback sem
+  exclusão por processo) o sinal de início pode ser captado — tratar na Etapa 4.
 - `appearance`: tema (padrão escuro), movimento, luz ambiente. `capture`: formato, qualidade JPEG,
   copiar/salvar/prévia. `recording`: alvo padrão, prévia ao terminar, além dos campos anteriores.
 - Migração v1 → v2 preserva o tema `system` de quem já tinha o app.

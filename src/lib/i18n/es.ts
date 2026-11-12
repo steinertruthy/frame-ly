@@ -229,6 +229,8 @@ export const es: Messages = {
   'settings.general.closeToTray.hint.win': 'Tus atajos y el icono de la bandeja siguen funcionando.',
   'settings.general.notifications': 'Notificaciones',
   'settings.general.notifications.hint': 'Un aviso breve cuando se guarda un archivo y no se muestra vista previa.',
+  'settings.general.sounds': 'Sonidos',
+  'settings.general.sounds.hint': 'Un sonido suave al hacer una captura y al empezar o terminar una grabación.',
   'settings.permissions': 'Permisos',
   'settings.captures.folder': '¿Dónde guardar tus capturas?',
   'settings.captures.format': 'Tipo de archivo',

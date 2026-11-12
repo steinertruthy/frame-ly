@@ -67,6 +67,8 @@ pub struct General {
     pub show_on_launch: bool,
     /// System notifications when a capture or recording is saved without the preview card.
     pub notifications: bool,
+    /// A short sound when a screenshot is taken and when a recording starts or stops.
+    pub sounds: bool,
 }
 
 impl Default for General {
@@ -77,6 +79,7 @@ impl Default for General {
             close_to_tray: true,
             show_on_launch: true,
             notifications: true,
+            sounds: true,
         }
     }
 }

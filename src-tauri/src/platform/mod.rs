@@ -14,6 +14,7 @@ pub mod clipboard;
 pub mod disk;
 #[cfg(target_os = "macos")]
 mod macos;
+pub mod sound;
 #[cfg(windows)]
 mod windows;
 

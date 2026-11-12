@@ -229,6 +229,8 @@ export const fr: Messages = {
   'settings.general.closeToTray.hint.win': 'Vos raccourcis et l’icône de la zone de notification restent actifs.',
   'settings.general.notifications': 'Notifications',
   'settings.general.notifications.hint': 'Un bref message quand un fichier est enregistré sans aperçu.',
+  'settings.general.sounds': 'Sons',
+  'settings.general.sounds.hint': 'Un petit son doux à chaque capture, et au début comme à la fin d’un enregistrement.',
   'settings.permissions': 'Autorisations',
   'settings.captures.folder': 'Où enregistrer vos captures ?',
   'settings.captures.format': 'Type de fichier',
