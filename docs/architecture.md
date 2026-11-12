@@ -114,6 +114,19 @@ AVCaptureSession (microfone escolhido, relógio convertido p/ host) ─┤→ Au
 - **Permissão e dispositivo:** com o microfone ligado, a permissão é pedida no início da gravação; se
   negada, ou sem microfone, grava sem ele e avisa. Dispositivo escolhido ausente → padrão do sistema.
 
+## Painel rápido e atalhos
+
+- **Painel** (`panel.rs`, `windows/panel/`): janela criada oculta no início (abre instantaneamente),
+  ancorada ao ícone da bandeja — abaixo dele na barra de menus, acima numa barra de tarefas inferior —
+  e mantida dentro da área útil do monitor. Some ao perder o foco. No macOS é um `NSPanel` não
+  ativante com material nativo de popover: abrir o painel não traz a janela principal para frente.
+  Clique esquerdo no ícone abre o painel; clique direito abre o menu nativo (alternativa acessível).
+- **Atalhos** (`core/shortcuts.rs` + `shortcuts.rs`): modelo puro com normalização, exigência de
+  ⌘/Ctrl/Alt (para não sequestrar a digitação), lista de combinações reservadas por SO e detecção de
+  duplicatas; registro no SO via `tauri-plugin-global-shortcut`. Se outro app já usa a combinação, a
+  falha é reportada por ação e aparece nos Ajustes. Enquanto o usuário grava um novo atalho, os
+  atuais ficam suspensos.
+
 ## Comportamento de ciclo de vida
 
 - Fechar a janela principal a **esconde**; o app continua na bandeja (gravações sobrevivem).

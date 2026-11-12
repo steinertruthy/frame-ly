@@ -9,4 +9,5 @@ pub mod logging;
 pub mod paths;
 pub mod recorder;
 pub mod settings;
+pub mod shortcuts;
 pub mod video;

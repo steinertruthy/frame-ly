@@ -30,6 +30,17 @@ pub fn update_settings(
     if previous.general.language != saved.general.language {
         crate::tray::refresh_labels(&app, saved.general.language);
     }
+    if previous.shortcuts != saved.shortcuts {
+        crate::shortcuts::apply(&app, &saved.shortcuts, state.backend.supports_recording());
+    }
     app.emit(SETTINGS_CHANGED, &saved)?;
     Ok(saved)
+}
+
+/// Restores the default global shortcuts (defaults live only in `core::shortcuts`).
+#[tauri::command]
+pub fn reset_shortcuts(app: AppHandle, state: State<'_, AppState>) -> AppResult<Settings> {
+    let mut next = state.settings.get();
+    next.shortcuts = crate::core::shortcuts::defaults();
+    update_settings(app, state, next)
 }

@@ -24,7 +24,7 @@
 <div class="banner" class:paused={s.phase === 'paused'}>
   <span class="dot" aria-hidden="true"></span>
   <div class="text">
-    <div class="state">{t(label)}{#if s.target} · {t(`record.target.${s.target}`)}{/if}</div>
+    <div class="state">{t(label)}{s.target ? ` · ${t(`record.target.${s.target}`)}` : ''}</div>
     <div class="time">{formatDuration(s.elapsedMs)}</div>
   </div>
   {#if s.audio}

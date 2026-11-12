@@ -2,10 +2,10 @@
 
 Gravação de tela e screenshots para macOS e Windows — simples, rápido e leve.
 
-> Estado atual: **Etapa 5**. Screenshots (região com lupa, janela, tela inteira) e gravação de
-> tela no macOS com áudio do sistema e microfone mixados (AAC), sincronia A/V medida em ~7 ms,
-> contagem regressiva, pausar/retomar, prévia e recuperação de gravações interrompidas. Gravação e
-> áudio no Windows chegam na Etapa 4 — veja [docs/roadmap.md](docs/roadmap.md).
+> Estado atual: **Etapa 6**. Painel rápido na barra de menus (gravar/capturar, monitor, áudio,
+> controles ao vivo) e atalhos globais configuráveis. Screenshots e gravação de tela no macOS com
+> áudio do sistema e microfone. Gravação no Windows chega na Etapa 4 — veja
+> [docs/roadmap.md](docs/roadmap.md).
 
 ## Stack
 
@@ -37,6 +37,18 @@ pnpm tauri build      # pacote de release
 
 Mais em [docs/development.md](docs/development.md).
 
+## Atalhos padrão
+
+| Ação | macOS | Windows |
+|---|---|---|
+| Abrir painel rápido | ⌥⇧⌘Space | Ctrl+Alt+Shift+Space |
+| Capturar tela inteira / região / janela | ⌥⇧⌘3 / 4 / 5 | Ctrl+Alt+Shift+3 / 4 / 5 |
+| Gravar região | ⌥⇧⌘R | Ctrl+Alt+Shift+R |
+| Parar gravação | ⌥⇧⌘S | Ctrl+Alt+Shift+S |
+| Pausar / retomar | ⌥⇧⌘P | Ctrl+Alt+Shift+P |
+
+Todos configuráveis em Ajustes › Atalhos de teclado (gravar janela/tela inteira começam sem atalho).
+
 ## Linha de comando
 
 Com o FrameLy aberto, o executável repassa ações para a instância em execução — útil para Raycast,
@@ -45,4 +57,5 @@ Alfred, Atalhos do macOS ou AutoHotkey:
 ```bash
 /Applications/FrameLy.app/Contents/MacOS/framely --capture region   # region | window | screen | cancel
 /Applications/FrameLy.app/Contents/MacOS/framely --record screen     # region | window | screen | pause | stop
+/Applications/FrameLy.app/Contents/MacOS/framely --panel             # abre/fecha o painel rápido
 ```

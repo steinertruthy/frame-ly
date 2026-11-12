@@ -17,9 +17,34 @@
   import Select from '$lib/components/Select.svelte';
   import Slider from '$lib/components/Slider.svelte';
   import MicTest from '$lib/components/MicTest.svelte';
+  import ShortcutRecorder from '$lib/components/ShortcutRecorder.svelte';
+  import { onMount } from 'svelte';
+  import { events } from '$lib/ipc/commands';
+  import { RECORDING_ACTIONS, SHORTCUT_ACTIONS, type ShortcutAction } from '$lib/shortcuts';
+  import type { AppError, ShortcutStatus } from '$lib/ipc/types';
 
   let { info }: { info: AppInfo } = $props();
   const s = $derived(settings.value);
+
+  let shortcutStatus = $state<ShortcutStatus>({});
+  onMount(() => {
+    void commands.shortcutStatus().then((st) => (shortcutStatus = st));
+    const un = events.onShortcutStatus((st) => (shortcutStatus = st));
+    return () => void un.then((u) => u());
+  });
+  const shortcutActions = $derived(SHORTCUT_ACTIONS.filter((a) => info.supportsRecording || !RECORDING_ACTIONS.includes(a)));
+
+  function describeShortcutError(e: AppError): string | null {
+    if (e.message.includes('reserved')) return t('shortcuts.reserved');
+    if (e.message.includes('needs')) return t('shortcuts.needsModifier');
+    if (e.message.includes('same shortcut')) return t('shortcuts.duplicate');
+    return null;
+  }
+
+  function setShortcut(action: ShortcutAction, accel: string) {
+    void settings.update((d) => (d.shortcuts[action] = accel), describeShortcutError);
+  }
+
 
   async function chooseFolder(kind: 'recordingsDir' | 'screenshotsDir') {
     if (!s) return;
@@ -170,6 +195,25 @@
       {/if}
     </Section>
   {/if}
+
+  <Section title={t('shortcuts.title')}>
+    {#each shortcutActions as action (action)}
+      <SettingRow title={t(`shortcuts.action.${action}`)}>
+        {#if s.shortcuts[action] && shortcutStatus[action]}
+          <Badge tone="warn">{t('shortcuts.inUse')}</Badge>
+        {/if}
+        <ShortcutRecorder
+          label={t(`shortcuts.action.${action}`)}
+          value={s.shortcuts[action] ?? ''}
+          platform={info.platform}
+          onchange={(v) => setShortcut(action, v)}
+        />
+      </SettingRow>
+    {/each}
+    <SettingRow title={t('shortcuts.hint')} hint={t('shortcuts.recordingHint')}>
+      <Button size="sm" variant="ghost" onclick={() => commands.resetShortcuts()}>{t('shortcuts.reset')}</Button>
+    </SettingRow>
+  </Section>
 
   <Section title={t('settings.capture')}>
     <SettingRow title={t('settings.capture.copy')} hint={t('settings.capture.copy.hint')}>

@@ -57,3 +57,36 @@ pub fn log_ui(window: tauri::Window, level: String, message: String) {
         _ => tracing::info!(window = window.label(), %message, "ui"),
     }
 }
+
+#[tauri::command]
+pub fn panel_hide(app: AppHandle) {
+    crate::panel::hide(&app);
+}
+
+/// Opens the main window, optionally on a page ("home" | "settings").
+#[tauri::command]
+pub fn show_main_window(app: AppHandle, page: Option<String>) -> AppResult<()> {
+    use tauri::Emitter;
+    crate::panel::hide(&app);
+    crate::windows::show_main(&app);
+    if let Some(page) = page {
+        app.emit_to(crate::windows::MAIN, "main://navigate", page)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn shortcut_status() -> crate::shortcuts::Status {
+    crate::shortcuts::status()
+}
+
+/// Called while Settings records a new shortcut, so existing ones don't fire.
+#[tauri::command]
+pub fn suspend_shortcuts(app: AppHandle) {
+    crate::shortcuts::suspend(&app);
+}
+
+#[tauri::command]
+pub fn resume_shortcuts(app: AppHandle, state: State<'_, AppState>) {
+    crate::shortcuts::apply(&app, &state.settings.get().shortcuts, state.backend.supports_recording());
+}

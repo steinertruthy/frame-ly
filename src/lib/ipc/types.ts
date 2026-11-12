@@ -1,3 +1,5 @@
+import type { ShortcutAction } from '$lib/shortcuts';
+
 // Mirrors of the Rust IPC types (src-tauri/src/core/settings.rs, commands/system.rs).
 // Keep in sync; serde uses camelCase on the wire.
 
@@ -11,6 +13,7 @@ export interface Settings {
   capture: { copyToClipboard: boolean; saveToDisk: boolean; showPreview: boolean };
   recording: RecordingSettings;
   audio: AudioSettings;
+  shortcuts: Record<ShortcutAction, string>;
   storage: { recordingsDir: string; screenshotsDir: string };
 }
 
@@ -135,3 +138,6 @@ export interface CaptureInfo {
   fileName: string | null;
   copied: boolean;
 }
+
+/** Per-action registration error from the OS (null = registered). Missing = disabled. */
+export type ShortcutStatus = Partial<Record<ShortcutAction, string | null>>;

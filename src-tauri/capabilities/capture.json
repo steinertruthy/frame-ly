@@ -6,11 +6,13 @@
     "overlay-*",
     "preview",
     "countdown",
-    "rec-frame"
+    "rec-frame",
+    "panel"
   ],
   "permissions": [
     "core:default",
     "core:window:allow-show",
-    "core:window:allow-set-focus"
+    "core:window:allow-set-focus",
+    "core:window:allow-hide"
   ]
 }

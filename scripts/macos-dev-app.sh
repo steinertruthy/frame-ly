@@ -24,5 +24,7 @@ fi
 APPLE_SIGNING_IDENTITY="$NAME" pnpm tauri build --debug --bundles app
 APP="src-tauri/target/debug/bundle/macos/FrameLy.app"
 codesign --verify --verbose=1 "$APP"
+# Quit the running copy and wait for it to exit (relaunching too early fails with -600).
 pkill -x framely 2>/dev/null || true
+for _ in $(seq 1 50); do pgrep -x framely >/dev/null || break; sleep 0.1; done
 open "$APP"

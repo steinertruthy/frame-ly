@@ -139,6 +139,8 @@ pub struct Settings {
     pub capture: Capture,
     pub recording: Recording,
     pub audio: Audio,
+    /// Global shortcuts (action → accelerator; empty = off).
+    pub shortcuts: super::shortcuts::Shortcuts,
     pub storage: Storage,
 }
 
@@ -169,6 +171,7 @@ impl Settings {
             capture: Capture::default(),
             recording: Recording::default(),
             audio: Audio::default(),
+            shortcuts: super::shortcuts::defaults(),
             storage: Storage { recordings_dir: d.videos.clone(), screenshots_dir: d.pictures.clone() },
         }
     }
@@ -184,6 +187,7 @@ impl Settings {
                 return Err(AppError::InvalidSettings(format!("{name} must be between 0 and {MAX_GAIN}")));
             }
         }
+        super::shortcuts::validate(&self.shortcuts, super::shortcuts::Os::current())?;
         if self.recording.countdown > MAX_COUNTDOWN {
             return Err(AppError::InvalidSettings(format!("countdown must be at most {MAX_COUNTDOWN}s")));
         }

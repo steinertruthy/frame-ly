@@ -63,6 +63,12 @@ com o entitlement `com.apple.security.device.audio-input` (`src-tauri/Entitlemen
 ele o macOS nega o acesso em silêncio: nenhum aviso aparece e o app nem surge em Ajustes do Sistema ›
 Privacidade › Microfone. Gravação de Tela não precisa de entitlement.
 
+## Observação: área útil do monitor no macOS
+
+O `Monitor::work_area()` do Tauri devolve, no macOS, valores em pontos rotulados como pixels físicos.
+O FrameLy posiciona painel e prévia com a sua própria lista de monitores (`work_area` vinda de
+`NSScreen.visibleFrame` / `rcWork`), cujas unidades são conhecidas.
+
 ## Limitações conhecidas
 
 - `tauri dev` no macOS: as permissões são atribuídas ao app que lançou o processo (Terminal, IDE). Para

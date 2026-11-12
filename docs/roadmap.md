@@ -8,8 +8,8 @@
 | 3 | Gravação de vídeo no macOS (SCK + AVAssetWriter), pausa, recuperação | ✅ |
 | 4 | Gravação de vídeo no Windows (WGC + Media Foundation) | ⏳ |
 | 5 | Áudio: microfone, sistema, mix, sincronização (macOS; Windows junto da Etapa 4) | ✅ |
-| 6 | Painel rápido da bandeja + atalhos globais | |
-| 7 | Biblioteca + Dashboard | |
+| 6 | Painel rápido da bandeja + atalhos globais | ✅ |
+| 7 | Biblioteca + Dashboard | ⏳ |
 | 8 | Editor de screenshots | |
 | 9 | Ajustes completos, polimento, instaladores, assinatura | |
 

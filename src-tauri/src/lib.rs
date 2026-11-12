@@ -2,10 +2,12 @@
 
 mod commands;
 mod core;
+mod panel;
 mod platform;
 mod protocol;
 mod recording;
 mod screenshot;
+mod shortcuts;
 mod tray;
 mod windows;
 
@@ -29,13 +31,17 @@ enum CliAction {
     Record(recording::Request),
     StopRecording,
     TogglePause,
+    Panel,
 }
 
-/// `framely --capture region|window|screen|cancel` and
+/// `framely --panel`, `framely --capture region|window|screen|cancel` and
 /// `framely --record region|window|screen|stop|pause` (forwarded to the running instance) —
 /// lets people bind FrameLy in launchers and automation tools.
 fn cli_action(argv: &[String]) -> Option<CliAction> {
     use screenshot::{Request, SelectMode};
+    if argv.iter().any(|a| a == "--panel") {
+        return Some(CliAction::Panel);
+    }
     if let Some(i) = argv.iter().position(|a| a == "--record") {
         return match argv.get(i + 1).map(String::as_str) {
             Some("region") => {
@@ -78,6 +84,7 @@ fn run_cli_action(app: &tauri::AppHandle, action: CliAction) {
                 tracing::warn!(error = %e, "pause from CLI failed");
             }
         }
+        CliAction::Panel => panel::toggle(app, None),
     }
 }
 
@@ -90,6 +97,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(shortcuts::plugin())
         // In-memory images for overlays and the preview: framely://localhost/frame/<display>
         // (frozen frame, BMP) and framely://localhost/last (last capture, PNG).
         .register_asynchronous_uri_scheme_protocol("framely", |ctx, request, responder| {
@@ -126,20 +134,27 @@ pub fn run() {
                 run_cli_action(&handle, action);
             }
             tray::create(&handle, initial.general.language)?;
+            panel::create(&handle)?;
+            let supports_recording = handle.state::<AppState>().backend.supports_recording();
+            shortcuts::apply(&handle, &initial.shortcuts, supports_recording);
             Ok(())
         })
-        .on_window_event(|window, event| {
+        .on_window_event(|window, event| match event {
             // Closing the main window keeps FrameLy alive in the tray (recordings must survive it).
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == windows::MAIN {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
+            WindowEvent::CloseRequested { api, .. } if window.label() == windows::MAIN => {
+                api.prevent_close();
+                let _ = window.hide();
             }
+            // The quick panel behaves like a popover: clicking anywhere else dismisses it.
+            WindowEvent::Focused(false) if window.label() == panel::PANEL => {
+                panel::on_blur(window.app_handle())
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             commands::settings::get_settings,
             commands::settings::update_settings,
+            commands::settings::reset_shortcuts,
             commands::system::app_info,
             commands::system::open_folder,
             commands::system::log_ui,
@@ -175,6 +190,11 @@ pub fn run() {
             commands::recording::mic_test_start,
             commands::recording::mic_test_level,
             commands::recording::mic_test_stop,
+            commands::system::panel_hide,
+            commands::system::show_main_window,
+            commands::system::shortcut_status,
+            commands::system::suspend_shortcuts,
+            commands::system::resume_shortcuts,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build FrameLy");

@@ -24,3 +24,12 @@ pub fn configure_overlay(window: &WebviewWindow, display: &Display) {
 pub fn configure_floating(window: &WebviewWindow) {
     exclude_from_capture(window);
 }
+
+pub fn configure_panel(window: &WebviewWindow) {
+    exclude_from_capture(window);
+}
+
+pub fn show_panel(window: &WebviewWindow) {
+    let _ = window.show();
+    let _ = window.set_focus();
+}

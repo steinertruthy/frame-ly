@@ -5,6 +5,7 @@
   import Toaster from '$lib/components/Toaster.svelte';
   import { t, type MessageKey } from '$lib/i18n/index.svelte';
   import type { AppInfo } from '$lib/ipc/types';
+  import { events } from '$lib/ipc/commands';
   import Home from './pages/Home.svelte';
   import Settings from './pages/Settings.svelte';
 
@@ -16,6 +17,14 @@
     { id: 'settings', label: 'nav.settings', icon: SettingsIcon },
   ];
   let page = $state<Page>('home');
+
+  // The quick panel and tray can open a specific page.
+  $effect(() => {
+    const un = events.onNavigate((p) => {
+      if (p === 'home' || p === 'settings') page = p;
+    });
+    return () => void un.then((u) => u());
+  });
 
   // Cmd/Ctrl+, opens Settings, as in every native app.
   function onkeydown(e: KeyboardEvent) {

@@ -64,17 +64,6 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
-pub fn toggle_main(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window(MAIN) {
-        let visible = w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false);
-        if visible && w.is_focused().unwrap_or(false) {
-            let _ = w.hide();
-        } else {
-            show_main(app);
-        }
-    }
-}
-
 pub fn apply_theme(app: &AppHandle, theme: Theme) {
     for w in app.webview_windows().values() {
         if let Err(e) = w.set_theme(to_tauri_theme(theme)) {

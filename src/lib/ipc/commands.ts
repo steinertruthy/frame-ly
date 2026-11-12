@@ -11,6 +11,7 @@ import type {
   RecordingInfo,
   RecordingStatus,
   RecordingWarning,
+  ShortcutStatus,
   Display,
   Folder,
   Permission,
@@ -23,6 +24,7 @@ import type {
 export const commands = {
   getSettings: () => invoke<Settings>('get_settings'),
   updateSettings: (settings: Settings) => invoke<Settings>('update_settings', { settings }),
+  resetShortcuts: () => invoke<Settings>('reset_shortcuts'),
   appInfo: () => invoke<AppInfo>('app_info'),
   openFolder: (folder: Folder) => invoke<void>('open_folder', { folder }),
   listDisplays: () => invoke<Display[]>('list_displays'),
@@ -61,6 +63,11 @@ export const commands = {
   micTestStart: (deviceId: string | null) => invoke<void>('mic_test_start', { deviceId }),
   micTestLevel: () => invoke<number>('mic_test_level'),
   micTestStop: () => invoke<void>('mic_test_stop'),
+  panelHide: () => invoke<void>('panel_hide'),
+  showMainWindow: (page: 'home' | 'settings' | null = null) => invoke<void>('show_main_window', { page }),
+  shortcutStatus: () => invoke<ShortcutStatus>('shortcut_status'),
+  suspendShortcuts: () => invoke<void>('suspend_shortcuts'),
+  resumeShortcuts: () => invoke<void>('resume_shortcuts'),
 };
 
 export const events = {
@@ -74,6 +81,10 @@ export const events = {
     listen<RecordingStatus>('recording://status', (e) => cb(e.payload)),
   onRecordingWarning: (cb: (code: RecordingWarning) => void): Promise<UnlistenFn> =>
     listen<RecordingWarning>('recording://warning', (e) => cb(e.payload)),
+  onPanelShown: (cb: () => void): Promise<UnlistenFn> => listen('panel://shown', () => cb()),
+  onNavigate: (cb: (page: string) => void): Promise<UnlistenFn> => listen<string>('main://navigate', (e) => cb(e.payload)),
+  onShortcutStatus: (cb: (s: ShortcutStatus) => void): Promise<UnlistenFn> =>
+    listen<ShortcutStatus>('shortcuts://status', (e) => cb(e.payload)),
   onRecordingFailed: (cb: (e: AppError) => void): Promise<UnlistenFn> =>
     listen<AppError>('recording://failed', (e) => cb(e.payload)),
 };

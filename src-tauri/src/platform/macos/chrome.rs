@@ -26,3 +26,20 @@ pub fn configure_floating(window: &WebviewWindow) {
     // SAFETY: valid NSWindow pointer used on the main thread.
     on_main(window, |w| unsafe { fl_configure_floating(w) });
 }
+
+extern "C" {
+    fn fl_configure_panel(ns_window: *mut std::ffi::c_void);
+    fn fl_show_panel(ns_window: *mut std::ffi::c_void);
+}
+
+/// Non-activating NSPanel at pop-up-menu level (menu-bar panel).
+pub fn configure_panel(window: &WebviewWindow) {
+    // SAFETY: valid NSWindow pointer used on the main thread.
+    on_main(window, |w| unsafe { fl_configure_panel(w) });
+}
+
+/// Shows and focuses the panel without activating FrameLy (main window stays put).
+pub fn show_panel(window: &WebviewWindow) {
+    // SAFETY: valid NSWindow pointer used on the main thread.
+    on_main(window, |w| unsafe { fl_show_panel(w) });
+}

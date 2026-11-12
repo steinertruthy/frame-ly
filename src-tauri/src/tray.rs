@@ -4,7 +4,7 @@
 
 use crate::{
     core::{errors::AppResult, locale, recorder::Phase, settings::Language},
-    recording, screenshot,
+    panel, recording, screenshot,
     screenshot::{Request, SelectMode},
     windows, AppState,
 };
@@ -116,21 +116,18 @@ pub fn create(app: &AppHandle, language: Language) -> AppResult<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| on_menu(app, event.id.as_ref()))
         .on_tray_icon_event(|tray, event| {
+            // Left click: the quick panel (idle actions, or live controls while recording).
+            // Right click: the native menu, as a keyboard/accessibility-friendly fallback.
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
+                rect,
                 ..
             } = event
             {
-                let app = tray.app_handle().clone();
-                match recording::status(&app).phase {
-                    Phase::Recording | Phase::Paused | Phase::Countdown => {
-                        tauri::async_runtime::spawn(async move {
-                            let _ = recording::stop(app).await;
-                        });
-                    }
-                    _ => windows::toggle_main(&app),
-                }
+                let pos = rect.position.to_physical::<f64>(1.0);
+                let size = rect.size.to_physical::<f64>(1.0);
+                panel::toggle(tray.app_handle(), Some((pos.x, pos.y, size.width, size.height)));
             }
         })
         .build(app)?;
