@@ -215,8 +215,9 @@ AVCaptureSession (microfone escolhido, relógio convertido p/ host) ─┤→ Au
 - Fechar a janela principal a **esconde** (padrão) e o app continua na bandeja; com a opção
   desligada, fechar encerra o app — exceto durante uma gravação, que sempre continua.
 - Esconder a janela principal (fechar, iniciar gravação) usa `windows::hide_main`: em tela cheia no
-  macOS ela sai da tela cheia e só se esconde ao fim da animação — esconder direto deixava o Space
-  de tela cheia vazio e preto.
+  macOS ela fica invisível (alpha 0, sem animação de janela), sai da tela cheia e é escondida ao fim
+  da transição. O usuário vê só o Space deslizando, como ao fechar um app em tela cheia; esconder
+  direto deixava o Space vazio e preto.
 - Uma segunda instância apenas foca a existente (`tauri-plugin-single-instance`).
 - A janela é criada oculta e exibida após o primeiro render (sem flash em branco).
 
