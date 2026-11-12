@@ -188,7 +188,7 @@ pub fn run() {
                     || recording::status(app).phase.is_active();
                 if keep {
                     api.prevent_close();
-                    let _ = window.hide();
+                    windows::hide_main(app);
                 } else {
                     app.exit(0);
                 }

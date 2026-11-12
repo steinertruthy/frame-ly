@@ -336,9 +336,7 @@ pub async fn begin(app: AppHandle, target: Target) -> AppResult<()> {
                     tracing::debug!(error = %e, "region frame unavailable");
                 }
             }
-            if let Some(main) = app.get_webview_window(crate::windows::MAIN) {
-                let _ = main.hide();
-            }
+            crate::windows::hide_main(&app);
             if rec.show_controls {
                 if let Err(e) = open_controls(&app, target.display()) {
                     tracing::warn!(error = %e, "recording controls unavailable");

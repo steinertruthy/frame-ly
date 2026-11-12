@@ -33,3 +33,8 @@ pub fn show_panel(window: &WebviewWindow) {
     let _ = window.show();
     let _ = window.set_focus();
 }
+
+/// Hides a window (full-screen windows have no separate Space on Windows).
+pub fn hide_window(window: &WebviewWindow) {
+    let _ = window.hide();
+}

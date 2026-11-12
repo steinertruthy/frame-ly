@@ -61,6 +61,13 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
+/// Hides the main window — safely from full screen too.
+pub fn hide_main(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window(MAIN) {
+        crate::platform::chrome::hide_window(&w);
+    }
+}
+
 pub fn apply_theme(app: &AppHandle, theme: Theme) {
     for w in app.webview_windows().values() {
         if let Err(e) = w.set_theme(to_tauri_theme(theme)) {

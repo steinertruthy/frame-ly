@@ -6,6 +6,13 @@ use tauri::WebviewWindow;
 extern "C" {
     fn fl_configure_overlay(ns_window: *mut std::ffi::c_void, display_id: u32);
     fn fl_configure_floating(ns_window: *mut std::ffi::c_void);
+    fn fl_hide_window(ns_window: *mut std::ffi::c_void);
+}
+
+/// Hides a window, leaving full screen first (otherwise its Space stays behind, all black).
+pub fn hide_window(window: &WebviewWindow) {
+    // SAFETY: valid NSWindow pointer used on the main thread.
+    on_main(window, |w| unsafe { fl_hide_window(w) });
 }
 
 fn on_main(window: &WebviewWindow, f: impl FnOnce(*mut std::ffi::c_void) + Send + 'static) {
