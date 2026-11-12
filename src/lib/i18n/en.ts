@@ -7,6 +7,8 @@ export const en = {
   'nav.home': 'Home',
   'nav.library': 'Library',
   'nav.settings': 'Settings',
+  'nav.collapse': 'Collapse sidebar',
+  'nav.expand': 'Expand sidebar',
 
   // Home
   'home.shot.title': 'Screenshot',

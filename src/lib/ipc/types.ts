@@ -12,7 +12,7 @@ export type RecordTarget = 'screen' | 'window' | 'region';
 export interface Settings {
   version: number;
   general: { language: Language; launchAtLogin: boolean; closeToTray: boolean; showOnLaunch: boolean; notifications: boolean; sounds: boolean };
-  appearance: { theme: Theme; motion: Motion; ambientLight: boolean };
+  appearance: { theme: Theme; motion: Motion; ambientLight: boolean; sidebarCollapsed: boolean };
   capture: { copyToClipboard: boolean; saveToDisk: boolean; showPreview: boolean; format: ImageFormat; jpegQuality: number };
   recording: RecordingSettings;
   audio: AudioSettings;

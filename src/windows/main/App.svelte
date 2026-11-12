@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { House, Images, Settings as SettingsIcon, Square } from '@lucide/svelte';
+  import { House, Images, PanelLeftClose, PanelLeftOpen, Settings as SettingsIcon, Square } from '@lucide/svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import Aurora from '$lib/components/Aurora.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
@@ -8,6 +8,7 @@
   import type { AppInfo } from '$lib/ipc/types';
   import { commands, events } from '$lib/ipc/commands';
   import { recording, formatDuration } from '$lib/stores/recording.svelte';
+  import { settings } from '$lib/stores/settings.svelte';
   import Home from './pages/Home.svelte';
   import Settings from './pages/Settings.svelte';
   import Library from './pages/Library.svelte';
@@ -21,6 +22,14 @@
     { id: 'settings', label: 'nav.settings', icon: SettingsIcon },
   ];
   let page = $state<Page>('home');
+
+  // Icons only: by choice (saved with the appearance settings) or because the window is narrow.
+  let width = $state(window.innerWidth);
+  const narrow = $derived(width <= 760);
+  const collapsed = $derived(narrow || (settings.value?.appearance.sidebarCollapsed ?? false));
+  function toggleSidebar() {
+    void settings.update((d) => (d.appearance.sidebarCollapsed = !d.appearance.sidebarCollapsed));
+  }
 
   // The quick panel and tray can open a specific page.
   $effect(() => {
@@ -36,6 +45,11 @@
       e.preventDefault();
       page = 'settings';
     }
+    // Cmd/Ctrl+\ shows or hides the sidebar labels.
+    if ((e.metaKey || e.ctrlKey) && e.key === '\\' && !narrow) {
+      e.preventDefault();
+      toggleSidebar();
+    }
   }
 
   // Double-clicking the custom title area zooms the window like a native title bar.
@@ -44,11 +58,11 @@
   }
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} bind:innerWidth={width} />
 
 <Aurora />
 
-<div class="shell" class:mac={info.platform === 'macos'}>
+<div class="shell" class:mac={info.platform === 'macos'} class:collapsed>
   <aside class="sidebar">
     <div class="titlebar" data-drag data-tauri-drag-region role="presentation" {ondblclick}></div>
     <div class="brand" data-tauri-drag-region>
@@ -57,7 +71,14 @@
     </div>
     <nav>
       {#each nav as item (item.id)}
-        <button class="nav-item" class:active={page === item.id} onclick={() => (page = item.id)} aria-current={page === item.id ? 'page' : undefined}>
+        <button
+          class="nav-item"
+          class:active={page === item.id}
+          onclick={() => (page = item.id)}
+          aria-current={page === item.id ? 'page' : undefined}
+          aria-label={collapsed ? t(item.label) : undefined}
+          title={collapsed ? t(item.label) : undefined}
+        >
           <item.icon size={16} strokeWidth={2} />
           <span>{t(item.label)}</span>
         </button>
@@ -68,6 +89,17 @@
         <span class="dot"></span>
         <span class="time">{formatDuration(recording.status.elapsedMs)}</span>
         <Square size={11} fill="currentColor" />
+      </button>
+    {/if}
+    {#if !narrow}
+      {@const label = collapsed ? t('nav.expand') : t('nav.collapse')}
+      <button class="nav-item toggle" onclick={toggleSidebar} aria-label={label} aria-expanded={!collapsed} title={label}>
+        {#if collapsed}
+          <PanelLeftOpen size={16} strokeWidth={2} />
+        {:else}
+          <PanelLeftClose size={16} strokeWidth={2} />
+        {/if}
+        <span>{label}</span>
       </button>
     {/if}
   </aside>
@@ -98,6 +130,10 @@
     grid-template-columns: 208px 1fr;
     grid-template-rows: 100%;
     height: 100%;
+    transition: grid-template-columns var(--dur-slow) var(--ease-out);
+  }
+  .shell.collapsed {
+    grid-template-columns: 64px 1fr;
   }
   .sidebar {
     position: relative;
@@ -106,6 +142,7 @@
     padding: 0 12px 14px;
     background: var(--bg-sidebar);
     box-shadow: inset -1px 0 0 var(--border);
+    overflow: hidden;
   }
   .titlebar {
     height: 18px;
@@ -145,6 +182,23 @@
     transition:
       background var(--dur-fast) var(--ease-out),
       color var(--dur-fast);
+  }
+  .nav-item span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nav-item :global(svg) {
+    flex-shrink: 0;
+  }
+  /* Pinned to the bottom, under the recording timer when there is one. */
+  .toggle {
+    margin-top: auto;
+    font-weight: 500;
+    color: var(--text-3);
+  }
+  .live ~ .toggle {
+    margin-top: 8px;
   }
   .nav-item:hover {
     background: rgba(137, 149, 168, 0.08);
@@ -249,24 +303,25 @@
       transform: translateY(8px);
     }
   }
+  .collapsed .brand span,
+  .collapsed .nav-item span,
+  .collapsed .live .time {
+    display: none;
+  }
+  .collapsed .brand {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .collapsed .nav-item {
+    justify-content: center;
+    padding: 0;
+  }
+  .collapsed .live {
+    justify-content: center;
+    padding: 0;
+  }
   @media (max-width: 760px) {
-    .shell {
-      grid-template-columns: 64px 1fr;
-    }
-    .brand span,
-    .nav-item span,
-    .live .time {
-      display: none;
-    }
-    .brand {
-      justify-content: center;
-      padding-left: 0;
-      padding-right: 0;
-    }
-    .nav-item {
-      justify-content: center;
-      padding: 0;
-    }
     .page {
       padding: 52px 20px 32px;
     }

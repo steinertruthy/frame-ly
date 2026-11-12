@@ -91,11 +91,13 @@ pub struct Appearance {
     pub motion: Motion,
     /// The slowly moving blue light behind the interface.
     pub ambient_light: bool,
+    /// Main window sidebar shows only icons.
+    pub sidebar_collapsed: bool,
 }
 
 impl Default for Appearance {
     fn default() -> Self {
-        Self { theme: Theme::Dark, motion: Motion::System, ambient_light: true }
+        Self { theme: Theme::Dark, motion: Motion::System, ambient_light: true, sidebar_collapsed: false }
     }
 }
 

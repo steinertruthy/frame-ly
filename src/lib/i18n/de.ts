@@ -5,6 +5,8 @@ export const de: Messages = {
   'nav.home': 'Start',
   'nav.library': 'Mediathek',
   'nav.settings': 'Einstellungen',
+  'nav.collapse': 'Seitenleiste einklappen',
+  'nav.expand': 'Seitenleiste ausklappen',
 
   'home.shot.title': 'Bildschirmfoto',
   'home.shot.desc': 'Bereich auswählen, markieren und kopieren – alles in einem Schritt.',

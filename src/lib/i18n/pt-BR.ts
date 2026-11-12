@@ -5,6 +5,8 @@ export const ptBR: Messages = {
   'nav.home': 'Início',
   'nav.library': 'Biblioteca',
   'nav.settings': 'Ajustes',
+  'nav.collapse': 'Recolher barra lateral',
+  'nav.expand': 'Expandir barra lateral',
 
   'home.shot.title': 'Screenshot',
   'home.shot.desc': 'Selecione uma área, faça marcações e copie — tudo de uma vez.',

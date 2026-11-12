@@ -5,6 +5,8 @@ export const fr: Messages = {
   'nav.home': 'Accueil',
   'nav.library': 'Bibliothèque',
   'nav.settings': 'Réglages',
+  'nav.collapse': 'Réduire la barre latérale',
+  'nav.expand': 'Développer la barre latérale',
 
   'home.shot.title': 'Capture',
   'home.shot.desc': 'Sélectionnez une zone, annotez-la et copiez-la — en un seul geste.',

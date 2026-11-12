@@ -5,6 +5,8 @@ export const es: Messages = {
   'nav.home': 'Inicio',
   'nav.library': 'Biblioteca',
   'nav.settings': 'Ajustes',
+  'nav.collapse': 'Contraer barra lateral',
+  'nav.expand': 'Expandir barra lateral',
 
   'home.shot.title': 'Captura',
   'home.shot.desc': 'Selecciona un área, haz anotaciones y cópiala — todo en un paso.',
