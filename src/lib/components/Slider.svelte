@@ -59,8 +59,8 @@
     border-radius: 50%;
     background: #fff;
     box-shadow:
-      0 1px 3px rgba(6, 13, 38, 0.35),
-      0 0 0 0.5px rgba(6, 13, 38, 0.2);
+      0 1px 3px rgba(5, 7, 12, 0.35),
+      0 0 0 0.5px rgba(5, 7, 12, 0.2);
     transition: transform var(--dur-fast);
   }
   input:active::-webkit-slider-thumb {

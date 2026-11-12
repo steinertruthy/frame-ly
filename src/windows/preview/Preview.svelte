@@ -164,7 +164,7 @@
     background: var(--surface);
     box-shadow:
       0 0 0 1px var(--border-strong),
-      0 14px 40px -12px rgba(6, 13, 38, 0.55);
+      0 14px 40px -12px rgba(5, 7, 12, 0.55);
     animation: enter var(--dur-slow) var(--ease-spring);
   }
   .card.leaving {
@@ -212,7 +212,7 @@
     margin: -23px 0 0 -23px;
     padding-left: 3px;
     border-radius: 50%;
-    background: rgba(6, 13, 38, 0.72);
+    background: rgba(5, 7, 12, 0.72);
     color: #fff;
     backdrop-filter: blur(8px);
     transition: transform var(--dur-med) var(--ease-spring);
@@ -226,7 +226,7 @@
     bottom: 8px;
     padding: 2px 7px;
     border-radius: 6px;
-    background: rgba(6, 13, 38, 0.8);
+    background: rgba(5, 7, 12, 0.8);
     color: #fff;
     font: 600 11px/16px var(--font-mono);
   }

@@ -62,7 +62,7 @@
     background: var(--surface);
     box-shadow:
       0 0 0 1px var(--border-strong),
-      0 16px 36px -12px rgba(6, 13, 38, 0.5);
+      0 16px 36px -12px rgba(5, 7, 12, 0.5);
     animation: pop 120ms var(--ease-out);
   }
   @keyframes pop {

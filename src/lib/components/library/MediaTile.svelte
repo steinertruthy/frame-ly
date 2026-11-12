@@ -90,9 +90,8 @@
   .tile:hover .thumb {
     transform: translateY(-2px);
     box-shadow:
-      inset 0 0 0 1px rgba(108, 157, 230, 0.35),
-      0 14px 30px -14px rgba(0, 0, 0, 0.7),
-      0 0 22px -8px var(--glow);
+      inset 0 0 0 1px var(--border-strong),
+      0 14px 30px -14px rgba(0, 0, 0, 0.6);
   }
   .tile:focus-visible .thumb {
     box-shadow: var(--focus-ring);
@@ -114,7 +113,7 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, transparent 55%, rgba(6, 10, 20, 0.55));
+    background: linear-gradient(180deg, transparent 55%, rgba(7, 9, 13, 0.55));
     pointer-events: none;
   }
   .play {
@@ -128,8 +127,8 @@
     height: 22px;
     padding-left: 1px;
     border-radius: 50%;
-    background: rgba(241, 244, 250, 0.92);
-    color: #0c1423;
+    background: rgba(237, 240, 247, 0.92);
+    color: #0b0e14;
     transition: transform var(--dur-med) var(--ease-spring);
   }
   .compact .play {

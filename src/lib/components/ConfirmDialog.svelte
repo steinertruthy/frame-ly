@@ -32,7 +32,7 @@
     position: fixed;
     inset: 0;
     z-index: 120;
-    background: rgba(6, 13, 38, 0.4);
+    background: rgba(5, 7, 12, 0.4);
     animation: fade var(--dur-med);
   }
   .dialog {
@@ -46,7 +46,7 @@
     background: var(--surface);
     box-shadow:
       0 0 0 1px var(--border-strong),
-      0 24px 60px -20px rgba(6, 13, 38, 0.6);
+      0 24px 60px -20px rgba(5, 7, 12, 0.6);
     transform: translate(-50%, -50%);
     animation: pop var(--dur-med) var(--ease-spring);
   }

@@ -159,7 +159,7 @@
     z-index: 100;
     display: grid;
     grid-template-columns: 1fr 300px;
-    background: rgba(4, 9, 24, 0.94);
+    background: rgba(7, 9, 13, 0.94);
     backdrop-filter: blur(20px);
     animation: in var(--dur-med) var(--ease-out);
   }
@@ -233,7 +233,7 @@
     padding: 56px 20px 20px;
     background: rgba(255, 255, 255, 0.03);
     border-left: 1px solid rgba(255, 255, 255, 0.07);
-    color: #e9eefc;
+    color: #edf0f7;
     user-select: text;
   }
   .name {
@@ -263,7 +263,7 @@
     font-size: var(--text-sm);
   }
   dt {
-    color: rgba(233, 238, 252, 0.5);
+    color: rgba(237, 240, 247, 0.5);
   }
   dd {
     margin: 0;
@@ -288,7 +288,7 @@
     border: 0;
     border-radius: 8px;
     background: transparent;
-    color: #e9eefc;
+    color: #edf0f7;
     font-weight: 550;
     text-align: left;
   }
@@ -296,11 +296,11 @@
     background: rgba(255, 255, 255, 0.08);
   }
   .actions .danger {
-    color: #ff7b88;
+    color: #e26d7a;
   }
   .counter {
     margin-top: auto;
-    color: rgba(233, 238, 252, 0.4);
+    color: rgba(237, 240, 247, 0.4);
     font: 500 var(--text-xs) var(--font-mono);
   }
 </style>

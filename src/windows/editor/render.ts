@@ -29,7 +29,7 @@ function readableOutline(color: string): string {
   // Dark outline for light colors and vice versa keeps annotations legible on any background.
   const c = color.replace('#', '');
   const [r, g, b] = [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16));
-  return 0.299 * r! + 0.587 * g! + 0.114 * b! > 150 ? 'rgba(10,21,52,0.85)' : 'rgba(255,255,255,0.95)';
+  return 0.299 * r! + 0.587 * g! + 0.114 * b! > 150 ? 'rgba(5, 7, 12, 0.85)' : 'rgba(255,255,255,0.95)';
 }
 
 /** Pixelates `r` from `source` (destructive in the export: the original pixels are gone). */

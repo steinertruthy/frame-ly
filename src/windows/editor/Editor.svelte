@@ -195,7 +195,7 @@
     if (selected && tool === 'select') {
       const b = bounds(selected);
       const pad = 6 * px * dpr;
-      ctx.strokeStyle = '#4A7BFF';
+      ctx.strokeStyle = '#4C7BD9';
       ctx.lineWidth = 1.5 * px * dpr;
       ctx.setLineDash([5 * px * dpr, 4 * px * dpr]);
       ctx.strokeRect(b.x - pad, b.y - pad, b.w + pad * 2, b.h + pad * 2);
@@ -749,7 +749,7 @@
     border: 0;
     border-radius: 50%;
     background: var(--c);
-    box-shadow: inset 0 0 0 1px rgba(10, 21, 52, 0.25);
+    box-shadow: inset 0 0 0 1px rgba(5, 7, 12, 0.25);
     transition: transform var(--dur-fast) var(--ease-spring);
   }
   .swatch.on {
@@ -792,7 +792,7 @@
     position: relative;
     box-shadow:
       0 0 0 1px var(--border),
-      0 20px 50px -20px rgba(6, 13, 38, 0.55);
+      0 20px 50px -20px rgba(5, 7, 12, 0.55);
   }
   canvas {
     display: block;

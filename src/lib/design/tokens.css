@@ -80,6 +80,7 @@
   --primary-fill: #1f3459;
   --primary-hover: #27416f;
   --primary-border: #325188;
+  --primary-icon: #8bb0ee;
   --nav-active: #172236;
   --nav-active-border: rgba(40, 59, 94, 0.6);
   --brand-tile: #1a2945;
@@ -129,6 +130,9 @@
   --primary-fill: #2b63c4;
   --primary-hover: #2456b0;
   --primary-border: #2456b0;
+  --primary-icon: #ffffff;
+  --ok-500: #12855b;
+  --warn-500: #b7790f;
   --nav-active: #dfe7f4;
   --nav-active-border: rgba(43, 99, 196, 0.2);
   --brand-tile: #dfe7f4;
@@ -174,6 +178,9 @@
     --primary-fill: #2b63c4;
     --primary-hover: #2456b0;
     --primary-border: #2456b0;
+    --primary-icon: #ffffff;
+    --ok-500: #12855b;
+    --warn-500: #b7790f;
     --nav-active: #dfe7f4;
     --nav-active-border: rgba(43, 99, 196, 0.2);
     --brand-tile: #dfe7f4;

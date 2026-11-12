@@ -12,13 +12,13 @@
   .frame {
     position: fixed;
     inset: 1px;
-    border: 2px dashed rgba(255, 75, 92, 0.9);
+    border: 2px dashed rgba(217, 70, 86, 0.9);
     border-radius: 4px;
     animation: breathe 2.4s ease-in-out infinite;
   }
   @keyframes breathe {
     50% {
-      border-color: rgba(255, 75, 92, 0.45);
+      border-color: rgba(217, 70, 86, 0.45);
     }
   }
 </style>

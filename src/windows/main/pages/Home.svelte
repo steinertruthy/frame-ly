@@ -357,7 +357,7 @@
     color: var(--accent-text);
   }
   .primary :global(svg) {
-    color: var(--icon-accent);
+    color: var(--primary-icon);
   }
   .primary:hover:not(:disabled) {
     background: var(--primary-hover);

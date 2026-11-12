@@ -88,7 +88,7 @@
     box-shadow:
       0 10px 30px rgb(0 0 0 / 0.45),
       0 0 0 0.5px rgb(0 0 0 / 0.6);
-    color: #f1f4fa;
+    color: #edf0f7;
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
@@ -97,7 +97,7 @@
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background: var(--rec-500, #ff5468);
+    background: var(--rec-500, #d94656);
     box-shadow: 0 0 0 4px rgb(255 84 104 / 0.18);
     animation: pulse 1.6s ease-in-out infinite;
   }
@@ -118,7 +118,7 @@
     min-width: 4.6ch;
   }
   .paused .clock {
-    color: #8995a8;
+    color: #8b95a8;
   }
   .sep {
     width: 1px;
@@ -129,7 +129,7 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    color: #8995a8;
+    color: #8b95a8;
   }
   .meters span {
     display: flex;
@@ -144,7 +144,7 @@
     border: 0;
     border-radius: 50%;
     background: rgb(255 255 255 / 0.06);
-    color: #f1f4fa;
+    color: #edf0f7;
     cursor: pointer;
     transition: background 0.15s;
   }
@@ -156,14 +156,14 @@
     cursor: default;
   }
   .btn.stop {
-    background: var(--rec-500, #ff5468);
+    background: var(--rec-500, #d94656);
     color: #fff;
   }
   .btn.stop:hover:not(:disabled) {
-    background: #ff6b7c;
+    background: #e25565;
   }
   .btn:focus-visible {
-    outline: 2px solid #3978d7;
+    outline: 2px solid #4c7bd9;
     outline-offset: 2px;
   }
   @media (prefers-reduced-motion: reduce) {

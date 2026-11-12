@@ -42,7 +42,7 @@
     place-items: center;
     border: 0;
     border-radius: 50%;
-    background: rgba(6, 13, 38, 0.82);
+    background: rgba(5, 7, 12, 0.82);
     backdrop-filter: blur(16px);
     color: #fff;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);

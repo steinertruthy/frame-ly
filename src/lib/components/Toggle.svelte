@@ -48,7 +48,7 @@
     height: 18px;
     border-radius: 50%;
     background: #fff;
-    box-shadow: 0 1px 3px rgba(6, 13, 38, 0.3);
+    box-shadow: 0 1px 3px rgba(5, 7, 12, 0.3);
     transition: transform var(--dur-med) var(--ease-spring);
   }
   .on .knob {

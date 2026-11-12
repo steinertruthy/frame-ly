@@ -40,7 +40,7 @@
     color: #fff;
     font-size: var(--text-sm);
     font-weight: 550;
-    box-shadow: 0 10px 30px -8px rgba(6, 13, 38, 0.6);
+    box-shadow: 0 10px 30px -8px rgba(5, 7, 12, 0.6);
   }
   .success :global(svg) {
     color: var(--ok-500);

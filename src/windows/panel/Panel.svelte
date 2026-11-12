@@ -103,7 +103,7 @@
 
 <div class="panel" class:mac={info.platform === 'macos'} bind:this={root} tabindex="-1" role="dialog" aria-label="FrameLy">
   <header>
-    <LogoMark size={20} />
+    <LogoMark size={24} tile />
     <span class="brand">FrameLy</span>
     <button class="icon" title={t('nav.library')} aria-label={t('nav.library')} onclick={() => commands.showMainWindow('library')}><Images size={15} /></button>
     <button class="icon" title={t('panel.settings')} aria-label={t('panel.settings')} onclick={() => commands.showMainWindow('settings')}><Settings size={15} /></button>
@@ -222,14 +222,12 @@
     gap: 12px;
     padding: 12px 14px 12px;
     border-radius: 16px;
-    background: color-mix(in srgb, var(--bg) 88%, transparent);
-    box-shadow:
-      inset 0 0 0 1px var(--border-strong),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    background: color-mix(in srgb, var(--bg) 96%, transparent);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
     animation: open 200ms var(--ease-out);
   }
   .panel.mac {
-    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
   }
   .panel:focus {
     outline: none;
@@ -300,8 +298,8 @@
     width: 40px;
     height: 40px;
     border-radius: 11px;
-    background: rgba(169, 198, 242, 0.16);
-    box-shadow: inset 0 0 0 1px rgba(169, 198, 242, 0.25);
+    background: rgba(139, 176, 238, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(139, 176, 238, 0.25);
   }
   .shot-text {
     flex: 1;
@@ -321,7 +319,7 @@
     border-radius: 6px;
     background: rgba(255, 255, 255, 0.12);
     font-size: 11px;
-    color: rgba(241, 244, 250, 0.85);
+    color: rgba(237, 240, 247, 0.85);
   }
   .shot-more {
     display: flex;
@@ -353,7 +351,7 @@
   /* 2. Recording */
   .rec {
     border-radius: 12px;
-    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    background: var(--surface);
     box-shadow: inset 0 0 0 1px var(--border);
   }
   .rec-row {
@@ -370,24 +368,23 @@
     padding: 0 12px;
     border: 0;
     border-radius: 9px;
-    background: color-mix(in srgb, var(--rec-500) 16%, transparent);
-    color: var(--text);
+    background: var(--rec-500);
+    color: #fff;
     font-weight: 650;
     white-space: nowrap;
     transition: background var(--dur-fast);
   }
   .rec-start:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--rec-500) 26%, transparent);
+    background: var(--rec-hover);
   }
   .rec-start:disabled {
     opacity: 0.5;
   }
   .rec-dot {
-    width: 10px;
-    height: 10px;
     border-radius: 50%;
-    background: var(--rec-500);
-    box-shadow: 0 0 10px var(--rec-500);
+    width: 7px;
+    height: 7px;
+    background: currentColor;
   }
   .rec-summary {
     flex: 1;
@@ -440,12 +437,12 @@
   .link {
     border: 0;
     background: none;
-    color: var(--accent);
+    color: var(--link);
     font-size: var(--text-xs);
-    font-weight: 650;
+    font-weight: 600;
   }
   .link:hover {
-    color: var(--accent-hover);
+    color: var(--link-hover);
   }
 
   /* 4. App */
