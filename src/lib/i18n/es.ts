@@ -270,6 +270,8 @@ export const es: Messages = {
   'settings.recording.cursor.hint': 'Incluye el puntero del ratón en las grabaciones.',
   'settings.recording.preview': 'Mostrar vista previa al terminar',
   'settings.recording.preview.hint': 'Una pequeña tarjeta con la grabación cuando la detienes.',
+  'settings.recording.controls': 'Mostrar controles de grabación',
+  'settings.recording.controls.hint': 'Una pequeña barra flotante con el tiempo, el nivel de sonido, pausa y detener. Nunca aparece en el vídeo.',
   'settings.audio.default': 'Sonido en las nuevas grabaciones',
   'settings.audio.default.hint': 'Puedes cambiarlo antes de cada grabación.',
   'settings.audio.systemSource': 'De dónde viene el sonido del ordenador',

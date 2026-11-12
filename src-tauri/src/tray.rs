@@ -1,6 +1,6 @@
-//! System tray / menu bar icon. Idle: capture and record actions. While recording: a red
-//! (or amber when paused) icon with the elapsed time and stop/pause controls; a left click
-//! stops the recording. The rich quick panel arrives in Stage 6.
+//! System tray / menu bar icon. Left click opens the quick panel (live controls while
+//! recording); right click shows the native menu. While recording the icon turns red (amber
+//! when paused) and the menu offers stop and pause.
 
 use crate::{
     core::{errors::AppResult, locale, recorder::Phase, settings::Language},
@@ -142,11 +142,17 @@ pub fn create(app: &AppHandle, language: Language) -> AppResult<()> {
     Ok(())
 }
 
-/// Reflects the recording phase in the tray: icon, elapsed-time title (macOS) and menu.
+/// Reflects the recording phase in the tray: icon, menu and an elapsed-time tooltip.
+///
+/// No text title next to the icon: on notched MacBooks a wider status item (plus the system's
+/// own recording indicator) gets pushed behind the notch and vanishes. The time is shown in
+/// the floating recording controls and the quick panel instead.
 pub fn show_recording(app: &AppHandle, phase: Phase, elapsed: &str) {
     let Some(tray) = app.tray_by_id(TRAY_ID) else { return };
     let active = matches!(phase, Phase::Recording | Phase::Paused);
-    let _ = tray.set_title(active.then_some(elapsed));
+    let tooltip = locale::tray_strings(locale::current(language(app))).tooltip;
+    let _ =
+        tray.set_tooltip(Some(if active { format!("{tooltip} · {elapsed}") } else { tooltip.to_string() }));
     let mut shown = SHOWN.lock().unwrap();
     if *shown == Some(phase) {
         return;

@@ -284,6 +284,8 @@ export const en = {
   'settings.recording.cursor.hint': 'Include your mouse pointer in recordings.',
   'settings.recording.preview': 'Show a preview when done',
   'settings.recording.preview.hint': 'A small card with the recording when you stop.',
+  'settings.recording.controls': 'Show recording controls',
+  'settings.recording.controls.hint': 'A small floating bar with the time, sound levels, pause and stop. It never appears in the video.',
   'settings.audio.default': 'Sound in new recordings',
   'settings.audio.default.hint': 'You can change it before each recording.',
   'settings.audio.systemSource': 'Where computer sound comes from',

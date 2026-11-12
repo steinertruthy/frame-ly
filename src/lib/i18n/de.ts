@@ -270,6 +270,8 @@ export const de: Messages = {
   'settings.recording.cursor.hint': 'Den Mauszeiger in Aufnahmen einblenden.',
   'settings.recording.preview': 'Am Ende eine Vorschau zeigen',
   'settings.recording.preview.hint': 'Eine kleine Karte mit der Aufnahme, wenn du sie beendest.',
+  'settings.recording.controls': 'Aufnahmesteuerung anzeigen',
+  'settings.recording.controls.hint': 'Eine kleine schwebende Leiste mit Zeit, Tonpegel, Pause und Beenden. Sie erscheint nie im Video.',
   'settings.audio.default': 'Ton in neuen Aufnahmen',
   'settings.audio.default.hint': 'Du kannst ihn vor jeder Aufnahme ändern.',
   'settings.audio.systemSource': 'Woher der Computerton kommt',

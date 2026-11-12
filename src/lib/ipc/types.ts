@@ -42,6 +42,7 @@ export interface RecordingSettings {
   showCursor: boolean;
   target: RecordTarget;
   showPreview: boolean;
+  showControls: boolean;
 }
 
 export interface AudioSettings {

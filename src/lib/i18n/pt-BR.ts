@@ -270,6 +270,8 @@ export const ptBR: Messages = {
   'settings.recording.cursor.hint': 'Inclui o ponteiro do mouse nas gravações.',
   'settings.recording.preview': 'Mostrar prévia ao terminar',
   'settings.recording.preview.hint': 'Um pequeno cartão com a gravação quando você para.',
+  'settings.recording.controls': 'Mostrar controles da gravação',
+  'settings.recording.controls.hint': 'Uma barrinha flutuante com o tempo, o nível do som, pausar e parar. Ela nunca aparece no vídeo.',
   'settings.audio.default': 'Som nas novas gravações',
   'settings.audio.default.hint': 'Você pode mudar antes de cada gravação.',
   'settings.audio.systemSource': 'De onde vem o som do computador',

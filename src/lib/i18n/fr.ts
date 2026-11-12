@@ -270,6 +270,8 @@ export const fr: Messages = {
   'settings.recording.cursor.hint': 'Inclut le pointeur de la souris dans les enregistrements.',
   'settings.recording.preview': 'Afficher un aperçu à la fin',
   'settings.recording.preview.hint': 'Une petite carte avec l’enregistrement quand vous l’arrêtez.',
+  'settings.recording.controls': 'Afficher les commandes d’enregistrement',
+  'settings.recording.controls.hint': 'Une petite barre flottante avec la durée, le niveau sonore, pause et arrêt. Elle n’apparaît jamais dans la vidéo.',
   'settings.audio.default': 'Son des nouveaux enregistrements',
   'settings.audio.default.hint': 'Vous pouvez le changer avant chaque enregistrement.',
   'settings.audio.systemSource': 'D’où vient le son de l’ordinateur',

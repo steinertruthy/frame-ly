@@ -5,6 +5,7 @@
 //! it marks the recording as in progress; if FrameLy dies, the next launch finds the manifest
 //! and moves the (fragmented, still playable) file into the recordings folder.
 
+use crate::core::sounds::Cue;
 use crate::{
     core::{
         errors::{AppError, AppResult},
@@ -33,6 +34,11 @@ pub const STATUS_EVENT: &str = "recording://status";
 pub const FINISHED_EVENT: &str = "recording://finished";
 pub const FAILED_EVENT: &str = "recording://failed";
 const COUNTDOWN: &str = "countdown";
+const CONTROLS: &str = "recbar";
+/// The start cue plus a little slack for the audio device's output latency.
+fn start_cue_lead() -> Duration {
+    crate::core::sounds::duration(Cue::RecordStart) + Duration::from_millis(120)
+}
 const FRAME: &str = "rec-frame";
 
 #[derive(Debug, Clone, Deserialize)]
@@ -300,8 +306,16 @@ pub async fn begin(app: AppHandle, target: Target) -> AppResult<()> {
             tracing::warn!(error = %e, "countdown window unavailable; continuing without it");
         }
         let deadline = Instant::now() + Duration::from_secs(rec.countdown as u64);
+        // The start cue rings out during the last moments of the countdown, so it is over
+        // before capture begins (otherwise the microphone records it).
+        let cue_at = deadline.checked_sub(start_cue_lead()).unwrap_or(deadline);
+        let mut cued = false;
         while Instant::now() < deadline {
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            if !cued && Instant::now() >= cue_at {
+                cued = true;
+                crate::notify::cue(&app, Cue::RecordStart);
+            }
             if st.recordings.cancel_countdown.load(Ordering::SeqCst) {
                 close_window(&app, COUNTDOWN);
                 st.recordings.inner.lock().unwrap().recorder.reset();
@@ -311,6 +325,8 @@ pub async fn begin(app: AppHandle, target: Target) -> AppResult<()> {
             }
         }
         close_window(&app, COUNTDOWN);
+    } else if crate::notify::cue(&app, Cue::RecordStart) {
+        tokio::time::sleep(start_cue_lead()).await;
     }
 
     match start_native(&app, &target, &rec).await {
@@ -322,6 +338,11 @@ pub async fn begin(app: AppHandle, target: Target) -> AppResult<()> {
             }
             if let Some(main) = app.get_webview_window(crate::windows::MAIN) {
                 let _ = main.hide();
+            }
+            if rec.show_controls {
+                if let Err(e) = open_controls(&app, target.display()) {
+                    tracing::warn!(error = %e, "recording controls unavailable");
+                }
             }
             spawn_ticker(app.clone());
             Ok(())
@@ -400,7 +421,6 @@ async fn start_native(
         codec = ?config.codec,
         "recording started"
     );
-    crate::notify::cue(app, crate::core::sounds::Cue::RecordStart);
     let st = state(app);
     let mut inner = st.recordings.inner.lock().unwrap();
     inner.recorder.started(Instant::now())?;
@@ -532,6 +552,7 @@ async fn finish(app: AppHandle, system_stats: Option<RecordingStats>) {
     }
     publish(&app);
     close_window(&app, FRAME);
+    close_window(&app, CONTROLS);
 
     let backend = Arc::clone(&state(&app).backend);
     let stats = match system_stats {
@@ -542,7 +563,7 @@ async fn finish(app: AppHandle, system_stats: Option<RecordingStats>) {
         None => on_worker(move || backend.stop_recording()).await,
     };
     // After the native stop, so the cue can't leak into the file via loopback audio.
-    crate::notify::cue(&app, crate::core::sounds::Cue::RecordStop);
+    crate::notify::cue(&app, Cue::RecordStop);
     let active = state(&app).recordings.inner.lock().unwrap().active.take();
     let result = match (stats, active) {
         (Ok(stats), Some(active)) => deliver(&app, active, stats).await,
@@ -705,6 +726,40 @@ fn open_countdown(app: &AppHandle, display: Option<&Display>, seconds: u32) -> A
     .focused(true)
     .visible_on_all_workspaces(true)
     .build()?;
+    crate::platform::chrome::configure_floating(&window);
+    Ok(())
+}
+
+/// Floating recording controls, bottom-centre of the recorded display's work area (above the
+/// Dock / taskbar). Never focused, so it doesn't steal keyboard input from what's recorded;
+/// excluded from the video like every FrameLy window.
+fn open_controls(app: &AppHandle, display: Option<&Display>) -> AppResult<()> {
+    const W: f64 = 340.0;
+    const H: f64 = 60.0;
+    const MARGIN: f64 = 18.0;
+    let display = match display {
+        Some(d) => d.clone(),
+        None => state(app)
+            .backend
+            .displays()?
+            .into_iter()
+            .find(|d| d.is_primary)
+            .ok_or_else(|| AppError::Runtime("no display for the recording controls".into()))?,
+    };
+    let area = to_logical(&display, display.work_area);
+    let window = WebviewWindowBuilder::new(app, CONTROLS, WebviewUrl::App("recbar.html".into()))
+        .title("FrameLy")
+        .inner_size(W, H)
+        .position(area.x + (area.width - W) / 2.0, area.y + area.height - H - MARGIN)
+        .decorations(false)
+        .transparent(true)
+        .resizable(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .shadow(false)
+        .focused(false)
+        .visible_on_all_workspaces(true)
+        .build()?;
     crate::platform::chrome::configure_floating(&window);
     Ok(())
 }

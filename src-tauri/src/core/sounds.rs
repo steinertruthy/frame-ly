@@ -81,6 +81,13 @@ fn wav(samples: &[i16]) -> Vec<u8> {
     out
 }
 
+/// How long the cue rings (the recorder waits this long so the start cue never reaches the
+/// microphone).
+pub fn duration(cue: Cue) -> std::time::Duration {
+    let end = notes(cue).iter().map(|n| n.0 + n.2).fold(0.0f32, f32::max) + 0.02;
+    std::time::Duration::from_secs_f32(end)
+}
+
 /// The cue as a complete WAV file, rendered on first use and kept for the process lifetime
 /// (Windows plays it asynchronously straight from this memory).
 pub fn wav_bytes(cue: Cue) -> &'static [u8] {
@@ -117,6 +124,7 @@ mod tests {
             assert!(peak > 3_000, "{cue:?} is too quiet");
             assert!(peak < 20_000, "{cue:?} is too loud ({peak})");
             assert!(s.last().unwrap().unsigned_abs() < 50, "{cue:?} ends on a click");
+            assert!((duration(cue).as_secs_f32() - secs).abs() < 0.001);
         }
     }
 

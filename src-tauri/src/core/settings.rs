@@ -161,6 +161,8 @@ pub struct Recording {
     pub target: RecordTarget,
     /// Show the floating preview card when a recording is saved.
     pub show_preview: bool,
+    /// Floating controls (time, sound levels, pause, stop) while recording.
+    pub show_controls: bool,
 }
 
 impl Default for Recording {
@@ -174,6 +176,7 @@ impl Default for Recording {
             show_cursor: true,
             target: RecordTarget::Screen,
             show_preview: true,
+            show_controls: true,
         }
     }
 }

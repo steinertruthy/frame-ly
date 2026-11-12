@@ -31,6 +31,7 @@ export default defineConfig({
         preview: resolve(import.meta.dirname, 'preview.html'),
         countdown: resolve(import.meta.dirname, 'countdown.html'),
         frame: resolve(import.meta.dirname, 'frame.html'),
+        recbar: resolve(import.meta.dirname, 'recbar.html'),
         panel: resolve(import.meta.dirname, 'panel.html'),
         editor: resolve(import.meta.dirname, 'editor.html'),
       },
