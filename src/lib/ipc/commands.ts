@@ -45,6 +45,9 @@ export const commands = {
       selection: { ...r, viewportWidth: viewport.width, viewportHeight: viewport.height },
     }),
   finishWindow: (windowId: string) => invoke<void>('finish_window', { windowId }),
+  /** Annotated screenshot from the selection overlay (raw PNG body). */
+  finishAnnotated: (png: Uint8Array, intent: 'copy' | 'save') =>
+    invoke<void>('finish_annotated', png, { headers: { 'x-framely-intent': intent } }),
   cancelCapture: () => invoke<void>('cancel_capture'),
   lastCapture: () => invoke<CaptureInfo | null>('last_capture'),
   copyLastCapture: () => invoke<void>('copy_last_capture'),
@@ -67,7 +70,11 @@ export const commands = {
   micTestLevel: () => invoke<number>('mic_test_level'),
   micTestStop: () => invoke<void>('mic_test_stop'),
   panelHide: () => invoke<void>('panel_hide'),
-  showMainWindow: (page: 'home' | 'settings' | null = null) => invoke<void>('show_main_window', { page }),
+  panelResize: (height: number) => invoke<void>('panel_resize', { height }),
+  startupShouldShow: () => invoke<boolean>('startup_should_show'),
+  storageCache: () => invoke<{ bytes: number }>('storage_cache'),
+  storageCleanup: () => invoke<{ bytes: number }>('storage_cleanup'),
+  showMainWindow: (page: 'home' | 'library' | 'settings' | null = null) => invoke<void>('show_main_window', { page }),
   shortcutStatus: () => invoke<ShortcutStatus>('shortcut_status'),
   suspendShortcuts: () => invoke<void>('suspend_shortcuts'),
   resumeShortcuts: () => invoke<void>('resume_shortcuts'),

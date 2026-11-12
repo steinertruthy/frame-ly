@@ -145,6 +145,44 @@ AVCaptureSession (microfone escolhido, relógio convertido p/ host) ─┤→ Au
 - **Excluir = mover para a Lixeira** (`trash`), sempre com confirmação. Renomear valida nomes que
   funcionam em macOS e Windows e preserva a extensão.
 
+## Edição inline (overlay)
+
+- Depois de selecionar uma região ou janela, o overlay entra em modo de edição sobre o quadro
+  congelado: a barra contextual (seta, texto, retângulo, elipse, desfoque, destaque, recorte,
+  desfazer/refazer, copiar, salvar, cancelar) aparece abaixo da seleção, acima dela ou dentro dela,
+  conforme o espaço. Não há janela de editor separada nesse fluxo.
+- O modelo, o histórico e o renderizador são os mesmos do editor (`windows/editor/*`); as formas
+  ficam em pixels do quadro, então a exportação sai na resolução real.
+- Exportar: `exportPng` gera o PNG e `finish_annotated` o envia como corpo IPC bruto com o
+  cabeçalho `x-framely-intent` (`copy` | `save`). O Rust (`screenshot::finish_annotated`) decodifica
+  e entrega por `deliver`, que aplica as preferências: `Intent::Copy` também salva se "manter uma
+  cópia" estiver ligado; `Save` também copia se configurado; formato PNG ou JPEG (qualidade 50–100).
+- Teclas: Enter/⌘C copia, ⌘S salva, Esc cancela. Enquanto um monitor edita, os outros overlays
+  ficam bloqueados (`overlay://editing`).
+- Gravação de região/janela continua usando apenas a seleção (sem edição).
+
+## Interface e aparência
+
+- `lib/design/tokens.css`: paleta escura (#080D18 → #3978D7), tema claro opcional, tokens de
+  movimento zerados quando `data-motion="reduced"` ou quando o sistema pede menos movimento.
+- `Aurora.svelte`: luz ambiente com animação só de `transform` (barata para o compositor),
+  desligável em Ajustes › Aparência (`data-ambient="off"`).
+- Atributos `data-theme`, `data-motion` e `data-ambient` no `<html>` (via `applyAppearance`).
+- i18n: dicionários tipados em `lib/i18n/` (pt-BR, en, es, fr, de), `en.ts` define as chaves;
+  o teste de completude falha se qualquer idioma ficar sem uma chave. O menu da bandeja usa
+  `core/locale.rs` com os mesmos cinco idiomas. Idioma do sistema detectado e persistido.
+
+## Ajustes (schema v2)
+
+- `general`: idioma, iniciar com o sistema (`tauri-plugin-autostart`, abre com `--background`),
+  mostrar a janela ao abrir, continuar na bandeja ao fechar, notificações
+  (`tauri-plugin-notification`, usadas quando a prévia está desligada).
+- `appearance`: tema (padrão escuro), movimento, luz ambiente. `capture`: formato, qualidade JPEG,
+  copiar/salvar/prévia. `recording`: alvo padrão, prévia ao terminar, além dos campos anteriores.
+- Migração v1 → v2 preserva o tema `system` de quem já tinha o app.
+- Armazenamento: `storage_cleanup` remove miniaturas em cache e sobras temporárias, nunca durante
+  uma gravação.
+
 ## Editor de screenshots
 
 - **Modelo** (`windows/editor/model.ts`, testado): formas em coordenadas da imagem original (seta,
@@ -162,7 +200,8 @@ AVCaptureSession (microfone escolhido, relógio convertido p/ host) ─┤→ Au
 
 ## Comportamento de ciclo de vida
 
-- Fechar a janela principal a **esconde**; o app continua na bandeja (gravações sobrevivem).
+- Fechar a janela principal a **esconde** (padrão) e o app continua na bandeja; com a opção
+  desligada, fechar encerra o app — exceto durante uma gravação, que sempre continua.
 - Uma segunda instância apenas foca a existente (`tauri-plugin-single-instance`).
 - A janela é criada oculta e exibida após o primeiro render (sem flash em branco).
 

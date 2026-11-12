@@ -17,7 +17,7 @@ use std::{
     sync::RwLock,
 };
 
-pub const CURRENT_VERSION: u32 = 1;
+pub const CURRENT_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Language {
@@ -28,42 +28,120 @@ pub enum Language {
     PtBr,
     #[serde(rename = "en")]
     En,
+    #[serde(rename = "es")]
+    Es,
+    #[serde(rename = "fr")]
+    Fr,
+    #[serde(rename = "de")]
+    De,
+}
+
+/// FrameLy's identity is dark; light and "follow the system" stay available.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    System,
+    Light,
+    #[default]
+    Dark,
+}
+
+/// Interface animations. `System` honors the OS "reduce motion" preference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Motion {
+    #[default]
+    System,
+    Full,
+    Reduced,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct General {
+    pub language: Language,
+    pub launch_at_login: bool,
+    /// Closing the window keeps FrameLy running in the menu bar / tray (otherwise it quits).
+    pub close_to_tray: bool,
+    /// Show the main window when FrameLy starts (off = start quietly in the menu bar / tray).
+    pub show_on_launch: bool,
+    /// System notifications when a capture or recording is saved without the preview card.
+    pub notifications: bool,
+}
+
+impl Default for General {
+    fn default() -> Self {
+        Self {
+            language: Language::System,
+            launch_at_login: false,
+            close_to_tray: true,
+            show_on_launch: true,
+            notifications: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Appearance {
+    pub theme: Theme,
+    pub motion: Motion,
+    /// The slowly moving blue light behind the interface.
+    pub ambient_light: bool,
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Self { theme: Theme::Dark, motion: Motion::System, ambient_light: true }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
-pub enum Theme {
+pub enum ImageFormat {
+    /// Lossless, sharp text. Default.
     #[default]
-    System,
-    Light,
-    Dark,
+    Png,
+    /// Smaller files for photos and sharing.
+    Jpeg,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct General {
-    pub language: Language,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct Appearance {
-    pub theme: Theme,
-}
-
-/// What happens after a screenshot is taken. At least one of copy/save must stay enabled.
+/// Screenshot preferences. In the selection toolbar "Copy" always copies and "Save" always
+/// saves; these choose what else happens.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Capture {
+    /// When saving, also copy to the clipboard.
     pub copy_to_clipboard: bool,
+    /// When copying, also keep the file in the screenshots folder.
     pub save_to_disk: bool,
+    /// Show the floating preview card after a capture.
     pub show_preview: bool,
+    pub format: ImageFormat,
+    /// JPEG quality, 50–100.
+    pub jpeg_quality: u8,
 }
 
 impl Default for Capture {
     fn default() -> Self {
-        Self { copy_to_clipboard: true, save_to_disk: true, show_preview: true }
+        Self {
+            copy_to_clipboard: true,
+            save_to_disk: true,
+            show_preview: true,
+            format: ImageFormat::Png,
+            jpeg_quality: 90,
+        }
     }
+}
+
+/// What the "Record" button records by default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum RecordTarget {
+    #[default]
+    Screen,
+    Window,
+    Region,
 }
 
 /// Video recording preferences. Defaults favor quality and compatibility.
@@ -77,6 +155,9 @@ pub struct Recording {
     /// Seconds of countdown before recording starts (0 = none).
     pub countdown: u32,
     pub show_cursor: bool,
+    pub target: RecordTarget,
+    /// Show the floating preview card when a recording is saved.
+    pub show_preview: bool,
 }
 
 impl Default for Recording {
@@ -88,6 +169,8 @@ impl Default for Recording {
             codec: Codec::H264,
             countdown: 3,
             show_cursor: true,
+            target: RecordTarget::Screen,
+            show_preview: true,
         }
     }
 }
@@ -191,8 +274,8 @@ impl Settings {
         if self.recording.countdown > MAX_COUNTDOWN {
             return Err(AppError::InvalidSettings(format!("countdown must be at most {MAX_COUNTDOWN}s")));
         }
-        if !self.capture.copy_to_clipboard && !self.capture.save_to_disk {
-            return Err(AppError::InvalidSettings("screenshots must be copied, saved, or both".into()));
+        if !(50..=100).contains(&self.capture.jpeg_quality) {
+            return Err(AppError::InvalidSettings("jpegQuality must be between 50 and 100".into()));
         }
         for (name, p) in [
             ("recordingsDir", &self.storage.recordings_dir),
@@ -225,6 +308,13 @@ fn migrate(value: &mut Value) {
     let version = value.get("version").and_then(Value::as_u64).unwrap_or(0);
     if version < 1 {
         // v0 → v1: nothing structural yet; establishes the version field.
+    }
+    if version < 2 {
+        // v1 → v2: the theme default became Dark, but people who already chose (or kept)
+        // "system" keep it — write it explicitly so the new default doesn't override them.
+        if value.get("appearance").and_then(|a| a.get("theme")).is_none() {
+            value["appearance"]["theme"] = Value::from("system");
+        }
     }
     value["version"] = Value::from(CURRENT_VERSION);
 }
@@ -375,15 +465,31 @@ mod tests {
     }
 
     #[test]
-    fn capture_needs_an_output() {
+    fn jpeg_quality_is_bounded() {
         let tmp = tempfile::tempdir().unwrap();
         let d = dirs_in(tmp.path());
         let store = SettingsStore::load(tmp.path().join("s.json"), &d).unwrap();
         let mut s = store.get();
-        assert!(s.capture.copy_to_clipboard && s.capture.save_to_disk && s.capture.show_preview);
-        s.capture.copy_to_clipboard = false;
-        s.capture.save_to_disk = false;
-        assert_eq!(store.replace(s).unwrap_err().code(), "invalid_settings");
+        s.capture.jpeg_quality = 30;
+        assert_eq!(store.replace(s.clone()).unwrap_err().code(), "invalid_settings");
+        s.capture.jpeg_quality = 80;
+        s.capture.format = ImageFormat::Jpeg;
+        assert_eq!(store.replace(s).unwrap().capture.format, ImageFormat::Jpeg);
+    }
+
+    #[test]
+    fn v1_files_keep_their_theme_and_gain_new_defaults() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = dirs_in(tmp.path());
+        let s = Settings::from_json(r#"{"version":1,"general":{"language":"pt-BR"},"appearance":{}}"#, &d)
+            .unwrap();
+        assert_eq!(s.appearance.theme, Theme::System, "v1 users keep following the system");
+        assert!(s.general.close_to_tray && s.general.show_on_launch && !s.general.launch_at_login);
+        assert_eq!(s.recording.target, RecordTarget::Screen);
+        // Fresh installs get the dark identity.
+        assert_eq!(Settings::defaults(&d).appearance.theme, Theme::Dark);
+        let lang: Language = serde_json::from_str(r#""de""#).unwrap();
+        assert_eq!(lang, Language::De);
     }
 
     #[test]

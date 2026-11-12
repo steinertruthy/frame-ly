@@ -86,3 +86,17 @@ pub fn close_preview(app: AppHandle) {
         let _ = w.destroy();
     }
 }
+
+/// Selection overlay "Copy"/"Save": body = annotated PNG (raw bytes), `x-framely-intent` header.
+#[tauri::command]
+pub async fn finish_annotated(app: AppHandle, request: tauri::ipc::Request<'_>) -> AppResult<()> {
+    let png = match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) => bytes.clone(),
+        tauri::ipc::InvokeBody::Json(_) => return Err(AppError::Runtime("expected raw PNG bytes".into())),
+    };
+    let intent = match request.headers().get("x-framely-intent").and_then(|v| v.to_str().ok()) {
+        Some("save") => screenshot::Intent::Save,
+        _ => screenshot::Intent::Copy,
+    };
+    screenshot::finish_annotated(app, png, intent).await
+}

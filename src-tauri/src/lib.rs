@@ -4,6 +4,7 @@ mod commands;
 mod core;
 mod editor;
 mod library;
+mod notify;
 mod panel;
 mod platform;
 mod protocol;
@@ -25,6 +26,8 @@ pub struct AppState {
     pub recordings: recording::Recordings,
     pub library: library::LibraryService,
     pub log_dir: PathBuf,
+    /// Set when FrameLy should start without showing its window (login item / preference).
+    pub start_hidden: std::sync::atomic::AtomicBool,
     _log_guard: Option<tracing_appender::non_blocking::WorkerGuard>,
 }
 
@@ -120,6 +123,12 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(shortcuts::plugin())
+        .plugin(tauri_plugin_notification::init())
+        // Login item starts FrameLy quietly in the menu bar / tray.
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--background"]),
+        ))
         // In-memory images for overlays and the preview: framely://localhost/frame/<display>
         // (frozen frame, BMP) and framely://localhost/last (last capture, PNG).
         .register_asynchronous_uri_scheme_protocol("framely", |ctx, request, responder| {
@@ -148,6 +157,9 @@ pub fn run() {
                 recordings: Default::default(),
                 library: Default::default(),
                 log_dir,
+                start_hidden: std::sync::atomic::AtomicBool::new(
+                    std::env::args().any(|a| a == "--background") || !initial.general.show_on_launch,
+                ),
                 _log_guard: log_guard,
             });
 
@@ -163,13 +175,23 @@ pub fn run() {
             panel::create(&handle)?;
             let supports_recording = handle.state::<AppState>().backend.supports_recording();
             shortcuts::apply(&handle, &initial.shortcuts, supports_recording);
+            commands::settings::sync_autostart(&handle, initial.general.launch_at_login);
             Ok(())
         })
         .on_window_event(|window, event| match event {
             // Closing the main window keeps FrameLy alive in the tray (recordings must survive it).
+            // "Minimize on close": keep running in the menu bar / tray. Otherwise closing quits —
+            // except during a recording, which must never be killed by closing a window.
             WindowEvent::CloseRequested { api, .. } if window.label() == windows::MAIN => {
-                api.prevent_close();
-                let _ = window.hide();
+                let app = window.app_handle();
+                let keep = app.state::<AppState>().settings.get().general.close_to_tray
+                    || recording::status(app).phase.is_active();
+                if keep {
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else {
+                    app.exit(0);
+                }
             }
             // The quick panel behaves like a popover: clicking anywhere else dismisses it.
             WindowEvent::Focused(false) if window.label() == panel::PANEL => {
@@ -202,6 +224,10 @@ pub fn run() {
             commands::screenshot::reveal_last_capture,
             commands::screenshot::open_last_capture,
             commands::screenshot::close_preview,
+            commands::screenshot::finish_annotated,
+            commands::system::startup_should_show,
+            commands::system::storage_cache,
+            commands::system::storage_cleanup,
             commands::recording::start_recording,
             commands::recording::pause_recording,
             commands::recording::resume_recording,
@@ -217,6 +243,7 @@ pub fn run() {
             commands::recording::mic_test_level,
             commands::recording::mic_test_stop,
             commands::system::panel_hide,
+            commands::system::panel_resize,
             commands::system::show_main_window,
             commands::system::shortcut_status,
             commands::system::suspend_shortcuts,

@@ -7,6 +7,10 @@ class LibraryStore {
   query = $state<LibraryQuery>({ search: '', filter: 'all', sort: 'newest' });
   items = $state<LibraryItem[]>([]);
   recent = $state<LibraryItem[]>([]);
+  recentImages = $state<LibraryItem[]>([]);
+  recentVideos = $state<LibraryItem[]>([]);
+  /** Which library tab to show (Home's "See all" links set it). */
+  tab = $state<'recent' | 'image' | 'video'>('recent');
   overview = $state<LibraryOverview | null>(null);
   loaded = $state(false);
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -27,18 +31,27 @@ class LibraryStore {
 
   async reload(): Promise<void> {
     try {
-      const [items, recent, overview] = await Promise.all([
+      const [items, recent, recentImages, recentVideos, overview] = await Promise.all([
         commands.libraryList($state.snapshot(this.query)),
-        commands.libraryList({ search: '', filter: 'all', sort: 'newest', limit: 6 }),
+        commands.libraryList({ search: '', filter: 'all', sort: 'newest', limit: 4 }),
+        commands.libraryList({ search: '', filter: 'image', sort: 'newest', limit: 8 }),
+        commands.libraryList({ search: '', filter: 'video', sort: 'newest', limit: 6 }),
         commands.libraryOverview(),
       ]);
       this.items = items;
       this.recent = recent;
+      this.recentImages = recentImages;
+      this.recentVideos = recentVideos;
       this.overview = overview;
       this.loaded = true;
     } catch (e) {
       logUi('warn', `library reload failed: ${JSON.stringify(e)}`);
     }
+  }
+
+  showTab(tab: 'recent' | 'image' | 'video'): void {
+    this.tab = tab;
+    this.setQuery({ filter: tab === 'recent' ? 'all' : tab });
   }
 
   setQuery(patch: Partial<LibraryQuery>): void {

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Search, ExternalLink, FolderOpen, Copy, Pencil, Trash2, Images, PenLine } from '@lucide/svelte';
-  import Segmented from '$lib/components/Segmented.svelte';
   import Select from '$lib/components/Select.svelte';
   import ContextMenu, { type MenuItem } from '$lib/components/ContextMenu.svelte';
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -11,7 +10,7 @@
   import { t, locale, type MessageKey } from '$lib/i18n/index.svelte';
   import { library } from '$lib/stores/library.svelte';
   import { groupByDate } from '$lib/library';
-  import type { LibraryFilter, LibraryItem, LibrarySort } from '$lib/ipc/types';
+  import type { LibraryItem, LibrarySort } from '$lib/ipc/types';
 
   let viewing = $state<{ id: number; focusName: boolean } | null>(null);
   let menu = $state<{ x: number; y: number; item: LibraryItem } | null>(null);
@@ -58,9 +57,11 @@
 <svelte:window {onkeydown} />
 
 <header class="head">
-  <div>
-    <h1>{t('library.title')}</h1>
-    {#if library.loaded}<p class="count">{t('library.count', { n: library.items.length })}</p>{/if}
+  <h1>{t('library.title')}</h1>
+  <div class="tabs" role="tablist">
+    {#each [['recent', 'library.tab.recent'], ['image', 'library.tab.images'], ['video', 'library.tab.videos']] as const as [id, label] (id)}
+      <button role="tab" aria-selected={library.tab === id} class:active={library.tab === id} onclick={() => library.showTab(id)}>{t(label)}</button>
+    {/each}
   </div>
   <div class="tools">
     <label class="search">
@@ -74,12 +75,6 @@
         spellcheck="false"
       />
     </label>
-    <Segmented
-      label={t('library.title')}
-      value={library.query.filter}
-      options={(['all', 'video', 'image'] as LibraryFilter[]).map((f) => ({ value: f, label: t(`library.filter.${f}`) }))}
-      onchange={(v) => library.setQuery({ filter: v })}
-    />
     <Select
       label={t('library.sort.newest')}
       value={library.query.sort}
@@ -95,8 +90,8 @@
     {#if library.query.search}
       <p>{t('library.noResults', { q: library.query.search })}</p>
     {:else}
-      <h2>{t('library.empty.title')}</h2>
-      <p>{t('library.empty.body')}</p>
+      <h2>{t(library.tab === 'video' ? 'library.empty.videos.title' : library.tab === 'image' ? 'library.empty.images.title' : 'library.empty.title')}</h2>
+      <p>{t(library.tab === 'video' ? 'library.empty.videos.body' : library.tab === 'image' ? 'library.empty.images.body' : 'library.empty.body')}</p>
     {/if}
   </div>
 {/if}
@@ -142,31 +137,49 @@
 
 <style>
   .head {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: var(--space-4);
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--space-5);
     margin-bottom: var(--space-5);
   }
   h1 {
-    font-size: var(--text-xl);
+    font-size: var(--text-2xl);
     font-weight: 700;
   }
-  .count {
-    color: var(--text-3);
-    font-size: var(--text-sm);
+  .tabs {
+    display: flex;
+    gap: 4px;
+  }
+  .tabs button {
+    position: relative;
+    height: 32px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-2);
+    font-weight: 600;
+    transition:
+      background var(--dur-fast),
+      color var(--dur-fast);
+  }
+  .tabs button:hover {
+    color: var(--text);
+  }
+  .tabs button.active {
+    background: var(--accent-soft);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px rgba(57, 120, 215, 0.3);
   }
   .tools {
     display: flex;
     align-items: center;
     gap: var(--space-2);
   }
-  .tools :global(.seg) {
-    min-width: 0;
-  }
   .tools :global(select) {
-    min-width: 150px;
+    min-width: 0;
+    width: 160px;
   }
   .search {
     display: flex;
@@ -175,15 +188,15 @@
     height: 30px;
     padding: 0 10px;
     border-radius: var(--radius-md);
-    background: var(--surface-2);
-    box-shadow: inset 0 0 0 1px var(--border);
+    background: var(--bg-2);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
     color: var(--text-3);
   }
   .search:focus-within {
     box-shadow: var(--focus-ring);
   }
   .search input {
-    width: 170px;
+    width: 180px;
     border: 0;
     background: none;
     color: var(--text);
@@ -194,18 +207,34 @@
     outline: none;
     box-shadow: none;
   }
+  @media (max-width: 980px) {
+    .head {
+      grid-template-columns: 1fr auto;
+    }
+    .tools {
+      grid-column: 1 / -1;
+    }
+    .search {
+      flex: 1;
+    }
+    .search input {
+      width: 100%;
+    }
+  }
   section + section {
     margin-top: var(--space-5);
   }
   .group {
-    margin: 0 0 var(--space-3) var(--space-1);
-    font-size: var(--text-sm);
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-xs);
     font-weight: 650;
-    color: var(--text-2);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
   }
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: var(--space-4) var(--space-3);
   }
   .empty {

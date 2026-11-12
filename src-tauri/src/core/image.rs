@@ -111,6 +111,19 @@ pub fn encode_png(frame: &Frame) -> AppResult<Vec<u8>> {
     Ok(out)
 }
 
+/// JPEG at `quality` (50–100). Alpha is dropped (screens are opaque).
+pub fn encode_jpeg(frame: &Frame, quality: u8) -> AppResult<Vec<u8>> {
+    let mut rgb = Vec::with_capacity(frame.width as usize * frame.height as usize * 3);
+    for px in frame.bgra.chunks_exact(4) {
+        rgb.extend_from_slice(&[px[2], px[1], px[0]]);
+    }
+    let mut out = Vec::new();
+    ::image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality.clamp(1, 100))
+        .encode(&rgb, frame.width, frame.height, ::image::ExtendedColorType::Rgb8)
+        .map_err(|e| AppError::Platform(format!("JPEG encoding failed: {e}")))?;
+    Ok(out)
+}
+
 /// Uncompressed, top-down 32-bit BMP. Used only to hand a frozen frame to the selection
 /// overlay inside the app: zero encoding cost, and WebKit/WebView2 decode it natively.
 pub fn encode_bmp(frame: &Frame) -> Vec<u8> {
@@ -246,6 +259,14 @@ mod tests {
         let t = std::time::Instant::now();
         let png = encode_png(&f).unwrap();
         println!("encode {w}x{h}: {:?}, {} KB", t.elapsed(), png.len() / 1024);
+    }
+
+    #[test]
+    fn jpeg_encodes_with_dimensions() {
+        let bytes = encode_jpeg(&sample(), 85).unwrap();
+        assert_eq!(&bytes[..2], &[0xFF, 0xD8]);
+        let img = ::image::load_from_memory(&bytes).unwrap();
+        assert_eq!((img.width(), img.height()), (4, 3));
     }
 
     #[test]

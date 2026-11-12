@@ -139,7 +139,7 @@ pub async fn start(app: AppHandle, request: Request) -> AppResult<()> {
             })
             .await?;
             tracing::info!(ms = t.elapsed().as_millis() as u64, ?frame, "display captured");
-            deliver(&app, frame).await
+            deliver(&app, frame, None, Intent::Auto).await
         }
         Request::Select { mode } => select(app, mode, Purpose::Screenshot).await,
     }
@@ -313,7 +313,7 @@ pub async fn finish_region(
         .ok_or_else(|| AppError::Runtime(format!("unknown display {display_id}")))?;
     let rect = image::css_to_pixels(selection, viewport, (frame.width, frame.height));
     let cropped = on_worker(move || frame.crop(rect)).await?;
-    deliver(&app, cropped).await
+    deliver(&app, cropped, None, Intent::Auto).await
 }
 
 pub async fn finish_window(app: AppHandle, window_id: String) -> AppResult<()> {
@@ -345,7 +345,7 @@ pub async fn finish_window(app: AppHandle, window_id: String) -> AppResult<()> {
         }
     })
     .await?;
-    deliver(&app, frame).await
+    deliver(&app, frame, None, Intent::Auto).await
 }
 
 /// The display holding the center of `w`.
@@ -365,28 +365,66 @@ fn crop_window_from_session(s: &Session, window_id: &str) -> Option<Frame> {
     frame.crop(image::css_to_pixels(sel, (d.bounds.width, d.bounds.height), (frame.width, frame.height))).ok()
 }
 
-/// Encodes, saves and/or copies the capture according to settings, then shows the preview.
-async fn deliver(app: &AppHandle, frame: Frame) -> AppResult<()> {
+/// What the user asked for. The selection toolbar sends Copy or Save; one-step captures
+/// (full-screen shortcut, tray, CLI) use Auto and follow the settings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Intent {
+    Copy,
+    Save,
+    Auto,
+}
+
+/// (save?, copy?) for an intent: Copy/Save always do their thing; settings decide the extra.
+pub fn plan(intent: Intent, copy_too: bool, save_too: bool) -> (bool, bool) {
+    match intent {
+        Intent::Save => (true, copy_too),
+        Intent::Copy => (save_too, true),
+        // Never lose a one-step capture: with both options off it is still saved.
+        Intent::Auto => (save_too || !copy_too, copy_too),
+    }
+}
+
+/// File bytes and extension in the user's chosen format.
+fn encode_for_disk(
+    frame: &Frame,
+    png: &[u8],
+    opts: &crate::core::settings::Capture,
+) -> AppResult<(Vec<u8>, &'static str)> {
+    use crate::core::settings::ImageFormat;
+    Ok(match opts.format {
+        ImageFormat::Png => (png.to_vec(), "png"),
+        ImageFormat::Jpeg => (image::encode_jpeg(frame, opts.jpeg_quality)?, "jpg"),
+    })
+}
+
+fn write_capture(dir: &std::path::Path, bytes: &[u8], ext: &str) -> AppResult<PathBuf> {
+    std::fs::create_dir_all(dir)?;
+    let path = paths::unique_path(dir, &paths::capture_file_name(&chrono::Local::now(), ext));
+    std::fs::write(&path, bytes)?;
+    Ok(path)
+}
+
+/// Encodes, saves and/or copies the capture, then shows the preview (or a notification).
+/// `png` may be passed when already encoded (annotated captures come in as PNG).
+pub async fn deliver(app: &AppHandle, frame: Frame, png: Option<Vec<u8>>, intent: Intent) -> AppResult<()> {
     let settings = state(app).settings.get();
     let dir = settings.storage.screenshots_dir.clone();
     let opts = settings.capture.clone();
+    let (save, copy) = plan(intent, opts.copy_to_clipboard, opts.save_to_disk);
     let t = Instant::now();
     let last = on_worker(move || {
-        let t = Instant::now();
-        let png = image::encode_png(&frame)?;
-        let encode_ms = t.elapsed().as_millis() as u64;
-        let t = Instant::now();
-        let path = if opts.save_to_disk {
-            std::fs::create_dir_all(&dir)?;
-            let path = paths::unique_path(&dir, &paths::capture_file_name(&chrono::Local::now(), "png"));
-            std::fs::write(&path, &png)?;
-            Some(path)
+        let png = match png {
+            Some(p) => p,
+            None => image::encode_png(&frame)?,
+        };
+        let path = if save {
+            let (bytes, ext) = encode_for_disk(&frame, &png, &opts)?;
+            Some(write_capture(&dir, &bytes, ext)?)
         } else {
             None
         };
-        let save_ms = t.elapsed().as_millis() as u64;
-        let t = Instant::now();
-        let copied = opts.copy_to_clipboard
+        let copied = copy
             && match clipboard::copy_image(&png, &frame) {
                 Ok(()) => true,
                 Err(e) => {
@@ -394,13 +432,6 @@ async fn deliver(app: &AppHandle, frame: Frame) -> AppResult<()> {
                     false
                 }
             };
-        tracing::info!(
-            encode_ms,
-            save_ms,
-            copy_ms = t.elapsed().as_millis() as u64,
-            bytes = png.len(),
-            "delivery steps"
-        );
         Ok(LastCapture {
             png: Arc::new(png),
             width: frame.width,
@@ -414,6 +445,7 @@ async fn deliver(app: &AppHandle, frame: Frame) -> AppResult<()> {
     let info = last.info();
     tracing::info!(
         ms = t.elapsed().as_millis() as u64,
+        ?intent,
         width = info.width,
         height = info.height,
         saved = info.path.is_some(),
@@ -432,8 +464,33 @@ async fn deliver(app: &AppHandle, frame: Frame) -> AppResult<()> {
     app.emit(COMPLETED_EVENT, &info)?;
     if settings.capture.show_preview {
         show_preview(app, PreviewKind::Image)?;
+    } else {
+        let s = crate::core::locale::tray_strings(crate::core::locale::current(settings.general.language));
+        crate::notify::send(app, s.screenshot_saved, info.file_name.as_deref().unwrap_or_default());
     }
     Ok(())
+}
+
+/// A capture annotated in the selection overlay: PNG bytes rendered by the overlay.
+pub async fn finish_annotated(app: AppHandle, png: Vec<u8>, intent: Intent) -> AppResult<()> {
+    let had_session = state(&app).screenshots.session.lock().unwrap().take().is_some();
+    close_overlays(&app);
+    if !had_session {
+        return Err(AppError::Runtime("no capture in progress".into()));
+    }
+    let (frame, png) = on_worker(move || {
+        let rgba = ::image::load_from_memory_with_format(&png, ::image::ImageFormat::Png)
+            .map_err(|e| AppError::Platform(format!("invalid PNG from overlay: {e}")))?
+            .to_rgba8();
+        let (w, h) = rgba.dimensions();
+        let mut bgra = rgba.into_raw();
+        for px in bgra.chunks_exact_mut(4) {
+            px.swap(0, 2);
+        }
+        Ok((Frame::new(w, h, bgra)?, png))
+    })
+    .await?;
+    deliver(&app, frame, Some(png), intent).await
 }
 
 /// Saves the last capture when automatic saving is off and the user asks from the preview.
@@ -446,8 +503,9 @@ pub fn save_last(app: &AppHandle) -> AppResult<CaptureInfo> {
     }
     let dir = st.settings.get().storage.screenshots_dir;
     std::fs::create_dir_all(&dir)?;
-    let path = paths::unique_path(&dir, &paths::capture_file_name(&chrono::Local::now(), "png"));
-    std::fs::write(&path, last.png.as_slice())?;
+    let opts = st.settings.get().capture;
+    let (bytes, ext) = encode_for_disk(&last.frame, &last.png, &opts)?;
+    let path = write_capture(&dir, &bytes, ext)?;
     let updated = Arc::new(LastCapture {
         png: Arc::clone(&last.png),
         frame: Arc::clone(&last.frame),
@@ -538,4 +596,21 @@ pub fn trigger(app: &AppHandle, request: Request) {
             let _ = app.emit(FAILED_EVENT, &e);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn intents_follow_the_toolbar_and_settings() {
+        // (save, copy)
+        assert_eq!(plan(Intent::Save, false, false), (true, false));
+        assert_eq!(plan(Intent::Save, true, false), (true, true));
+        assert_eq!(plan(Intent::Copy, false, false), (false, true));
+        assert_eq!(plan(Intent::Copy, false, true), (true, true));
+        assert_eq!(plan(Intent::Auto, true, true), (true, true));
+        assert_eq!(plan(Intent::Auto, true, false), (false, true));
+        assert_eq!(plan(Intent::Auto, false, false), (true, false), "never lost");
+    }
 }

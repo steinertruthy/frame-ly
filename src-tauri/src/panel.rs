@@ -11,7 +11,10 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWi
 pub const PANEL: &str = "panel";
 pub const SHOWN_EVENT: &str = "panel://shown";
 const WIDTH: f64 = 340.0;
-const HEIGHT: f64 = 440.0;
+const MIN_HEIGHT: f64 = 200.0;
+const MAX_HEIGHT: f64 = 720.0;
+/// Current panel height (logical px); the panel content reports its size.
+static HEIGHT: Mutex<f64> = Mutex::new(420.0);
 const GAP: f64 = 6.0;
 
 /// Tray icon rectangle (physical px) from the last click, to anchor shortcut-opened panels too.
@@ -24,7 +27,7 @@ static LAST_BLUR_HIDE: Mutex<Option<Instant>> = Mutex::new(None);
 pub fn create(app: &AppHandle) -> AppResult<()> {
     let builder = WebviewWindowBuilder::new(app, PANEL, WebviewUrl::App("panel.html".into()))
         .title("FrameLy")
-        .inner_size(WIDTH, HEIGHT)
+        .inner_size(WIDTH, *HEIGHT.lock().unwrap())
         .decorations(false)
         .transparent(true)
         .resizable(false)
@@ -76,6 +79,24 @@ pub fn show(app: &AppHandle, anchor: Option<(f64, f64, f64, f64)>) {
     chrome::show_panel(&w);
 }
 
+/// Fits the window to the panel's content and keeps it anchored to the tray icon (growing
+/// downward from the menu bar, upward from a bottom taskbar).
+pub fn resize(app: &AppHandle, height: f64) {
+    let h = height.clamp(MIN_HEIGHT, MAX_HEIGHT).round();
+    {
+        let mut current = HEIGHT.lock().unwrap();
+        if (*current - h).abs() < 1.0 {
+            return;
+        }
+        *current = h;
+    }
+    let Some(w) = app.get_webview_window(PANEL) else { return };
+    let _ = w.set_size(tauri::LogicalSize::new(WIDTH, h));
+    if let Some(pos) = position(app) {
+        let _ = w.set_position(pos);
+    }
+}
+
 pub fn hide(app: &AppHandle) {
     if let Some(w) = app.get_webview_window(PANEL) {
         let _ = w.hide();
@@ -111,7 +132,7 @@ fn position(app: &AppHandle) -> Option<PhysicalPosition<i32>> {
         .or_else(|| displays.iter().find(|d| d.is_primary))?;
     let k = to_px(display);
     let scale = display.scale_factor;
-    let (pw, ph, gap) = (WIDTH * scale, HEIGHT * scale, GAP * scale);
+    let (pw, ph, gap) = (WIDTH * scale, *HEIGHT.lock().unwrap() * scale, GAP * scale);
     let a = display.work_area;
     let (ax, ay, aw, ah) = (a.x * k, a.y * k, a.width * k, a.height * k);
     let (x, y) = match anchor {

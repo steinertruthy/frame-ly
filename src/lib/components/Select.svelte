@@ -36,8 +36,8 @@
     padding: 0 32px 0 12px;
     border: 0;
     border-radius: var(--radius-md);
-    background: var(--surface-2);
-    box-shadow: inset 0 0 0 1px var(--border);
+    background: var(--bg-2);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
     color: var(--text);
     font-size: var(--text-sm);
     font-weight: 550;

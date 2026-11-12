@@ -17,6 +17,10 @@ describe('i18n', () => {
     expect(resolveLocale('system', 'pt-PT')).toBe('pt-BR');
     expect(resolveLocale('system', 'en-GB')).toBe('en');
     expect(resolveLocale('system', undefined)).toBe('en');
+    expect(resolveLocale('system', 'es-AR')).toBe('es');
+    expect(resolveLocale('system', 'fr-CA')).toBe('fr');
+    expect(resolveLocale('system', 'de-CH')).toBe('de');
+    expect(resolveLocale('system', 'ja-JP')).toBe('en');
     expect(resolveLocale('en', 'pt-BR')).toBe('en');
   });
 

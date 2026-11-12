@@ -63,7 +63,12 @@ pub fn panel_hide(app: AppHandle) {
     crate::panel::hide(&app);
 }
 
-/// Opens the main window, optionally on a page ("home" | "settings").
+#[tauri::command]
+pub fn panel_resize(app: AppHandle, height: f64) {
+    crate::panel::resize(&app, height);
+}
+
+/// Opens the main window, optionally on a page ("home" | "library" | "settings").
 #[tauri::command]
 pub fn show_main_window(app: AppHandle, page: Option<String>) -> AppResult<()> {
     use tauri::Emitter;
@@ -89,4 +94,64 @@ pub fn suspend_shortcuts(app: AppHandle) {
 #[tauri::command]
 pub fn resume_shortcuts(app: AppHandle, state: State<'_, AppState>) {
     crate::shortcuts::apply(&app, &state.settings.get().shortcuts, state.backend.supports_recording());
+}
+
+/// Whether the main window should appear at startup (false when launched at login or when
+/// the user prefers starting quietly). Answered once; later opens always show the window.
+#[tauri::command]
+pub fn startup_should_show(state: State<'_, AppState>) -> bool {
+    !state.start_hidden.swap(false, std::sync::atomic::Ordering::SeqCst)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CacheInfo {
+    bytes: u64,
+}
+
+fn dir_size(dir: &std::path::Path) -> u64 {
+    std::fs::read_dir(dir)
+        .map(|it| {
+            it.flatten()
+                .map(|e| match e.metadata() {
+                    Ok(m) if m.is_dir() => dir_size(&e.path()),
+                    Ok(m) => m.len(),
+                    Err(_) => 0,
+                })
+                .sum()
+        })
+        .unwrap_or(0)
+}
+
+/// Space used by FrameLy's temporary files (thumbnails and leftovers).
+#[tauri::command]
+pub fn storage_cache(app: AppHandle) -> AppResult<CacheInfo> {
+    use tauri::Manager;
+    Ok(CacheInfo { bytes: dir_size(&app.path().app_cache_dir()?) })
+}
+
+/// Deletes regenerable temporary files: thumbnails, and recording leftovers that aren't part
+/// of an active or recoverable recording. Never touches the user's media folders.
+#[tauri::command]
+pub fn storage_cleanup(app: AppHandle, state: State<'_, AppState>) -> AppResult<CacheInfo> {
+    use tauri::Manager;
+    let cache = app.path().app_cache_dir()?;
+    let before = dir_size(&cache);
+    let _ = std::fs::remove_dir_all(cache.join("thumbs"));
+    if !crate::recording::status(&app).phase.is_active() {
+        let dir = cache.join("recordings");
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for e in entries.flatten() {
+                let p = e.path();
+                let manifest = p.with_extension("json");
+                if p.extension().and_then(|x| x.to_str()) != Some("json") && !manifest.exists() {
+                    let _ = std::fs::remove_file(&p);
+                }
+            }
+        }
+    }
+    let freed = before.saturating_sub(dir_size(&cache));
+    tracing::info!(freed, "temporary files cleaned");
+    let _ = state;
+    Ok(CacheInfo { bytes: freed })
 }

@@ -11,6 +11,7 @@
 | 6 | Painel rápido da bandeja + atalhos globais | ✅ |
 | 7 | Biblioteca + Dashboard | ✅ |
 | 8 | Editor de screenshots | ✅ |
+| 8.5 | Redesign: identidade escura, edição inline na seleção, ajustes por categoria, 5 idiomas, iniciar com o sistema, notificações | ✅ |
 | 9 | Ajustes completos, polimento, instaladores, assinatura | ⏳ |
 
 ## Limitações conhecidas (v1)

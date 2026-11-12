@@ -21,6 +21,12 @@ pub enum Phase {
     Finalizing,
 }
 
+impl Phase {
+    pub fn is_active(self) -> bool {
+        self != Phase::Idle
+    }
+}
+
 #[derive(Debug)]
 pub struct Recorder {
     phase: Phase,

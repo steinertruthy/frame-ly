@@ -610,7 +610,13 @@ async fn deliver(app: &AppHandle, active: Active, stats: RecordingStats) -> AppR
     );
     *state(app).recordings.last.lock().unwrap() = Some(Arc::new(last));
     app.emit(FINISHED_EVENT, &info)?;
-    screenshot::show_preview(app, PreviewKind::Video)?;
+    let settings = state(app).settings.get();
+    if settings.recording.show_preview {
+        screenshot::show_preview(app, PreviewKind::Video)?;
+    } else {
+        let s = crate::core::locale::tray_strings(crate::core::locale::current(settings.general.language));
+        crate::notify::send(app, s.recording_saved, &info.file_name);
+    }
     Ok(())
 }
 

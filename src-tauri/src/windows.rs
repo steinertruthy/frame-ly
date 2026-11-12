@@ -18,8 +18,8 @@ fn to_tauri_theme(t: Theme) -> Option<tauri::Theme> {
 pub fn create_main(app: &AppHandle, theme: Theme) -> AppResult<WebviewWindow> {
     let builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("main.html".into()))
         .title("FrameLy")
-        .inner_size(1120.0, 740.0)
-        .min_inner_size(880.0, 580.0);
+        .inner_size(1120.0, 760.0)
+        .min_inner_size(640.0, 520.0);
     let window = app_window(builder, theme)?;
     // Debug aid: `FRAMELY_DEVTOOLS=1 pnpm tauri dev` shows the window immediately and opens
     // the Web Inspector, even if the UI fails before it can show itself.
@@ -31,8 +31,9 @@ pub fn create_main(app: &AppHandle, theme: Theme) -> AppResult<WebviewWindow> {
     Ok(window)
 }
 
-/// Shared chrome for FrameLy's full windows (main, editor): hidden until first paint, native
-/// title bar overlay and sidebar vibrancy on macOS.
+/// Shared chrome for FrameLy's full windows (main, editor): hidden until first paint and, on
+/// macOS, the native traffic lights over FrameLy's own painted background (the brand's dark
+/// atmosphere replaces the system vibrancy material).
 pub fn app_window(
     builder: WebviewWindowBuilder<'_, tauri::Wry, AppHandle>,
     theme: Theme,
@@ -41,23 +42,12 @@ pub fn app_window(
 
     #[cfg(target_os = "macos")]
     let builder = {
-        use tauri::{
-            utils::config::WindowEffectsConfig,
-            window::{Effect, EffectState},
-            LogicalPosition, TitleBarStyle,
-        };
+        use tauri::{LogicalPosition, TitleBarStyle};
         builder
             .title_bar_style(TitleBarStyle::Overlay)
             .hidden_title(true)
             .traffic_light_position(LogicalPosition::new(18.0, 24.0))
-            .transparent(true)
-            .effects(WindowEffectsConfig {
-                effects: vec![Effect::Sidebar],
-                state: Some(EffectState::FollowsWindowActiveState),
-                radius: None,
-                color: None,
-                ..Default::default()
-            })
+            .background_color(tauri::window::Color(8, 13, 24, 255))
     };
 
     Ok(builder.build()?)

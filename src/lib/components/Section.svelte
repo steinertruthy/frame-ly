@@ -1,14 +1,14 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   interface Props {
-    title: string;
+    title?: string;
     children: Snippet;
   }
   let { title, children }: Props = $props();
 </script>
 
 <section>
-  <h2>{title}</h2>
+  {#if title}<h3 class="eyebrow">{title}</h3>{/if}
   <div class="card">{@render children()}</div>
 </section>
 
@@ -16,18 +16,15 @@
   section {
     margin-bottom: var(--space-5);
   }
-  h2 {
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--text-3);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin: 0 0 var(--space-2) var(--space-1);
+  h3 {
+    margin: 0 0 var(--space-2) 4px;
   }
   .card {
-    background: var(--surface);
+    background: color-mix(in srgb, var(--surface) 86%, transparent);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
+    box-shadow:
+      inset 0 0 0 1px var(--border),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
     overflow: hidden;
   }
 </style>

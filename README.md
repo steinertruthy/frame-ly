@@ -2,9 +2,10 @@
 
 Gravação de tela e screenshots para macOS e Windows — simples, rápido e leve.
 
-> Estado atual: **Etapa 8**. Editor de screenshots (recortar, redimensionar, setas, formas, texto,
-> destaque, desfoque, desfazer/refazer), biblioteca, painel rápido, atalhos globais, screenshots e
-> gravação com áudio no macOS. Gravação no Windows chega na Etapa 4 — veja
+> Estado atual: **Etapa 8 + redesign**. Nova identidade visual escura, screenshot com edição
+> direto na seleção (setas, formas, texto, destaque, desfoque, recorte, desfazer/refazer), gravação
+> com áudio no macOS, painel rápido, biblioteca, ajustes por categoria e interface em cinco idiomas
+> (pt-BR, en, es, fr, de). Gravação no Windows chega na Etapa 4 — veja
 > [docs/roadmap.md](docs/roadmap.md).
 
 ## Stack

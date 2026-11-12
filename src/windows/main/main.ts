@@ -29,7 +29,8 @@ async function boot() {
   const recovered = await commands.recoveredRecordings();
   if (recovered.length) toast('info', t('record.recovered'), 6000);
   await tick();
-  await getCurrentWindow().show();
+  // Launch at login / "start quietly": stay in the menu bar until the user opens the window.
+  if (await commands.startupShouldShow()) await getCurrentWindow().show();
   logUi('info', `main window ready in ${Math.round(performance.now())} ms`);
 }
 

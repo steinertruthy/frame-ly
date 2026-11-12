@@ -39,32 +39,35 @@ fn build_menu(app: &AppHandle, language: Language, phase: Phase) -> AppResult<Me
             Menu::with_items(app, &[&stop, &toggle, &sep()?, &open, &sep()?, &quit])?
         }
         Phase::Idle => {
+            // Same hierarchy as the app: screenshot first, then recording, then the app.
             let supports = app.state::<AppState>().backend.supports_recording();
-            let region = item("capture-region", s.capture_region)?;
-            let window = item("capture-window", s.capture_window)?;
+            let shot = MenuItem::with_id(app, "capture-region", s.screenshot, true, None::<&str>)?;
             let screen = item("capture-screen", s.capture_screen)?;
-            let rec_region = item("rec-region", s.record_region)?;
-            let rec_window = item("rec-window", s.record_window)?;
+            let window = item("capture-window", s.capture_window)?;
             let rec_screen = item("rec-screen", s.record_screen)?;
+            let rec_window = item("rec-window", s.record_window)?;
+            let rec_region = item("rec-region", s.record_region)?;
+            let settings = item("settings", s.settings)?;
             if supports {
                 Menu::with_items(
                     app,
                     &[
-                        &region,
-                        &window,
+                        &shot,
                         &screen,
+                        &window,
                         &sep()?,
-                        &rec_region,
-                        &rec_window,
                         &rec_screen,
+                        &rec_window,
+                        &rec_region,
                         &sep()?,
                         &open,
+                        &settings,
                         &sep()?,
                         &quit,
                     ],
                 )?
             } else {
-                Menu::with_items(app, &[&region, &window, &screen, &sep()?, &open, &sep()?, &quit])?
+                Menu::with_items(app, &[&shot, &screen, &window, &sep()?, &open, &settings, &sep()?, &quit])?
             }
         }
     };
@@ -88,6 +91,10 @@ fn on_menu(app: &AppHandle, id: &str) {
     };
     match id {
         "open" => windows::show_main(app),
+        "settings" => {
+            windows::show_main(app);
+            let _ = tauri::Emitter::emit_to(app, windows::MAIN, "main://navigate", "settings");
+        }
         "capture-region" => screenshot::trigger(app, Request::Select { mode: SelectMode::Region }),
         "capture-window" => screenshot::trigger(app, Request::Select { mode: SelectMode::Window }),
         "capture-screen" => screenshot::trigger(app, Request::Display { display_id: None }),

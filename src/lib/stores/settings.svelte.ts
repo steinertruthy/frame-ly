@@ -1,5 +1,5 @@
 import { commands, events, isAppError } from '$lib/ipc/commands';
-import type { AppError, Settings, Theme } from '$lib/ipc/types';
+import type { AppError, Settings } from '$lib/ipc/types';
 import { setLanguage, t, type MessageKey } from '$lib/i18n/index.svelte';
 import { toast } from './toasts.svelte';
 
@@ -33,14 +33,16 @@ class SettingsStore {
   private apply(s: Settings): void {
     this.value = s;
     setLanguage(s.general.language);
-    applyTheme(s.appearance.theme);
+    applyAppearance(s.appearance);
   }
 }
 
-function applyTheme(theme: Theme): void {
+/** Theme, motion and ambient light as attributes on <html>, read by the design tokens. */
+export function applyAppearance(a: Settings['appearance']): void {
   const root = document.documentElement;
-  if (theme === 'system') delete root.dataset.theme;
-  else root.dataset.theme = theme;
+  root.dataset.theme = a.theme;
+  root.dataset.motion = a.motion;
+  root.dataset.ambient = a.ambientLight ? 'on' : 'off';
 }
 
 export const settings = new SettingsStore();

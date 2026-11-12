@@ -25,6 +25,7 @@
     position: relative;
     width: 38px;
     height: 22px;
+    box-shadow: inset 0 0 0 1px var(--border);
     padding: 0;
     border: 0;
     border-radius: 999px;
@@ -33,7 +34,10 @@
     flex-shrink: 0;
   }
   .toggle.on {
-    background: var(--accent);
+    background: var(--primary-fill);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 0 14px -4px var(--glow);
   }
   .toggle:disabled {
     opacity: 0.45;

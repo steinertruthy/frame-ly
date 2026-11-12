@@ -3,14 +3,17 @@ import type { ShortcutAction } from '$lib/shortcuts';
 // Mirrors of the Rust IPC types (src-tauri/src/core/settings.rs, commands/system.rs).
 // Keep in sync; serde uses camelCase on the wire.
 
-export type Language = 'system' | 'pt-BR' | 'en';
+export type Language = 'system' | 'pt-BR' | 'en' | 'es' | 'fr' | 'de';
 export type Theme = 'system' | 'light' | 'dark';
+export type Motion = 'system' | 'full' | 'reduced';
+export type ImageFormat = 'png' | 'jpeg';
+export type RecordTarget = 'screen' | 'window' | 'region';
 
 export interface Settings {
   version: number;
-  general: { language: Language };
-  appearance: { theme: Theme };
-  capture: { copyToClipboard: boolean; saveToDisk: boolean; showPreview: boolean };
+  general: { language: Language; launchAtLogin: boolean; closeToTray: boolean; showOnLaunch: boolean; notifications: boolean };
+  appearance: { theme: Theme; motion: Motion; ambientLight: boolean };
+  capture: { copyToClipboard: boolean; saveToDisk: boolean; showPreview: boolean; format: ImageFormat; jpegQuality: number };
   recording: RecordingSettings;
   audio: AudioSettings;
   shortcuts: Record<ShortcutAction, string>;
@@ -37,6 +40,8 @@ export interface RecordingSettings {
   codec: VideoCodec;
   countdown: number;
   showCursor: boolean;
+  target: RecordTarget;
+  showPreview: boolean;
 }
 
 export interface AudioSettings {

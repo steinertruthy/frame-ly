@@ -1,34 +1,39 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
-  import { Settings, Maximize2, SquareDashed, AppWindow, MonitorPlay, Crop, Monitor, Mic, MicOff, Volume2, VolumeX, Pause, Play, Square } from '@lucide/svelte';
-  import type { Component } from 'svelte';
+  import { onMount } from 'svelte';
+  import { slide } from 'svelte/transition';
+  import { Settings, Images, Scan, ChevronDown, Mic, Volume2, Pause, Play, Square, AppWindow, Monitor } from '@lucide/svelte';
+  import Aurora from '$lib/components/Aurora.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
-  import Segmented from '$lib/components/Segmented.svelte';
-  import Select from '$lib/components/Select.svelte';
   import LevelMeter from '$lib/components/LevelMeter.svelte';
+  import RecordSetup from '$lib/components/RecordSetup.svelte';
+  import MediaTile from '$lib/components/library/MediaTile.svelte';
+  import { itemActions } from '$lib/components/library/actions';
   import { commands, events, isAppError } from '$lib/ipc/commands';
   import { logUi } from '$lib/ipc/log';
   import { t, type MessageKey } from '$lib/i18n/index.svelte';
-  import type { AppInfo, SelectMode } from '$lib/ipc/types';
+  import type { AppInfo } from '$lib/ipc/types';
   import { settings } from '$lib/stores/settings.svelte';
   import { system } from '$lib/stores/system.svelte';
+  import { library } from '$lib/stores/library.svelte';
+  import { recordPrefs } from '$lib/stores/recordPrefs.svelte';
   import { recording, formatDuration } from '$lib/stores/recording.svelte';
+  import { audioMode, recordRequest, summaryKeys } from '$lib/recordSetup';
   import { formatAccelerator, type ShortcutAction } from '$lib/shortcuts';
 
   let { info }: { info: AppInfo } = $props();
 
-  type Tab = 'record' | 'capture';
-  // Initial tab only; the user switches freely afterwards.
-  let tab = $state<Tab>(untrack(() => (info.supportsRecording ? 'record' : 'capture')));
-  let display = $state(''); // '' = display under the pointer
   let error = $state<string | null>(null);
+  let options = $state(false);
   let root: HTMLDivElement | undefined = $state();
 
   const s = $derived(settings.value);
   const rec = $derived(recording.status);
   const live = $derived(rec.phase !== 'idle');
+  const summary = $derived(s ? summaryKeys(s.recording.target, audioMode(s.audio)) : null);
+  const keys = (a: ShortcutAction) => formatAccelerator(s?.shortcuts[a] ?? '', info.platform);
 
   onMount(() => {
+    void library.init();
     const un = events.onPanelShown(() => {
       error = null;
       // Focus the panel itself, not its first button (no stray focus ring on open). Deferred:
@@ -38,48 +43,46 @@
         root?.focus();
       }, 60);
       void system.refresh();
+      library.sync();
     });
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && void commands.panelHide();
     window.addEventListener('keydown', onKey);
+    // The window always fits the content (options expanded, recording state, recents).
+    const ro = new ResizeObserver(() => {
+      if (root) void commands.panelResize(Math.ceil(root.scrollHeight));
+    });
+    if (root) ro.observe(root);
     return () => {
+      ro.disconnect();
       void un.then((u) => u());
       window.removeEventListener('keydown', onKey);
     };
   });
 
-  interface Tile {
-    id: SelectMode | 'screen';
-    icon: Component<{ size?: number; strokeWidth?: number }>;
-    label: MessageKey;
-    shortcut: ShortcutAction;
+  function fail(e: unknown) {
+    error = t((isAppError(e) ? `error.${e.code}` : 'error.generic') as MessageKey) ?? t('error.generic');
+    logUi('warn', `panel action failed: ${JSON.stringify(e)}`);
   }
-  const tiles = $derived<Tile[]>(
-    tab === 'record'
-      ? [
-          { id: 'region', icon: SquareDashed, label: 'record.region', shortcut: 'recordRegion' },
-          { id: 'window', icon: AppWindow, label: 'record.window', shortcut: 'recordWindow' },
-          { id: 'screen', icon: MonitorPlay, label: 'record.screen', shortcut: 'recordScreen' },
-        ]
-      : [
-          { id: 'region', icon: Crop, label: 'capture.region', shortcut: 'captureRegion' },
-          { id: 'window', icon: AppWindow, label: 'capture.window', shortcut: 'captureWindow' },
-          { id: 'screen', icon: Monitor, label: 'capture.screen', shortcut: 'captureScreen' },
-        ],
-  );
 
-  async function start(id: Tile['id']) {
+  async function screenshot() {
     error = null;
-    // Hide first: the panel must not sit on top of the selection overlay or countdown.
+    // Hide first: the panel must not sit on top of the selection overlay.
     await commands.panelHide();
     try {
-      if (tab === 'record') {
-        await commands.startRecording(id === 'screen' ? { kind: 'display', displayId: display || null } : { kind: 'select', mode: id });
-      } else {
-        await commands.takeScreenshot(id === 'screen' ? { kind: 'display', displayId: display || null } : { kind: 'select', mode: id });
-      }
+      await commands.takeScreenshot({ kind: 'select', mode: 'region' });
     } catch (e) {
-      error = t((isAppError(e) ? `error.${e.code}` : 'error.generic') as MessageKey) ?? t('error.generic');
-      logUi('warn', `panel action failed: ${JSON.stringify(e)}`);
+      fail(e);
+    }
+  }
+
+  async function record() {
+    if (!s) return;
+    error = null;
+    await commands.panelHide();
+    try {
+      await commands.startRecording(recordRequest(s.recording.target, recordPrefs.displayId || null));
+    } catch (e) {
+      fail(e);
     }
   }
 
@@ -92,19 +95,18 @@
   }
 
   const phaseLabel = $derived<MessageKey>(
-    ({ countdown: 'record.countdown', recording: 'record.recording', paused: 'record.paused', finalizing: 'record.finalizing', idle: 'record.recording' } as const)[
-      rec.phase
-    ],
+    ({ countdown: 'record.countdown', recording: 'record.recording', paused: 'record.paused', finalizing: 'record.finalizing', idle: 'record.recording' } as const)[rec.phase],
   );
-  const keys = (a: ShortcutAction) => formatAccelerator(s?.shortcuts[a] ?? '', info.platform);
 </script>
+
+<Aurora intensity={0.7} />
 
 <div class="panel" class:mac={info.platform === 'macos'} bind:this={root} tabindex="-1" role="dialog" aria-label="FrameLy">
   <header>
-    <LogoMark size={22} />
+    <LogoMark size={20} />
     <span class="brand">FrameLy</span>
-    <button class="icon" title={t('panel.settings')} onclick={() => commands.showMainWindow('settings')}><Settings size={15} /></button>
-    <button class="icon" title={t('panel.open')} onclick={() => commands.showMainWindow('home')}><Maximize2 size={15} /></button>
+    <button class="icon" title={t('nav.library')} aria-label={t('nav.library')} onclick={() => commands.showMainWindow('library')}><Images size={15} /></button>
+    <button class="icon" title={t('panel.settings')} aria-label={t('panel.settings')} onclick={() => commands.showMainWindow('settings')}><Settings size={15} /></button>
   </header>
 
   {#if live}
@@ -127,98 +129,77 @@
           <button class="ctl" onclick={() => control(commands.resumeRecording)}><Play size={16} />{t('record.resume')}</button>
         {/if}
         <button class="ctl stop" disabled={rec.phase === 'finalizing'} onclick={() => control(commands.stopRecording)}>
-          <Square size={14} fill="currentColor" />{t('record.stop')}
+          <Square size={13} fill="currentColor" />{t('record.stop')}
         </button>
       </div>
       <div class="hint">
         {#each [['stopRecording', 'record.stop'], ['togglePause', 'shortcuts.action.togglePause']] as const as [a, label] (a)}
-          {#if keys(a).length}<span>{t(label)} <kbd>{keys(a).join('')}</kbd></span>{/if}
+          {#if keys(a).length}<span>{t(label)} <kbd>{keys(a).join(info.platform === 'macos' ? '' : '+')}</kbd></span>{/if}
         {/each}
       </div>
     </section>
   {:else}
-    {#if info.supportsRecording}
-      <Segmented
-        label={t('panel.record')}
-        value={tab}
-        options={[
-          { value: 'record' as Tab, label: t('panel.record') },
-          { value: 'capture' as Tab, label: t('panel.capture') },
-        ]}
-        onchange={(v) => (tab = v)}
-      />
-    {/if}
-
-    {#if !system.screenReady}
+    {#if system.permissions && !system.screenReady}
       <div class="notice">
         <span>{t('panel.needsPermission')}</span>
         <button class="link" onclick={() => commands.showMainWindow('home')}>{t('panel.setup')}</button>
       </div>
     {/if}
 
-    <div class="tiles" class:rec={tab === 'record'}>
-      {#each tiles as tile (tab + tile.id)}
-        <button class="tile" disabled={!system.screenReady} onclick={() => start(tile.id)}>
-          <span class="glyph"><tile.icon size={20} strokeWidth={1.8} /></span>
-          <span class="label">{t(tile.label)}</span>
-          <span class="keys">{keys(tile.shortcut).join('')}</span>
-        </button>
-      {/each}
+    <!-- 1. Screenshot -->
+    <button class="shot" disabled={!system.screenReady} onclick={screenshot}>
+      <span class="shot-icon"><Scan size={20} strokeWidth={1.8} /></span>
+      <span class="shot-text">
+        <span class="shot-title">{t('home.shot.title')}</span>
+        <span class="shot-sub">{t('panel.shot.sub')}</span>
+      </span>
+      {#if keys('captureRegion').length}<kbd class="shot-keys">{keys('captureRegion').join(info.platform === 'macos' ? '' : '+')}</kbd>{/if}
+    </button>
+    <div class="shot-more">
+      <button onclick={() => commands.panelHide().then(() => commands.takeScreenshot({ kind: 'display', displayId: null })).catch(fail)}><Monitor size={12} />{t('panel.shot.screen')}</button>
+      <span class="sep-dot"></span>
+      <button onclick={() => commands.panelHide().then(() => commands.takeScreenshot({ kind: 'select', mode: 'window' })).catch(fail)}><AppWindow size={12} />{t('panel.shot.window')}</button>
     </div>
 
-    {#if system.displays.length > 1}
-      <div class="row">
-        <span class="row-label"><Monitor size={14} />{t('panel.monitor')}</span>
-        <Select
-          label={t('panel.monitor')}
-          value={display}
-          options={[{ value: '', label: t('panel.monitor.auto') }, ...system.displays.map((d) => ({ value: d.id, label: d.name }))]}
-          onchange={(v) => (display = v)}
-        />
-      </div>
-    {/if}
-
-    {#if tab === 'record' && s}
-      <div class="audio">
-        <button
-          class="toggle-row"
-          class:on={s.audio.microphone}
-          aria-pressed={s.audio.microphone}
-          onclick={() => settings.update((d) => (d.audio.microphone = !d.audio.microphone))}
-        >
-          {#if s.audio.microphone}<Mic size={15} />{:else}<MicOff size={15} />{/if}
-          <span>{t('audio.microphone')}</span>
-          <span class="switch"></span>
-        </button>
-        {#if s.audio.microphone}
-          <div class="device">
-            <Select
-              label={t('audio.device')}
-              value={s.audio.microphoneDevice ?? ''}
-              options={[{ value: '', label: t('audio.device.default') }, ...system.audioInputs.map((d) => ({ value: d.id, label: d.name }))]}
-              onchange={(v) => settings.update((d) => (d.audio.microphoneDevice = v || null))}
-            />
+    <!-- 2. Recording -->
+    {#if info.supportsRecording}
+      <section class="rec">
+        <div class="rec-row">
+          <button class="rec-start" disabled={!system.screenReady} onclick={record}><span class="rec-dot"></span>{t('panel.rec.start')}</button>
+          <button class="rec-summary" onclick={() => (options = !options)} aria-expanded={options}>
+            {#if summary}<span>{t(summary[0])} · {t(summary[1])}</span>{/if}
+            <ChevronDown size={14} />
+          </button>
+        </div>
+        {#if options}
+          <div class="rec-options" transition:slide={{ duration: 220 }}>
+            <RecordSetup compact />
           </div>
         {/if}
-        <button
-          class="toggle-row"
-          class:on={s.audio.systemAudio}
-          aria-pressed={s.audio.systemAudio}
-          onclick={() => settings.update((d) => (d.audio.systemAudio = !d.audio.systemAudio))}
-        >
-          {#if s.audio.systemAudio}<Volume2 size={15} />{:else}<VolumeX size={15} />{/if}
-          <span>{t('audio.system')}</span>
-          <span class="switch"></span>
-        </button>
-      </div>
+      </section>
+    {/if}
+
+    <!-- 3. Recent files -->
+    {#if library.recent.length}
+      <section class="recent">
+        <div class="recent-head">
+          <span class="eyebrow">{t('panel.recent')}</span>
+          <button class="link" onclick={() => commands.showMainWindow('library')}>{t('home.seeAll')}</button>
+        </div>
+        <div class="recent-grid">
+          {#each library.recent as item (item.id)}
+            <MediaTile {item} compact onopen={(i) => itemActions.open(i)} />
+          {/each}
+        </div>
+      </section>
     {/if}
 
     {#if error}<div class="error">{error}</div>{/if}
 
+    <!-- 4. App -->
     <footer>
-      {#if keys('openPanel').length}
-        <span>{t('shortcuts.action.openPanel')} <kbd>{keys('openPanel').join(info.platform === 'macos' ? '' : '+')}</kbd></span>
-      {/if}
+      <button class="link" onclick={() => commands.showMainWindow('home')}>{t('panel.open')}</button>
+      {#if keys('openPanel').length}<kbd>{keys('openPanel').join(info.platform === 'macos' ? '' : '+')}</kbd>{/if}
     </footer>
   {/if}
 </div>
@@ -229,31 +210,34 @@
     background: transparent !important;
     overflow: hidden;
   }
-  .panel:focus {
-    outline: none;
-    box-shadow: inset 0 0 0 1px var(--border-strong);
+  /* The aurora lives inside the rounded panel only. */
+  :global(.aurora) {
+    border-radius: 16px;
   }
   .panel {
-    position: fixed;
-    inset: 0;
+    position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 12px 14px 12px;
-    border-radius: 14px;
-    background: var(--surface);
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-    overflow: hidden;
-    animation: open 180ms var(--ease-out);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    box-shadow:
+      inset 0 0 0 1px var(--border-strong),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    animation: open 200ms var(--ease-out);
   }
-  /* macOS: the native popover material shows through. */
   .panel.mac {
-    background: color-mix(in srgb, var(--surface) 62%, transparent);
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+  }
+  .panel:focus {
+    outline: none;
   }
   @keyframes open {
     from {
       opacity: 0;
-      transform: translateY(-4px) scale(0.985);
+      transform: translateY(-6px) scale(0.985);
     }
   }
   header {
@@ -263,9 +247,7 @@
   }
   .brand {
     flex: 1;
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: var(--text-lg);
+    font: 700 var(--text-lg) var(--font-display);
     letter-spacing: -0.02em;
   }
   .icon {
@@ -283,143 +265,214 @@
     background: var(--surface-hover);
     color: var(--text);
   }
-  .tiles {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-  }
-  .tile {
+
+  /* 1. Screenshot */
+  .shot {
+    position: relative;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    padding: 14px 6px 10px;
+    gap: 12px;
+    width: 100%;
+    padding: 14px;
     border: 0;
-    border-radius: 12px;
-    background: var(--surface-2);
-    box-shadow: inset 0 0 0 1px var(--border);
+    border-radius: 13px;
+    overflow: hidden;
+    background: var(--hero);
+    color: #f1f4fa;
+    text-align: left;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      inset 0 0 0 1px rgba(108, 157, 230, 0.2),
+      0 14px 30px -18px rgba(57, 120, 215, 0.9);
     transition:
       transform var(--dur-med) var(--ease-out),
-      background var(--dur-fast);
+      box-shadow var(--dur-med);
   }
-  .tile:hover:not(:disabled) {
-    background: var(--surface-hover);
+  .shot:hover:not(:disabled) {
     transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      inset 0 0 0 1px rgba(108, 157, 230, 0.35),
+      0 18px 36px -16px rgba(57, 120, 215, 1);
   }
-  .tile:active:not(:disabled) {
-    transform: scale(0.97);
+  .shot:active:not(:disabled) {
+    transform: scale(0.985);
   }
-  .tile:disabled {
-    opacity: 0.45;
+  .shot:disabled {
+    opacity: 0.5;
   }
-  .glyph {
+  .shot-icon {
     display: grid;
     place-items: center;
     width: 40px;
     height: 40px;
-    border-radius: 12px;
-    background: var(--hero);
-    color: #fff;
-    box-shadow: 0 6px 14px -6px rgba(22, 48, 122, 0.7);
+    border-radius: 11px;
+    background: rgba(169, 198, 242, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(169, 198, 242, 0.25);
   }
-  .rec .glyph {
-    background: linear-gradient(135deg, #ff6b78, #e5394b);
-    box-shadow: 0 6px 14px -6px rgba(229, 57, 75, 0.65);
+  .shot-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
   }
-  .label {
-    font-weight: 600;
+  .shot-title {
+    font: 700 var(--text-lg) var(--font-display);
+  }
+  .shot-sub {
+    color: rgba(241, 244, 250, 0.7);
     font-size: var(--text-sm);
   }
-  .keys {
-    min-height: 14px;
-    color: var(--text-3);
-    font: 500 11px var(--font-mono);
-    letter-spacing: 0.04em;
+  .shot-keys {
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.12);
+    font-size: 11px;
+    color: rgba(241, 244, 250, 0.85);
   }
-  .row {
+  .shot-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: -4px;
+  }
+  .shot-more button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 0;
+    background: none;
+    color: var(--text-2);
+    font-size: var(--text-xs);
+    font-weight: 600;
+  }
+  .shot-more button:hover {
+    color: var(--text);
+  }
+  .sep-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--text-3);
+  }
+
+  /* 2. Recording */
+  .rec {
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .rec-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+  }
+  .rec-start {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--rec-500) 16%, transparent);
+    color: var(--text);
+    font-weight: 650;
+    white-space: nowrap;
+    transition: background var(--dur-fast);
+  }
+  .rec-start:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--rec-500) 26%, transparent);
+  }
+  .rec-start:disabled {
+    opacity: 0.5;
+  }
+  .rec-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--rec-500);
+    box-shadow: 0 0 10px var(--rec-500);
+  }
+  .rec-summary {
+    flex: 1;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-  }
-  .row-label {
-    display: inline-flex;
-    align-items: center;
     gap: 6px;
-    color: var(--text-2);
-    font-size: var(--text-sm);
-    font-weight: 600;
-  }
-  .row :global(select) {
-    min-width: 0;
-    width: 190px;
-  }
-  .audio {
-    display: flex;
-    flex-direction: column;
-    border-radius: 12px;
-    background: var(--surface-2);
-    box-shadow: inset 0 0 0 1px var(--border);
-    overflow: hidden;
-  }
-  .toggle-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    height: 40px;
-    padding: 0 12px;
+    height: 34px;
+    padding: 0 8px;
     border: 0;
+    border-radius: 9px;
     background: transparent;
     color: var(--text-2);
-    font-weight: 600;
+    font-size: var(--text-xs);
     text-align: left;
   }
-  .toggle-row + .toggle-row,
-  .device + .toggle-row {
-    border-top: 1px solid var(--border);
+  .rec-summary span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .toggle-row span:nth-child(2) {
-    flex: 1;
-  }
-  .toggle-row.on {
+  .rec-summary:hover {
+    background: var(--surface-hover);
     color: var(--text);
   }
-  .switch {
-    position: relative;
-    width: 30px;
-    height: 18px;
-    border-radius: 999px;
-    background: var(--border-strong);
-    transition: background var(--dur-med);
+  .rec-summary :global(svg) {
+    flex-shrink: 0;
+    transition: transform var(--dur-med) var(--ease-out);
   }
-  .switch::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 1px 2px rgba(6, 13, 38, 0.3);
-    transition: transform var(--dur-med) var(--ease-spring);
+  .rec-summary[aria-expanded='true'] :global(svg) {
+    transform: rotate(180deg);
   }
-  .on .switch {
-    background: var(--accent);
+  .rec-options {
+    padding: 4px 12px 12px;
   }
-  .on .switch::after {
-    transform: translateX(12px);
-  }
-  .device {
-    padding: 0 12px 10px 37px;
-  }
-  .device :global(select) {
-    width: 100%;
-    min-width: 0;
-    max-width: none;
-  }
-  .device :global(.select) {
+
+  /* 3. Recent */
+  .recent-head {
     display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .recent-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .link {
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font-size: var(--text-xs);
+    font-weight: 650;
+  }
+  .link:hover {
+    color: var(--accent-hover);
+  }
+
+  /* 4. App */
+  footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 2px;
+    color: var(--text-3);
+  }
+  footer .link {
+    font-size: var(--text-sm);
+  }
+  kbd {
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--border);
+    font: 600 11px var(--font-mono);
+    color: var(--text-2);
   }
   .notice,
   .error {
@@ -439,33 +492,14 @@
   .error {
     background: color-mix(in srgb, var(--rec-500) 14%, transparent);
   }
-  .link {
-    border: 0;
-    background: none;
-    color: var(--accent);
-    font-weight: 650;
-  }
-  footer {
-    margin-top: auto;
-    display: flex;
-    justify-content: center;
-    color: var(--text-3);
-    font-size: var(--text-xs);
-  }
-  kbd {
-    padding: 1px 5px;
-    border-radius: 5px;
-    background: var(--surface-2);
-    box-shadow: inset 0 0 0 1px var(--border);
-    font: 600 11px var(--font-mono);
-  }
+
+  /* Live recording */
   .live {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    padding: 18px 10px 6px;
-    flex: 1;
+    padding: 14px 6px 4px;
   }
   .state {
     display: flex;
@@ -479,10 +513,12 @@
     height: 10px;
     border-radius: 50%;
     background: var(--rec-500);
+    box-shadow: 0 0 12px var(--rec-500);
     animation: pulse 1.6s infinite;
   }
   .paused .dot {
     background: var(--warn-500);
+    box-shadow: none;
     animation: none;
   }
   @keyframes pulse {
@@ -521,7 +557,7 @@
     height: 40px;
     border: 0;
     border-radius: 11px;
-    background: var(--surface-2);
+    background: var(--surface-raised);
     box-shadow: inset 0 0 0 1px var(--border);
     color: var(--text);
     font-weight: 650;
@@ -532,13 +568,12 @@
   }
   .ctl.stop {
     background: var(--rec-500);
-    box-shadow: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
     color: #fff;
   }
   .hint {
     display: flex;
     gap: 14px;
-    margin-top: auto;
     color: var(--text-3);
     font-size: var(--text-xs);
   }
