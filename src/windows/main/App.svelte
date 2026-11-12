@@ -99,7 +99,6 @@
         {:else}
           <PanelLeftClose size={16} strokeWidth={2} />
         {/if}
-        <span>{label}</span>
       </button>
     {/if}
   </aside>
@@ -193,9 +192,15 @@
   }
   /* Pinned to the bottom, under the recording timer when there is one. */
   .toggle {
+    align-self: flex-start;
+    justify-content: center;
+    width: 38px; /* icon lines up with the nav icons (11px inset) */
     margin-top: auto;
-    font-weight: 500;
+    padding: 0;
     color: var(--text-3);
+  }
+  .collapsed .toggle {
+    align-self: center;
   }
   .live ~ .toggle {
     margin-top: 8px;
