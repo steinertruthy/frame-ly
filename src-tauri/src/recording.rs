@@ -12,7 +12,9 @@ use crate::{
         recorder::{format_elapsed, Phase, Recorder},
         video,
     },
-    platform::{Display, NativeEvent, NativeRecording, NativeTarget, RecordingStats, Rect, WindowInfo},
+    platform::{
+        Display, NativeAudio, NativeEvent, NativeRecording, NativeTarget, RecordingStats, Rect, WindowInfo,
+    },
     screenshot::{self, PreviewKind, Purpose, SelectMode},
     tray, AppState,
 };
@@ -114,6 +116,9 @@ impl Target {
 struct Active {
     id: String,
     kind: &'static str,
+    /// (system audio, microphone) actually captured.
+    audio: Option<(bool, bool)>,
+    size: (u32, u32),
     started_at: chrono::DateTime<chrono::Local>,
     temp: PathBuf,
     thumb: PathBuf,
@@ -175,7 +180,19 @@ pub struct Status {
     pub phase: Phase,
     pub elapsed_ms: u64,
     pub target: Option<&'static str>,
+    /// Which audio sources this recording captures, and their current peak levels.
+    pub audio: Option<AudioStatus>,
 }
+
+#[derive(Serialize, Clone, Copy, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioStatus {
+    pub system: bool,
+    pub microphone: bool,
+    pub levels: crate::platform::AudioLevels,
+}
+
+pub const WARNING_EVENT: &str = "recording://warning";
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -202,10 +219,20 @@ fn work_dir(app: &AppHandle) -> AppResult<PathBuf> {
 pub fn status(app: &AppHandle) -> Status {
     let st = state(app);
     let inner = st.recordings.inner.lock().unwrap();
+    let audio = inner.active.as_ref().and_then(|a| a.audio).map(|(system, microphone)| AudioStatus {
+        system,
+        microphone,
+        levels: if matches!(inner.recorder.phase(), Phase::Recording) {
+            st.backend.recording_levels()
+        } else {
+            Default::default()
+        },
+    });
     Status {
         phase: inner.recorder.phase(),
         elapsed_ms: inner.recorder.elapsed(Instant::now()).as_millis() as u64,
         target: inner.active.as_ref().map(|a| a.kind),
+        audio,
     }
 }
 
@@ -319,9 +346,11 @@ async fn start_native(
     let manifest = dir.join(format!("{id}.json"));
     let started_at = chrono::Local::now();
 
+    let audio = resolve_audio(app).await;
     let size = video::output_size(target.source_pixels(), rec.resolution, rec.codec);
     let config = NativeRecording {
         target: target.native(),
+        audio: audio.clone(),
         width: size.0,
         height: size.1,
         fps: rec.fps,
@@ -347,7 +376,7 @@ async fn start_native(
             tracing::warn!(%reason, duration_ms, frames, "recording stopped by the system");
             let app = events_app.clone();
             tauri::async_runtime::spawn(async move {
-                let stats = RecordingStats { duration_ms, frames, width: 0, height: 0 };
+                let stats = RecordingStats { duration_ms, frames, width: 0, height: 0, audio: false };
                 finish(app, Some(stats)).await;
             });
         }
@@ -374,11 +403,66 @@ async fn start_native(
     let st = state(app);
     let mut inner = st.recordings.inner.lock().unwrap();
     inner.recorder.started(Instant::now())?;
-    inner.active = Some(Active { id, kind: target.kind(), started_at, temp, thumb, manifest });
+    inner.active = Some(Active {
+        id,
+        kind: target.kind(),
+        audio: audio.map(|a| (a.system, a.microphone)),
+        size: (config.width, config.height),
+        started_at,
+        temp,
+        thumb,
+        manifest,
+    });
     Ok(())
 }
 
-/// Emits the status twice a second while a recording is active (tray title + UI timer).
+/// Turns audio settings into what can actually be captured right now. The microphone needs
+/// permission (asked here the first time) and a present device; when either is missing the
+/// recording proceeds without it — or with the default input — and the UI is warned.
+async fn resolve_audio(app: &AppHandle) -> Option<NativeAudio> {
+    use crate::platform::{Permission, PermissionState};
+    let a = state(app).settings.get().audio;
+    let mut microphone = a.microphone;
+    let mut device = a.microphone_device.clone();
+    if microphone {
+        let backend = Arc::clone(&state(app).backend);
+        let (perm, inputs) = on_worker(move || {
+            let mut p = backend.permissions().microphone;
+            if p == PermissionState::NotDetermined {
+                p = backend.request_permission(Permission::Microphone)?;
+            }
+            Ok((p, backend.audio_inputs().unwrap_or_default()))
+        })
+        .await
+        .unwrap_or((PermissionState::Denied, Vec::new()));
+        if perm != PermissionState::Granted {
+            microphone = false;
+            warn(app, "microphone_permission");
+        } else if inputs.is_empty() {
+            microphone = false;
+            warn(app, "microphone_missing");
+        } else if let Some(id) = &device {
+            if !inputs.iter().any(|d| &d.id == id) {
+                device = None;
+                warn(app, "microphone_fallback");
+            }
+        }
+    }
+    (a.system_audio || microphone).then_some(NativeAudio {
+        system: a.system_audio,
+        microphone,
+        microphone_id: device,
+        system_gain: a.system_gain,
+        microphone_gain: a.microphone_gain,
+    })
+}
+
+fn warn(app: &AppHandle, code: &str) {
+    tracing::warn!(code, "recording audio warning");
+    let _ = app.emit(WARNING_EVENT, code);
+}
+
+/// Emits the status four times a second while a recording is active (tray title, UI timer, meters).
 fn spawn_ticker(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
@@ -387,7 +471,8 @@ fn spawn_ticker(app: AppHandle) {
                 break;
             }
             publish(&app);
-            tokio::time::sleep(Duration::from_millis(500)).await;
+            // 4 Hz: smooth enough for level meters, negligible cost.
+            tokio::time::sleep(Duration::from_millis(250)).await;
         }
     });
 }
@@ -506,8 +591,8 @@ async fn deliver(app: &AppHandle, active: Active, stats: RecordingStats) -> AppR
             path: dest,
             thumb,
             duration_ms: stats.duration_ms,
-            width: stats.width,
-            height: stats.height,
+            width: active.size.0,
+            height: active.size.1,
             bytes,
         })
     })

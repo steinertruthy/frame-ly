@@ -29,6 +29,10 @@ extern "C" {
     fn fl_rec_resume();
     fn fl_rec_stop() -> *mut c_char;
     fn fl_rec_discard();
+    fn fl_rec_levels() -> *mut c_char;
+    fn fl_mic_monitor_start(device_id: *const c_char) -> *mut c_char;
+    fn fl_mic_monitor_level() -> f32;
+    fn fl_mic_monitor_stop();
 }
 
 /// Rust side of the recorder's event callback. FrameLyKit calls `on_recording_event` (any
@@ -224,6 +228,37 @@ impl CaptureBackend for MacBackend {
         // SAFETY: no arguments.
         unsafe { fl_rec_discard() };
         EVENTS.lock().unwrap().take();
+    }
+
+    fn recording_levels(&self) -> super::AudioLevels {
+        call(fl_rec_levels).unwrap_or_default()
+    }
+
+    fn mic_monitor_start(&self, device_id: Option<&str>) -> AppResult<()> {
+        let id = device_id
+            .map(std::ffi::CString::new)
+            .transpose()
+            .map_err(|_| AppError::Platform("bad device id".into()))?;
+        // SAFETY: `id` outlives the call; a non-null result is an owned error envelope.
+        unsafe {
+            let err = fl_mic_monitor_start(id.as_ref().map_or(std::ptr::null(), |c| c.as_ptr()));
+            if err.is_null() {
+                return Ok(());
+            }
+            let json = CStr::from_ptr(err).to_string_lossy().into_owned();
+            fl_free_string(err);
+            decode::<()>(&json).and(Err(AppError::Platform("microphone unavailable".into())))
+        }
+    }
+
+    fn mic_monitor_level(&self) -> f32 {
+        // SAFETY: pure query.
+        unsafe { fl_mic_monitor_level() }
+    }
+
+    fn mic_monitor_stop(&self) {
+        // SAFETY: no arguments.
+        unsafe { fl_mic_monitor_stop() }
     }
 }
 

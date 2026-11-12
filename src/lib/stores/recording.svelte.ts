@@ -3,7 +3,7 @@ import type { RecordingStatus } from '$lib/ipc/types';
 
 /** Live recording status (phase + elapsed), pushed by the backend twice a second. */
 class RecordingStore {
-  status = $state<RecordingStatus>({ phase: 'idle', elapsedMs: 0, target: null });
+  status = $state<RecordingStatus>({ phase: 'idle', elapsedMs: 0, target: null, audio: null });
 
   async init(): Promise<void> {
     this.status = await commands.recordingStatus();

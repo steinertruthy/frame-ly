@@ -25,6 +25,7 @@ async function boot() {
     void system.refresh();
   });
   await events.onRecordingFailed((e) => toast('error', t(`error.${e.code}` as MessageKey) ?? t('error.generic')));
+  await events.onRecordingWarning((code) => toast('info', t(`audio.warning.${code}`), 6000));
   const recovered = await commands.recoveredRecordings();
   if (recovered.length) toast('info', t('record.recovered'), 6000);
   await tick();

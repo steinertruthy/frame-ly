@@ -4,6 +4,8 @@
   import { t, type MessageKey } from '$lib/i18n/index.svelte';
   import { recording, formatDuration } from '$lib/stores/recording.svelte';
   import { logUi } from '$lib/ipc/log';
+  import { Mic, Volume2 } from '@lucide/svelte';
+  import LevelMeter from './LevelMeter.svelte';
 
   const s = $derived(recording.status);
   const label = $derived<MessageKey>(
@@ -25,6 +27,12 @@
     <div class="state">{t(label)}{#if s.target} · {t(`record.target.${s.target}`)}{/if}</div>
     <div class="time">{formatDuration(s.elapsedMs)}</div>
   </div>
+  {#if s.audio}
+    <div class="levels">
+      {#if s.audio.microphone}<span class="lvl"><Mic size={13} /><LevelMeter level={s.audio.levels.microphone} segments={10} label={t('audio.microphone')} /></span>{/if}
+      {#if s.audio.system}<span class="lvl"><Volume2 size={13} /><LevelMeter level={s.audio.levels.system} segments={10} label={t('audio.system')} /></span>{/if}
+    </div>
+  {/if}
   <div class="controls">
     {#if s.phase === 'recording'}
       <button class="ctl" onclick={() => act(commands.pauseRecording)} title={t('record.pause')}><Pause size={16} /></button>
@@ -78,6 +86,17 @@
   .time {
     font: 600 var(--text-xl) / 1.2 var(--font-mono);
     font-variant-numeric: tabular-nums;
+  }
+  .levels {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--text-3);
+  }
+  .lvl {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
   .controls {
     display: flex;

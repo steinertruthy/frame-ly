@@ -20,7 +20,16 @@ struct RecordingConfig: Decodable {
         /// Display-local rectangle in points (region recordings).
         let x, y, width, height: Double?
     }
+    struct Audio: Decodable {
+        let system: Bool
+        let microphone: Bool
+        /// AVCaptureDevice.uniqueID; nil = system default input.
+        let microphoneId: String?
+        let systemGain: Float
+        let microphoneGain: Float
+    }
     let target: Target
+    let audio: Audio?
     let width: Int
     let height: Int
     let fps: Int
@@ -36,6 +45,12 @@ struct RecordingResult: Encodable {
     let frames: Int
     let width: Int
     let height: Int
+    let audio: Bool
+}
+
+struct AudioLevels: Encodable {
+    let system: Float
+    let microphone: Float
 }
 
 public typealias EventCallback = @convention(c) (UnsafePointer<CChar>) -> Void
@@ -48,6 +63,21 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
     private let writer: AVAssetWriter
     private let input: AVAssetWriterInput
     private var timeline = PauseTimeline()
+    private let timelineLock = NSLock()
+
+    // Audio: both sources and the mixer live on `audioQueue`.
+    private let audioQueue = DispatchQueue(label: "app.framely.recorder.audio", qos: .userInteractive)
+    private let audioInput: AVAssetWriterInput?
+    private var mixer: AudioMixer?
+    private var mic: MicCapture?
+    /// Mixer source index per input kind (only enabled sources get one).
+    private let systemSource: Int?
+    private let micSource: Int?
+    private var audioFinished = false
+    /// Host time of the first video frame = time zero of the file (for tests/diagnostics).
+    private(set) var originHostTime: CMTime?
+    /// Tests turn this off to capture a tone played by the test process itself.
+    var excludesOwnAudio = true
     private var firstPTS: CMTime?
     private var lastPTS: CMTime = .zero
     private var frames = 0
@@ -87,7 +117,34 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
         input.expectsMediaDataInRealTime = true
         guard writer.canAdd(input) else { throw FFIError.platform("encoder rejected the output settings") }
         writer.add(input)
+
+        let audio = config.audio
+        let wantsSystem = audio?.system == true
+        let wantsMic = audio?.microphone == true
+        systemSource = wantsSystem ? 0 : nil
+        micSource = wantsMic ? (wantsSystem ? 1 : 0) : nil
+        if wantsSystem || wantsMic {
+            let aac = AVAssetWriterInput(mediaType: .audio, outputSettings: [
+                AVFormatIDKey: kAudioFormatMPEG4AAC,
+                AVSampleRateKey: AudioMixer.sampleRate,
+                AVNumberOfChannelsKey: 2,
+                AVEncoderBitRateKey: 192_000,
+            ])
+            aac.expectsMediaDataInRealTime = true
+            guard writer.canAdd(aac) else { throw FFIError.platform("AAC encoder unavailable") }
+            writer.add(aac)
+            audioInput = aac
+        } else {
+            audioInput = nil
+        }
         super.init()
+    }
+
+    private var gains: [Float] {
+        var g: [Float] = []
+        if systemSource != nil { g.append(config.audio?.systemGain ?? 1) }
+        if micSource != nil { g.append(config.audio?.microphoneGain ?? 1) }
+        return g
     }
 
     func start() throws {
@@ -106,6 +163,12 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
         stream.showsCursor = config.showsCursor
         stream.queueDepth = 6
         stream.scalesToFit = true
+        if systemSource != nil {
+            stream.capturesAudio = true
+            stream.sampleRate = AudioMixer.sampleRate
+            stream.channelCount = 2
+            stream.excludesCurrentProcessAudio = excludesOwnAudio
+        }
 
         let filter: SCContentFilter
         let t = config.target
@@ -129,23 +192,46 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
 
         let s = SCStream(filter: filter, configuration: stream, delegate: self)
         try s.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
+        if systemSource != nil {
+            try s.addStreamOutput(self, type: .audio, sampleHandlerQueue: audioQueue)
+        }
+        if let micSource {
+            let m = try MicCapture(
+                deviceId: config.audio?.microphoneId,
+                queue: audioQueue,
+                onBuffer: { [weak self] sb, pts in self?.pushAudio(sb, pts: pts, source: micSource) },
+                onFailure: { [weak self] in self?.audioQueue.async { self?.mixer?.deactivate(source: micSource) } }
+            )
+            mic = m
+        }
         guard writer.startWriting() else {
             throw FFIError.platform("could not start writing: \(writer.error?.localizedDescription ?? "unknown")")
         }
         try blocking { try await s.startCapture() }
+        mic?.start()
         self.stream = s
     }
 
     // MARK: - Samples
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sb: CMSampleBuffer, of type: SCStreamOutputType) {
+        if type == .audio, let systemSource {
+            pushAudio(sb, pts: sb.presentationTimeStamp, source: systemSource)
+            return
+        }
         guard type == .screen, !finished, sb.isValid, isCompleteFrame(sb) else { return }
         let pts = sb.presentationTimeStamp
-        guard let adjusted = timeline.adjusted(pts) else { return }
+        guard let adjusted = adjustedTime(pts) else { return }
 
         if firstPTS == nil {
             firstPTS = adjusted
+            originHostTime = pts
             writer.startSession(atSourceTime: adjusted)
+            if audioInput != nil {
+                // Audio shares the video timeline: frame 0 of the mix = first video frame.
+                let gains = gains
+                audioQueue.async { self.mixer = AudioMixer(origin: pts, gains: gains) }
+            }
             emit(#"{"kind":"started"}"#)
         }
         guard input.isReadyForMoreMediaData else { return } // encoder busy: drop rather than stall capture
@@ -155,6 +241,39 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
         if !thumbnailDone, let pb = sb.imageBuffer {
             thumbnailDone = true
             writeThumbnail(pb)
+        }
+    }
+
+    private func adjustedTime(_ pts: CMTime) -> CMTime? {
+        timelineLock.lock(); defer { timelineLock.unlock() }
+        return timeline.adjusted(pts)
+    }
+
+    /// Runs on `audioQueue`: feed the mixer, then write whatever it releases.
+    private func pushAudio(_ sb: CMSampleBuffer, pts: CMTime, source: Int) {
+        guard let mixer, !audioFinished, let samples = PCM.interleavedStereo(sb) else { return }
+        mixer.push(source: source, pts: pts, samples: samples)
+        drainMixer(flush: false)
+    }
+
+    private func drainMixer(flush: Bool) {
+        guard let mixer, let audioInput else { return }
+        while let chunk = mixer.pull(flush: flush) {
+            // Paused spans are dropped and later audio shifts back, exactly like video.
+            guard let adjusted = adjustedTime(mixer.time(ofFrame: chunk.startFrame)),
+                  audioInput.isReadyForMoreMediaData,
+                  let sb = PCM.sampleBuffer(chunk.samples, pts: adjusted)
+            else { continue }
+            audioInput.append(sb)
+        }
+    }
+
+    func levels() -> AudioLevels {
+        audioQueue.sync {
+            AudioLevels(
+                system: systemSource.flatMap { mixer?.sources[$0].peak } ?? 0,
+                microphone: micSource.flatMap { mixer?.sources[$0].peak } ?? 0
+            )
         }
     }
 
@@ -192,8 +311,15 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
 
     private static func hostNow() -> CMTime { CMClockGetTime(CMClockGetHostTimeClock()) }
 
-    func pause() { queue.sync { timeline.pause(at: Self.hostNow()) } }
-    func resume() { queue.sync { timeline.resume(at: Self.hostNow()) } }
+    func pause() {
+        timelineLock.lock(); defer { timelineLock.unlock() }
+        timeline.pause(at: Self.hostNow())
+    }
+
+    func resume() {
+        timelineLock.lock(); defer { timelineLock.unlock() }
+        timeline.resume(at: Self.hostNow())
+    }
 
     /// Stops capture and finalizes the file. Safe to call once; later calls are no-ops.
     func stop() throws -> RecordingResult {
@@ -216,8 +342,18 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
             }
             // Keep the last frame on screen until the moment the user pressed stop (static
             // screens deliver no new frames), minus any time spent paused.
+            timelineLock.lock()
             if timeline.isPaused { timeline.resume(at: hostTime) }
             let end = max(lastPTS, hostTime - timeline.pausedDuration(until: hostTime))
+            timelineLock.unlock()
+            mic?.stop()
+            if audioInput != nil {
+                audioQueue.sync {
+                    drainMixer(flush: true)
+                    audioFinished = true
+                    audioInput?.markAsFinished()
+                }
+            }
             input.markAsFinished()
             writer.endSession(atSourceTime: end)
             let sem = DispatchSemaphore(value: 0)
@@ -230,7 +366,8 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
                 durationMs: Int(((end - first).seconds * 1000).rounded()),
                 frames: frames,
                 width: config.width,
-                height: config.height
+                height: config.height,
+                audio: audioInput != nil
             )
         }
     }
@@ -299,6 +436,14 @@ public func fl_rec_pause() {
 public func fl_rec_resume() {
     lock.lock(); let r = current; lock.unlock()
     r?.resume()
+}
+
+@_cdecl("fl_rec_levels")
+public func fl_rec_levels() -> UnsafeMutablePointer<CChar> {
+    respond { () -> AudioLevels in
+        lock.lock(); let r = current; lock.unlock()
+        return r?.levels() ?? AudioLevels(system: 0, microphone: 0)
+    }
 }
 
 @_cdecl("fl_rec_stop")

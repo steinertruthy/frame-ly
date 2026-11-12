@@ -130,6 +130,23 @@ export const en = {
   'settings.recording.cursor': 'Show cursor',
   'settings.recording.cursor.hint': 'Include the mouse pointer in recordings.',
   'error.empty_recording': 'Nothing was recorded.',
+  'audio.title': 'Audio',
+  'audio.system': 'System audio',
+  'audio.system.hint': 'Sound from apps and the browser, captured natively.',
+  'audio.microphone': 'Microphone',
+  'audio.microphone.hint': 'Your voice. Asks for permission the first time.',
+  'audio.device': 'Input device',
+  'audio.device.hint': 'Which microphone to record.',
+  'audio.device.default': 'System default',
+  'audio.systemVolume': 'System audio volume',
+  'audio.micVolume': 'Microphone volume',
+  'audio.test': 'Test microphone',
+  'audio.test.stop': 'Stop test',
+  'audio.test.hint': 'Speak to see the level.',
+  'audio.off': 'No audio',
+  'audio.warning.microphone_permission': 'Microphone permission is off, so this recording has no microphone.',
+  'audio.warning.microphone_missing': 'No microphone found, so this recording has no microphone.',
+  'audio.warning.microphone_fallback': 'The chosen microphone is not connected; using the system default.',
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -92,6 +92,34 @@ impl Default for Recording {
     }
 }
 
+/// Audio sources for recordings. System audio uses native capture (no virtual drivers).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Audio {
+    pub system_audio: bool,
+    /// Off by default: turning it on is when FrameLy asks for microphone permission.
+    pub microphone: bool,
+    /// Device id; `None` follows the system default input.
+    pub microphone_device: Option<String>,
+    /// Linear gains, 0.0–2.0.
+    pub system_gain: f32,
+    pub microphone_gain: f32,
+}
+
+impl Default for Audio {
+    fn default() -> Self {
+        Self {
+            system_audio: true,
+            microphone: false,
+            microphone_device: None,
+            system_gain: 1.0,
+            microphone_gain: 1.0,
+        }
+    }
+}
+
+pub const MAX_GAIN: f32 = 2.0;
+
 pub const ALLOWED_FPS: [u32; 3] = [24, 30, 60];
 pub const MAX_COUNTDOWN: u32 = 10;
 
@@ -110,6 +138,7 @@ pub struct Settings {
     pub appearance: Appearance,
     pub capture: Capture,
     pub recording: Recording,
+    pub audio: Audio,
     pub storage: Storage,
 }
 
@@ -139,6 +168,7 @@ impl Settings {
             appearance: Appearance::default(),
             capture: Capture::default(),
             recording: Recording::default(),
+            audio: Audio::default(),
             storage: Storage { recordings_dir: d.videos.clone(), screenshots_dir: d.pictures.clone() },
         }
     }
@@ -146,6 +176,13 @@ impl Settings {
     pub fn validate(&self) -> AppResult<()> {
         if !ALLOWED_FPS.contains(&self.recording.fps) {
             return Err(AppError::InvalidSettings(format!("fps must be one of {ALLOWED_FPS:?}")));
+        }
+        for (name, g) in
+            [("systemGain", self.audio.system_gain), ("microphoneGain", self.audio.microphone_gain)]
+        {
+            if !(0.0..=MAX_GAIN).contains(&g) {
+                return Err(AppError::InvalidSettings(format!("{name} must be between 0 and {MAX_GAIN}")));
+            }
         }
         if self.recording.countdown > MAX_COUNTDOWN {
             return Err(AppError::InvalidSettings(format!("countdown must be at most {MAX_COUNTDOWN}s")));
@@ -367,6 +404,20 @@ mod tests {
         s.recording.countdown = 5;
         s.recording.resolution = Resolution::P1080;
         assert_eq!(store.replace(s).unwrap().recording.resolution, Resolution::P1080);
+    }
+
+    #[test]
+    fn audio_defaults_and_gain_bounds() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = dirs_in(tmp.path());
+        let store = SettingsStore::load(tmp.path().join("s.json"), &d).unwrap();
+        let mut s = store.get();
+        assert!(s.audio.system_audio && !s.audio.microphone);
+        s.audio.microphone_gain = 2.5;
+        assert_eq!(store.replace(s.clone()).unwrap_err().code(), "invalid_settings");
+        s.audio.microphone_gain = 1.5;
+        s.audio.microphone_device = Some("BuiltInMicrophoneDevice".into());
+        assert_eq!(store.replace(s).unwrap().audio.microphone_gain, 1.5);
     }
 
     #[test]

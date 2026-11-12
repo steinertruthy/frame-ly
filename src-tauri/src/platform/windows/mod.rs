@@ -92,4 +92,19 @@ impl CaptureBackend for WinBackend {
     }
 
     fn discard_recording(&self) {}
+
+    fn recording_levels(&self) -> super::AudioLevels {
+        super::AudioLevels::default()
+    }
+
+    // Windows audio (WASAPI loopback + microphone) ships with the Windows recorder (Stage 4).
+    fn mic_monitor_start(&self, _: Option<&str>) -> AppResult<()> {
+        Err(AppError::Platform("microphone test is not available on Windows yet".into()))
+    }
+
+    fn mic_monitor_level(&self) -> f32 {
+        0.0
+    }
+
+    fn mic_monitor_stop(&self) {}
 }

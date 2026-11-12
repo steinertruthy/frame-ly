@@ -67,3 +67,28 @@ pub fn open_last_recording(app: AppHandle, state: State<'_, AppState>) -> AppRes
 pub fn copy_last_recording(state: State<'_, AppState>) -> AppResult<()> {
     crate::platform::clipboard::copy_file(&last(&state)?.path)
 }
+
+/// Starts the Settings "Test microphone" meter for `device_id` (None = default input).
+#[tauri::command]
+pub async fn mic_test_start(state: State<'_, AppState>, device_id: Option<String>) -> AppResult<()> {
+    let backend = Arc::clone(&state.backend);
+    tauri::async_runtime::spawn_blocking(move || {
+        use crate::platform::{Permission, PermissionState};
+        if backend.permissions().microphone == PermissionState::NotDetermined {
+            backend.request_permission(Permission::Microphone)?;
+        }
+        backend.mic_monitor_start(device_id.as_deref())
+    })
+    .await
+    .map_err(|e| AppError::Runtime(e.to_string()))?
+}
+
+#[tauri::command]
+pub fn mic_test_level(state: State<'_, AppState>) -> f32 {
+    state.backend.mic_monitor_level()
+}
+
+#[tauri::command]
+pub fn mic_test_stop(state: State<'_, AppState>) {
+    state.backend.mic_monitor_stop();
+}

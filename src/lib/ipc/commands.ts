@@ -10,6 +10,7 @@ import type {
   RecordRequest,
   RecordingInfo,
   RecordingStatus,
+  RecordingWarning,
   Display,
   Folder,
   Permission,
@@ -57,6 +58,9 @@ export const commands = {
   revealLastRecording: () => invoke<void>('reveal_last_recording'),
   openLastRecording: () => invoke<void>('open_last_recording'),
   copyLastRecording: () => invoke<void>('copy_last_recording'),
+  micTestStart: (deviceId: string | null) => invoke<void>('mic_test_start', { deviceId }),
+  micTestLevel: () => invoke<number>('mic_test_level'),
+  micTestStop: () => invoke<void>('mic_test_stop'),
 };
 
 export const events = {
@@ -68,6 +72,8 @@ export const events = {
     listen<'image' | 'video'>('capture://preview-refresh', (e) => cb(e.payload)),
   onRecordingStatus: (cb: (s: RecordingStatus) => void): Promise<UnlistenFn> =>
     listen<RecordingStatus>('recording://status', (e) => cb(e.payload)),
+  onRecordingWarning: (cb: (code: RecordingWarning) => void): Promise<UnlistenFn> =>
+    listen<RecordingWarning>('recording://warning', (e) => cb(e.payload)),
   onRecordingFailed: (cb: (e: AppError) => void): Promise<UnlistenFn> =>
     listen<AppError>('recording://failed', (e) => cb(e.payload)),
 };

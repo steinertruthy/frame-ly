@@ -93,6 +93,27 @@ alvo: tela (monitor sob o cursor) | janela/região (mesmo overlay das screenshot
 - **Parada pelo sistema** (janela fechada, monitor desconectado, botão "Parar" do macOS, permissão
   revogada): o arquivo é finalizado e entregue normalmente.
 
+## Áudio (macOS)
+
+```
+ScreenCaptureKit (áudio do sistema, sem o som do próprio FrameLy) ─┐
+AVCaptureSession (microfone escolhido, relógio convertido p/ host) ─┤→ AudioMixer → AAC 192 kbps
+                                                                     │  (48 kHz estéreo, ganhos,
+                     vídeo: primeiro quadro = tempo zero do mix ─────┘   soft-clip, pausa)
+```
+
+- **Uma única faixa AAC** com tudo mixado: toca igual em qualquer player (players que só leem a
+  primeira faixa não perdem o microfone).
+- **Sincronia:** cada buffer é posicionado pelo seu horário no relógio do host — o mesmo do vídeo.
+  Jitter de até 10 ms é colado de forma contínua (sem cliques); desvios maiores (deriva do relógio
+  do dispositivo) ressincronizam. O offset A/V fica limitado a ~10 ms em gravações de qualquer duração.
+- **Fontes lentas ou removidas** nunca travam as outras: a saída anda no máximo 250 ms atrás da fonte
+  mais adiantada; um microfone desconectado vira silêncio e a gravação continua.
+- **Medição real** (`AVSyncTests`): um tom agendado num horário exato do host aparece no arquivo a
+  +6–8 ms do esperado, já considerando a latência de saída do alto-falante (28 ms no MacBook Pro).
+- **Permissão e dispositivo:** com o microfone ligado, a permissão é pedida no início da gravação; se
+  negada, ou sem microfone, grava sem ele e avisa. Dispositivo escolhido ausente → padrão do sistema.
+
 ## Comportamento de ciclo de vida
 
 - Fechar a janela principal a **esconde**; o app continua na bandeja (gravações sobrevivem).

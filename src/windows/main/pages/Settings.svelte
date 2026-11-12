@@ -14,6 +14,9 @@
   import Badge from '$lib/components/Badge.svelte';
   import PermissionRow from '$lib/components/PermissionRow.svelte';
   import Toggle from '$lib/components/Toggle.svelte';
+  import Select from '$lib/components/Select.svelte';
+  import Slider from '$lib/components/Slider.svelte';
+  import MicTest from '$lib/components/MicTest.svelte';
 
   let { info }: { info: AppInfo } = $props();
   const s = $derived(settings.value);
@@ -135,6 +138,36 @@
           onchange={(v) => settings.update((d) => (d.recording.showCursor = v))}
         />
       </SettingRow>
+    </Section>
+  {/if}
+
+  {#if info.supportsRecording}
+    <Section title={t('audio.title')}>
+      <SettingRow title={t('audio.system')} hint={t('audio.system.hint')}>
+        <Toggle label={t('audio.system')} checked={s.audio.systemAudio} onchange={(v) => settings.update((d) => (d.audio.systemAudio = v))} />
+      </SettingRow>
+      {#if s.audio.systemAudio}
+        <SettingRow title={t('audio.systemVolume')}>
+          <Slider label={t('audio.systemVolume')} value={s.audio.systemGain} onchange={(v) => settings.update((d) => (d.audio.systemGain = v))} />
+        </SettingRow>
+      {/if}
+      <SettingRow title={t('audio.microphone')} hint={t('audio.microphone.hint')}>
+        <Toggle label={t('audio.microphone')} checked={s.audio.microphone} onchange={(v) => settings.update((d) => (d.audio.microphone = v))} />
+      </SettingRow>
+      {#if s.audio.microphone}
+        <SettingRow title={t('audio.device')} hint={t('audio.device.hint')}>
+          <Select
+            label={t('audio.device')}
+            value={s.audio.microphoneDevice ?? ''}
+            options={[{ value: '', label: t('audio.device.default') }, ...system.audioInputs.map((d) => ({ value: d.id, label: d.name }))]}
+            onchange={(v) => settings.update((d) => (d.audio.microphoneDevice = v || null))}
+          />
+        </SettingRow>
+        <SettingRow title={t('audio.micVolume')} hint={t('audio.test.hint')}>
+          <MicTest deviceId={s.audio.microphoneDevice} />
+          <Slider label={t('audio.micVolume')} value={s.audio.microphoneGain} onchange={(v) => settings.update((d) => (d.audio.microphoneGain = v))} />
+        </SettingRow>
+      {/if}
     </Section>
   {/if}
 

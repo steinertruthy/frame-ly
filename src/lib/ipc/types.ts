@@ -10,6 +10,7 @@ export interface Settings {
   appearance: { theme: Theme };
   capture: { copyToClipboard: boolean; saveToDisk: boolean; showPreview: boolean };
   recording: RecordingSettings;
+  audio: AudioSettings;
   storage: { recordingsDir: string; screenshotsDir: string };
 }
 
@@ -35,6 +36,19 @@ export interface RecordingSettings {
   showCursor: boolean;
 }
 
+export interface AudioSettings {
+  systemAudio: boolean;
+  microphone: boolean;
+  microphoneDevice: string | null;
+  systemGain: number;
+  microphoneGain: number;
+}
+
+export interface AudioLevels {
+  system: number;
+  microphone: number;
+}
+
 export type RecordPhase = 'idle' | 'countdown' | 'recording' | 'paused' | 'finalizing';
 export type RecordRequest = { kind: 'display'; displayId: string | null } | { kind: 'select'; mode: SelectMode };
 
@@ -42,7 +56,10 @@ export interface RecordingStatus {
   phase: RecordPhase;
   elapsedMs: number;
   target: 'display' | 'window' | 'region' | null;
+  audio: { system: boolean; microphone: boolean; levels: AudioLevels } | null;
 }
+
+export type RecordingWarning = 'microphone_permission' | 'microphone_missing' | 'microphone_fallback';
 
 export interface RecordingInfo {
   path: string;

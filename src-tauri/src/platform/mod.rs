@@ -132,6 +132,30 @@ pub trait CaptureBackend: Send + Sync {
     fn stop_recording(&self) -> AppResult<RecordingStats>;
     /// Releases a recording the system already stopped and finalized.
     fn discard_recording(&self);
+    /// Current peak levels (0…1) of the sources in the active recording.
+    fn recording_levels(&self) -> AudioLevels;
+
+    /// "Test microphone" meter, independent of recording.
+    fn mic_monitor_start(&self, device_id: Option<&str>) -> AppResult<()>;
+    fn mic_monitor_level(&self) -> f32;
+    fn mic_monitor_stop(&self);
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioLevels {
+    pub system: f32,
+    pub microphone: f32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeAudio {
+    pub system: bool,
+    pub microphone: bool,
+    pub microphone_id: Option<String>,
+    pub system_gain: f32,
+    pub microphone_gain: f32,
 }
 
 pub type RecordingEvents = std::sync::Arc<dyn Fn(NativeEvent) + Send + Sync>;
@@ -154,6 +178,7 @@ pub struct NativeTarget {
 #[serde(rename_all = "camelCase")]
 pub struct NativeRecording {
     pub target: NativeTarget,
+    pub audio: Option<NativeAudio>,
     pub width: u32,
     pub height: u32,
     pub fps: u32,
@@ -171,6 +196,8 @@ pub struct RecordingStats {
     pub frames: u64,
     pub width: u32,
     pub height: u32,
+    #[serde(default)]
+    pub audio: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]

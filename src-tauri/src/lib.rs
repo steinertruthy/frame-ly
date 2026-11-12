@@ -172,6 +172,9 @@ pub fn run() {
             commands::recording::reveal_last_recording,
             commands::recording::open_last_recording,
             commands::recording::copy_last_recording,
+            commands::recording::mic_test_start,
+            commands::recording::mic_test_level,
+            commands::recording::mic_test_stop,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build FrameLy");

@@ -11,6 +11,7 @@
   import CaptureActions from '$lib/components/CaptureActions.svelte';
   import RecordActions from '$lib/components/RecordActions.svelte';
   import RecordingBanner from '$lib/components/RecordingBanner.svelte';
+  import AudioBar from '$lib/components/AudioBar.svelte';
   import { recording } from '$lib/stores/recording.svelte';
 
   let { info }: { info: AppInfo } = $props();
@@ -51,6 +52,7 @@
     <RecordingBanner />
   {:else}
     <RecordActions disabled={!system.screenReady} />
+    <AudioBar />
   {/if}
 {/if}
 
