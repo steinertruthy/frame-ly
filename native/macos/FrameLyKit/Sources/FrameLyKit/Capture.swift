@@ -150,3 +150,12 @@ public func fl_copy_png(_ bytes: UnsafePointer<UInt8>, _ len: Int) -> Bool {
     pb.clearContents()
     return pb.setData(data, forType: .png)
 }
+
+/// Puts a file reference on the pasteboard (pastes as the file in Finder, Mail, Slack…).
+@_cdecl("fl_copy_file")
+public func fl_copy_file(_ path: UnsafePointer<CChar>) -> Bool {
+    let url = URL(fileURLWithPath: String(cString: path)) as NSURL
+    let pb = NSPasteboard.general
+    pb.clearContents()
+    return pb.writeObjects([url])
+}

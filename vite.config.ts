@@ -29,6 +29,8 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'main.html'),
         overlay: resolve(import.meta.dirname, 'overlay.html'),
         preview: resolve(import.meta.dirname, 'preview.html'),
+        countdown: resolve(import.meta.dirname, 'countdown.html'),
+        frame: resolve(import.meta.dirname, 'frame.html'),
       },
     },
   },

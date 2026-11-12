@@ -1,29 +1,40 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
-  import { Copy, Check, FolderOpen, Download, X } from '@lucide/svelte';
+  import { Copy, Check, FolderOpen, Download, X, Play } from '@lucide/svelte';
   import { commands, events } from '$lib/ipc/commands';
   import { framelyUrl } from '$lib/ipc/protocol';
   import { logUi } from '$lib/ipc/log';
   import { setLanguage, t } from '$lib/i18n/index.svelte';
-  import type { CaptureInfo, Theme } from '$lib/ipc/types';
+  import { formatBytes, formatDuration } from '$lib/stores/format';
+  import type { CaptureInfo, RecordingInfo, Theme } from '$lib/ipc/types';
 
   const LIFETIME_MS = 7000;
+  type Item = { kind: 'image'; info: CaptureInfo } | { kind: 'video'; info: RecordingInfo };
 
-  let info = $state<CaptureInfo | null>(null);
+  let item = $state<Item | null>(null);
   let src = $state('');
   let copied = $state(false);
   let hovering = $state(false);
   let remaining = $state(LIFETIME_MS);
   let leaving = $state(false);
-  let timer: ReturnType<typeof setInterval> | undefined;
 
-  async function load() {
-    info = await commands.lastCapture();
-    if (!info) return close();
-    copied = info.copied;
+  async function load(kind: 'image' | 'video') {
+    leaving = false;
     remaining = LIFETIME_MS;
-    src = framelyUrl(`last?v=${Date.now()}`);
+    if (kind === 'video') {
+      const info = await commands.lastRecording();
+      if (!info) return close();
+      item = { kind, info };
+      copied = false;
+      src = info.hasThumbnail ? framelyUrl(`last-recording-thumb?v=${Date.now()}`) : '';
+    } else {
+      const info = await commands.lastCapture();
+      if (!info) return close();
+      item = { kind, info };
+      copied = info.copied;
+      src = framelyUrl(`last?v=${Date.now()}`);
+    }
   }
 
   async function close() {
@@ -32,15 +43,16 @@
   }
 
   onMount(() => {
+    const kind = new URLSearchParams(location.search).get('kind') === 'video' ? 'video' : 'image';
     void (async () => {
       const s = await commands.getSettings();
       setLanguage(s.general.language);
       applyTheme(s.appearance.theme);
-      await load();
+      await load(kind);
       await getCurrentWindow().show();
     })().catch((e) => logUi('error', `preview init failed: ${JSON.stringify(e)}`));
-    const unlisten = events.onPreviewRefresh(() => void load());
-    timer = setInterval(() => {
+    const unlisten = events.onPreviewRefresh((k) => void load(k));
+    const timer = setInterval(() => {
       if (hovering || leaving) return;
       remaining -= 100;
       if (remaining <= 0) void close();
@@ -63,17 +75,27 @@
     }
   }
 
+  const isVideo = $derived(item?.kind === 'video');
+  const path = $derived(item ? item.info.path : null);
+  const name = $derived(item ? (item.kind === 'video' ? item.info.fileName : item.info.fileName) : null);
+
   const copy = () =>
     act(async () => {
-      await commands.copyLastCapture();
+      await (isVideo ? commands.copyLastRecording() : commands.copyLastCapture());
       copied = true;
     });
-  const save = () => act(async () => (info = await commands.saveLastCapture()));
-  const reveal = () => act(() => commands.revealLastCapture());
+  const save = () =>
+    act(async () => {
+      if (item?.kind === 'image') item = { kind: 'image', info: await commands.saveLastCapture() };
+    });
+  const reveal = () => act(() => (isVideo ? commands.revealLastRecording() : commands.revealLastCapture()));
   const open = () =>
     act(async () => {
-      if (!info?.path) info = await commands.saveLastCapture();
-      await commands.openLastCapture();
+      if (isVideo) await commands.openLastRecording();
+      else {
+        if (!path) await commands.saveLastCapture();
+        await commands.openLastCapture();
+      }
       await close();
     });
 </script>
@@ -87,19 +109,25 @@
   onmouseenter={() => (hovering = true)}
   onmouseleave={() => (hovering = false)}
 >
-  <button class="thumb" onclick={open} title={info?.fileName ?? ''}>
+  <button class="thumb" onclick={open} title={name ?? ''}>
     {#if src}<img {src} alt="" draggable="false" />{/if}
+    {#if isVideo}<span class="play"><Play size={20} fill="currentColor" /></span>{/if}
+    {#if item?.kind === 'video'}<span class="badge">{formatDuration(item.info.durationMs)}</span>{/if}
   </button>
   <div class="meta">
     <div class="text">
-      <div class="name">{info?.fileName ?? t('preview.notSaved')}</div>
-      {#if info}<div class="dims">{info.width} × {info.height}</div>{/if}
+      <div class="name">{name ?? t('preview.notSaved')}</div>
+      {#if item?.kind === 'image'}
+        <div class="dims">{item.info.width} × {item.info.height}</div>
+      {:else if item?.kind === 'video'}
+        <div class="dims">{item.info.width} × {item.info.height} · {formatBytes(item.info.bytes)}</div>
+      {/if}
     </div>
     <div class="actions">
       <button class="icon" onclick={copy} title={t(copied ? 'preview.copied' : 'preview.copy')} class:ok={copied}>
         {#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}
       </button>
-      {#if info?.path}
+      {#if path}
         <button class="icon" onclick={reveal} title={t('preview.show')}><FolderOpen size={15} /></button>
       {:else}
         <button class="icon" onclick={save} title={t('preview.save')}><Download size={15} /></button>
@@ -144,6 +172,7 @@
     }
   }
   .thumb {
+    position: relative;
     flex: 1;
     min-height: 0;
     padding: 0;
@@ -160,6 +189,35 @@
   }
   .thumb:hover img {
     transform: scale(1.02);
+  }
+  .play {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    margin: -23px 0 0 -23px;
+    padding-left: 3px;
+    border-radius: 50%;
+    background: rgba(6, 13, 38, 0.72);
+    color: #fff;
+    backdrop-filter: blur(8px);
+    transition: transform var(--dur-med) var(--ease-spring);
+  }
+  .thumb:hover .play {
+    transform: scale(1.08);
+  }
+  .badge {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: rgba(6, 13, 38, 0.8);
+    color: #fff;
+    font: 600 11px/16px var(--font-mono);
   }
   .meta {
     display: flex;

@@ -22,6 +22,7 @@
 | `cargo test -- --ignored` | Testes "ao vivo" contra as APIs reais do SO (lista, captura). |
 | `cargo test --release -- --ignored --nocapture png_encode_speed` | Mede a codificação PNG de uma tela 3024×1964. |
 | `<app>/Contents/MacOS/framely --capture region` | Dispara ações no app aberto (`region`, `window`, `screen`, `cancel`). |
+| `<app>/Contents/MacOS/framely --record screen` | Controla gravações (`region`, `window`, `screen`, `pause`, `stop`). |
 
 ## Logs e depuração
 

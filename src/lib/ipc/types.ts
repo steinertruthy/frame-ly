@@ -9,6 +9,7 @@ export interface Settings {
   general: { language: Language };
   appearance: { theme: Theme };
   capture: { copyToClipboard: boolean; saveToDisk: boolean; showPreview: boolean };
+  recording: RecordingSettings;
   storage: { recordingsDir: string; screenshotsDir: string };
 }
 
@@ -17,6 +18,40 @@ export interface AppInfo {
   platform: 'macos' | 'windows' | 'linux' | string;
   arch: string;
   logDir: string;
+  supportsRecording: boolean;
+}
+
+export type Fps = 24 | 30 | 60;
+export type VideoQuality = 'low' | 'medium' | 'high' | 'max';
+export type VideoResolution = 'native' | '1080p' | '720p';
+export type VideoCodec = 'h264' | 'hevc';
+
+export interface RecordingSettings {
+  fps: Fps;
+  quality: VideoQuality;
+  resolution: VideoResolution;
+  codec: VideoCodec;
+  countdown: number;
+  showCursor: boolean;
+}
+
+export type RecordPhase = 'idle' | 'countdown' | 'recording' | 'paused' | 'finalizing';
+export type RecordRequest = { kind: 'display'; displayId: string | null } | { kind: 'select'; mode: SelectMode };
+
+export interface RecordingStatus {
+  phase: RecordPhase;
+  elapsedMs: number;
+  target: 'display' | 'window' | 'region' | null;
+}
+
+export interface RecordingInfo {
+  path: string;
+  fileName: string;
+  durationMs: number;
+  width: number;
+  height: number;
+  bytes: number;
+  hasThumbnail: boolean;
 }
 
 export type Folder = 'recordings' | 'screenshots' | 'logs';
@@ -68,6 +103,7 @@ export type SelectMode = 'region' | 'window';
 export type CaptureRequest = { kind: 'display'; displayId: string | null } | { kind: 'select'; mode: SelectMode };
 
 export interface OverlayInit {
+  purpose: 'screenshot' | 'record';
   mode: SelectMode;
   display: Display;
   frameWidth: number;

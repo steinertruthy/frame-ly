@@ -7,7 +7,7 @@
   import SettingRow from '$lib/components/SettingRow.svelte';
   import { t } from '$lib/i18n/index.svelte';
   import { commands } from '$lib/ipc/commands';
-  import type { AppInfo, Folder, Language, Theme } from '$lib/ipc/types';
+  import type { AppInfo, Folder, Fps, Language, Theme, VideoCodec, VideoQuality, VideoResolution } from '$lib/ipc/types';
   import { settings } from '$lib/stores/settings.svelte';
   import { toast } from '$lib/stores/toasts.svelte';
   import { system } from '$lib/stores/system.svelte';
@@ -67,6 +67,76 @@
       />
     </SettingRow>
   </Section>
+
+  {#if info.supportsRecording}
+    <Section title={t('settings.recording')}>
+      <SettingRow title={t('settings.recording.fps')} hint={t('settings.recording.fps.hint')}>
+        <Segmented
+          label={t('settings.recording.fps')}
+          value={String(s.recording.fps)}
+          options={[
+            { value: '24', label: '24' },
+            { value: '30', label: '30' },
+            { value: '60', label: '60' },
+          ]}
+          onchange={(v) => settings.update((d) => (d.recording.fps = Number(v) as Fps))}
+        />
+      </SettingRow>
+      <SettingRow title={t('settings.recording.quality')} hint={t('settings.recording.quality.hint')}>
+        <Segmented
+          label={t('settings.recording.quality')}
+          value={s.recording.quality}
+          options={(['low', 'medium', 'high', 'max'] as VideoQuality[]).map((q) => ({
+            value: q,
+            label: t(`settings.recording.quality.${q}`),
+          }))}
+          onchange={(v) => settings.update((d) => (d.recording.quality = v))}
+        />
+      </SettingRow>
+      <SettingRow title={t('settings.recording.resolution')} hint={t('settings.recording.resolution.hint')}>
+        <Segmented
+          label={t('settings.recording.resolution')}
+          value={s.recording.resolution}
+          options={[
+            { value: 'native' as VideoResolution, label: t('settings.recording.resolution.native') },
+            { value: '1080p' as VideoResolution, label: '1080p' },
+            { value: '720p' as VideoResolution, label: '720p' },
+          ]}
+          onchange={(v) => settings.update((d) => (d.recording.resolution = v))}
+        />
+      </SettingRow>
+      <SettingRow title={t('settings.recording.codec')} hint={t('settings.recording.codec.hint')}>
+        <Segmented
+          label={t('settings.recording.codec')}
+          value={s.recording.codec}
+          options={[
+            { value: 'h264' as VideoCodec, label: 'H.264' },
+            { value: 'hevc' as VideoCodec, label: 'HEVC' },
+          ]}
+          onchange={(v) => settings.update((d) => (d.recording.codec = v))}
+        />
+      </SettingRow>
+      <SettingRow title={t('settings.recording.countdown')} hint={t('settings.recording.countdown.hint')}>
+        <Segmented
+          label={t('settings.recording.countdown')}
+          value={String(s.recording.countdown)}
+          options={[
+            { value: '0', label: t('settings.recording.countdown.off') },
+            { value: '3', label: '3 s' },
+            { value: '5', label: '5 s' },
+          ]}
+          onchange={(v) => settings.update((d) => (d.recording.countdown = Number(v)))}
+        />
+      </SettingRow>
+      <SettingRow title={t('settings.recording.cursor')} hint={t('settings.recording.cursor.hint')}>
+        <Toggle
+          label={t('settings.recording.cursor')}
+          checked={s.recording.showCursor}
+          onchange={(v) => settings.update((d) => (d.recording.showCursor = v))}
+        />
+      </SettingRow>
+    </Section>
+  {/if}
 
   <Section title={t('settings.capture')}>
     <SettingRow title={t('settings.capture.copy')} hint={t('settings.capture.copy.hint')}>

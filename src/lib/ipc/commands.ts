@@ -7,6 +7,9 @@ import type {
   CaptureInfo,
   CaptureRequest,
   OverlayInit,
+  RecordRequest,
+  RecordingInfo,
+  RecordingStatus,
   Display,
   Folder,
   Permission,
@@ -43,6 +46,17 @@ export const commands = {
   revealLastCapture: () => invoke<void>('reveal_last_capture'),
   openLastCapture: () => invoke<void>('open_last_capture'),
   closePreview: () => invoke<void>('close_preview'),
+  startRecording: (request: RecordRequest) => invoke<void>('start_recording', { request }),
+  pauseRecording: () => invoke<void>('pause_recording'),
+  resumeRecording: () => invoke<void>('resume_recording'),
+  stopRecording: () => invoke<void>('stop_recording'),
+  cancelCountdown: () => invoke<void>('cancel_countdown'),
+  recordingStatus: () => invoke<RecordingStatus>('recording_status'),
+  recoveredRecordings: () => invoke<string[]>('recovered_recordings'),
+  lastRecording: () => invoke<RecordingInfo | null>('last_recording'),
+  revealLastRecording: () => invoke<void>('reveal_last_recording'),
+  openLastRecording: () => invoke<void>('open_last_recording'),
+  copyLastRecording: () => invoke<void>('copy_last_recording'),
 };
 
 export const events = {
@@ -50,7 +64,12 @@ export const events = {
     listen<Settings>('settings://changed', (e) => cb(e.payload)),
   onCaptureFailed: (cb: (e: AppError) => void): Promise<UnlistenFn> =>
     listen<AppError>('capture://failed', (e) => cb(e.payload)),
-  onPreviewRefresh: (cb: () => void): Promise<UnlistenFn> => listen('capture://preview-refresh', () => cb()),
+  onPreviewRefresh: (cb: (kind: 'image' | 'video') => void): Promise<UnlistenFn> =>
+    listen<'image' | 'video'>('capture://preview-refresh', (e) => cb(e.payload)),
+  onRecordingStatus: (cb: (s: RecordingStatus) => void): Promise<UnlistenFn> =>
+    listen<RecordingStatus>('recording://status', (e) => cb(e.payload)),
+  onRecordingFailed: (cb: (e: AppError) => void): Promise<UnlistenFn> =>
+    listen<AppError>('recording://failed', (e) => cb(e.payload)),
 };
 
 export function isAppError(e: unknown): e is AppError {

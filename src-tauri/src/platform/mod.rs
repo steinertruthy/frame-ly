@@ -4,7 +4,8 @@
 //! Methods are blocking (some wait on OS prompts or async system APIs) and must be called
 //! off the main thread — the command layer uses `spawn_blocking`.
 //!
-//! Recording methods (Stages 3–5) join this trait with the features that implement them.
+//! Recording is one-at-a-time per process; the native layer owns the media pipeline and the
+//! app layer (`recording.rs`) owns state, files and UI.
 
 use crate::core::{errors::AppResult, image::Frame};
 use serde::{Deserialize, Serialize};
@@ -119,6 +120,68 @@ pub trait CaptureBackend: Send + Sync {
     fn capture_window(&self, window_id: &str) -> AppResult<Frame>;
     /// The display under the mouse pointer.
     fn display_at_cursor(&self) -> Option<String>;
+
+    /// Whether this platform build can record video yet (Windows: Stage 4).
+    fn supports_recording(&self) -> bool;
+    /// Starts capturing and encoding to `config.output_path`. `events` receives native events
+    /// (first frame, system-initiated stop) on an arbitrary thread.
+    fn start_recording(&self, config: &NativeRecording, events: RecordingEvents) -> AppResult<()>;
+    fn pause_recording(&self);
+    fn resume_recording(&self);
+    /// Stops and finalizes the file (blocking).
+    fn stop_recording(&self) -> AppResult<RecordingStats>;
+    /// Releases a recording the system already stopped and finalized.
+    fn discard_recording(&self);
+}
+
+pub type RecordingEvents = std::sync::Arc<dyn Fn(NativeEvent) + Send + Sync>;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeTarget {
+    /// "display" | "window" | "region"
+    pub kind: &'static str,
+    pub display_id: Option<String>,
+    pub window_id: Option<String>,
+    /// Region in display-local OS units (points on macOS, physical px on Windows).
+    pub x: Option<f64>,
+    pub y: Option<f64>,
+    pub width: Option<f64>,
+    pub height: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeRecording {
+    pub target: NativeTarget,
+    pub width: u32,
+    pub height: u32,
+    pub fps: u32,
+    pub bitrate: u32,
+    pub codec: crate::core::video::Codec,
+    pub shows_cursor: bool,
+    pub output_path: String,
+    pub thumbnail_path: String,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingStats {
+    pub duration_ms: u64,
+    pub frames: u64,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum NativeEvent {
+    /// First frame written.
+    Started,
+    /// The OS ended the capture (window closed, display unplugged, user clicked the system
+    /// "Stop" control, permission revoked). The file is already finalized.
+    #[serde(rename_all = "camelCase")]
+    Stopped { reason: String, duration_ms: u64, frames: u64 },
 }
 
 pub fn backend() -> Box<dyn CaptureBackend> {
@@ -136,6 +199,15 @@ mod tests {
 
     #[test]
     fn serializes_for_the_ui() {
+        let e: NativeEvent = serde_json::from_str(
+            r#"{"kind":"stopped","reason":"window closed","durationMs":1200,"frames":30}"#,
+        )
+        .unwrap();
+        assert_eq!(e, NativeEvent::Stopped { reason: "window closed".into(), duration_ms: 1200, frames: 30 });
+        assert_eq!(
+            serde_json::from_str::<NativeEvent>(r#"{"kind":"started"}"#).unwrap(),
+            NativeEvent::Started
+        );
         let p = Permissions { screen: PermissionState::NotDetermined, microphone: PermissionState::Granted };
         assert_eq!(
             serde_json::to_string(&p).unwrap(),

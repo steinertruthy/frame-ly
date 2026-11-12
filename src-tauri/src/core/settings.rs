@@ -5,7 +5,10 @@
 //! so older files keep loading). Structural changes bump `CURRENT_VERSION` and get
 //! a step in `migrate`.
 
-use super::errors::{AppError, AppResult};
+use super::{
+    errors::{AppError, AppResult},
+    video::{Codec, Quality, Resolution},
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -63,6 +66,35 @@ impl Default for Capture {
     }
 }
 
+/// Video recording preferences. Defaults favor quality and compatibility.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Recording {
+    pub fps: u32,
+    pub quality: Quality,
+    pub resolution: Resolution,
+    pub codec: Codec,
+    /// Seconds of countdown before recording starts (0 = none).
+    pub countdown: u32,
+    pub show_cursor: bool,
+}
+
+impl Default for Recording {
+    fn default() -> Self {
+        Self {
+            fps: 30,
+            quality: Quality::High,
+            resolution: Resolution::Native,
+            codec: Codec::H264,
+            countdown: 3,
+            show_cursor: true,
+        }
+    }
+}
+
+pub const ALLOWED_FPS: [u32; 3] = [24, 30, 60];
+pub const MAX_COUNTDOWN: u32 = 10;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Storage {
@@ -77,6 +109,7 @@ pub struct Settings {
     pub general: General,
     pub appearance: Appearance,
     pub capture: Capture,
+    pub recording: Recording,
     pub storage: Storage,
 }
 
@@ -105,11 +138,18 @@ impl Settings {
             general: General::default(),
             appearance: Appearance::default(),
             capture: Capture::default(),
+            recording: Recording::default(),
             storage: Storage { recordings_dir: d.videos.clone(), screenshots_dir: d.pictures.clone() },
         }
     }
 
     pub fn validate(&self) -> AppResult<()> {
+        if !ALLOWED_FPS.contains(&self.recording.fps) {
+            return Err(AppError::InvalidSettings(format!("fps must be one of {ALLOWED_FPS:?}")));
+        }
+        if self.recording.countdown > MAX_COUNTDOWN {
+            return Err(AppError::InvalidSettings(format!("countdown must be at most {MAX_COUNTDOWN}s")));
+        }
         if !self.capture.copy_to_clipboard && !self.capture.save_to_disk {
             return Err(AppError::InvalidSettings("screenshots must be copied, saved, or both".into()));
         }
@@ -311,6 +351,30 @@ mod tests {
         let d = dirs_in(tmp.path());
         let s = Settings::from_json(r#"{"version":1,"general":{"language":"en"}}"#, &d).unwrap();
         assert_eq!(s.capture, Capture::default());
+    }
+
+    #[test]
+    fn recording_values_are_validated() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = dirs_in(tmp.path());
+        let store = SettingsStore::load(tmp.path().join("s.json"), &d).unwrap();
+        let mut s = store.get();
+        s.recording.fps = 25;
+        assert_eq!(store.replace(s.clone()).unwrap_err().code(), "invalid_settings");
+        s.recording.fps = 60;
+        s.recording.countdown = 11;
+        assert_eq!(store.replace(s.clone()).unwrap_err().code(), "invalid_settings");
+        s.recording.countdown = 5;
+        s.recording.resolution = Resolution::P1080;
+        assert_eq!(store.replace(s).unwrap().recording.resolution, Resolution::P1080);
+    }
+
+    #[test]
+    fn recording_enums_use_readable_json() {
+        let v = serde_json::to_value(Recording::default()).unwrap();
+        assert_eq!(v["resolution"], "native");
+        assert_eq!(v["codec"], "h264");
+        assert_eq!(serde_json::to_value(Resolution::P1080).unwrap(), "1080p");
     }
 
     #[test]

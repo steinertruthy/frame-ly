@@ -4,6 +4,7 @@ mod commands;
 mod core;
 mod platform;
 mod protocol;
+mod recording;
 mod screenshot;
 mod tray;
 mod windows;
@@ -17,6 +18,7 @@ pub struct AppState {
     pub settings: SettingsStore,
     pub backend: Arc<dyn platform::CaptureBackend>,
     pub screenshots: screenshot::Screenshots,
+    pub recordings: recording::Recordings,
     pub log_dir: PathBuf,
     _log_guard: Option<tracing_appender::non_blocking::WorkerGuard>,
 }
@@ -24,12 +26,30 @@ pub struct AppState {
 enum CliAction {
     Capture(screenshot::Request),
     Cancel,
+    Record(recording::Request),
+    StopRecording,
+    TogglePause,
 }
 
-/// `framely --capture region|window|screen|cancel` (forwarded to the running instance) — lets
-/// people bind FrameLy captures in launchers and automation tools.
+/// `framely --capture region|window|screen|cancel` and
+/// `framely --record region|window|screen|stop|pause` (forwarded to the running instance) —
+/// lets people bind FrameLy in launchers and automation tools.
 fn cli_action(argv: &[String]) -> Option<CliAction> {
     use screenshot::{Request, SelectMode};
+    if let Some(i) = argv.iter().position(|a| a == "--record") {
+        return match argv.get(i + 1).map(String::as_str) {
+            Some("region") => {
+                Some(CliAction::Record(recording::Request::Select { mode: SelectMode::Region }))
+            }
+            Some("window") => {
+                Some(CliAction::Record(recording::Request::Select { mode: SelectMode::Window }))
+            }
+            Some("screen") => Some(CliAction::Record(recording::Request::Display { display_id: None })),
+            Some("stop") => Some(CliAction::StopRecording),
+            Some("pause") => Some(CliAction::TogglePause),
+            _ => None,
+        };
+    }
     let i = argv.iter().position(|a| a == "--capture")?;
     match argv.get(i + 1).map(String::as_str) {
         Some("region") => Some(CliAction::Capture(Request::Select { mode: SelectMode::Region })),
@@ -44,6 +64,20 @@ fn run_cli_action(app: &tauri::AppHandle, action: CliAction) {
     match action {
         CliAction::Capture(request) => screenshot::trigger(app, request),
         CliAction::Cancel => screenshot::cancel(app),
+        CliAction::Record(request) => recording::trigger(app, request),
+        CliAction::StopRecording => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = recording::stop(app).await {
+                    tracing::warn!(error = %e, "stop from CLI failed");
+                }
+            });
+        }
+        CliAction::TogglePause => {
+            if let Err(e) = recording::toggle_pause(app) {
+                tracing::warn!(error = %e, "pause from CLI failed");
+            }
+        }
     }
 }
 
@@ -81,10 +115,12 @@ pub fn run() {
                 settings,
                 backend: Arc::from(platform::backend()),
                 screenshots: Default::default(),
+                recordings: Default::default(),
                 log_dir,
                 _log_guard: log_guard,
             });
 
+            recording::recover(&handle);
             windows::create_main(&handle, initial.appearance.theme)?;
             if let Some(action) = cli_action(&std::env::args().collect::<Vec<_>>()) {
                 run_cli_action(&handle, action);
@@ -125,6 +161,17 @@ pub fn run() {
             commands::screenshot::reveal_last_capture,
             commands::screenshot::open_last_capture,
             commands::screenshot::close_preview,
+            commands::recording::start_recording,
+            commands::recording::pause_recording,
+            commands::recording::resume_recording,
+            commands::recording::stop_recording,
+            commands::recording::cancel_countdown,
+            commands::recording::recording_status,
+            commands::recording::recovered_recordings,
+            commands::recording::last_recording,
+            commands::recording::reveal_last_recording,
+            commands::recording::open_last_recording,
+            commands::recording::copy_last_recording,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build FrameLy");

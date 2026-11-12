@@ -26,6 +26,12 @@ pub fn current(setting: Language) -> Lang {
 }
 
 pub struct TrayStrings {
+    pub record_region: &'static str,
+    pub record_window: &'static str,
+    pub record_screen: &'static str,
+    pub stop: &'static str,
+    pub pause: &'static str,
+    pub resume: &'static str,
     pub capture_region: &'static str,
     pub capture_window: &'static str,
     pub capture_screen: &'static str,
@@ -37,6 +43,12 @@ pub struct TrayStrings {
 pub fn tray_strings(lang: Lang) -> TrayStrings {
     match lang {
         Lang::PtBr => TrayStrings {
+            record_region: "Gravar região",
+            record_window: "Gravar janela",
+            record_screen: "Gravar tela inteira",
+            stop: "Parar gravação",
+            pause: "Pausar",
+            resume: "Retomar",
             capture_region: "Capturar região",
             capture_window: "Capturar janela",
             capture_screen: "Capturar tela inteira",
@@ -45,6 +57,12 @@ pub fn tray_strings(lang: Lang) -> TrayStrings {
             tooltip: "FrameLy",
         },
         Lang::En => TrayStrings {
+            record_region: "Record Region",
+            record_window: "Record Window",
+            record_screen: "Record Full Screen",
+            stop: "Stop Recording",
+            pause: "Pause",
+            resume: "Resume",
             capture_region: "Capture Region",
             capture_window: "Capture Window",
             capture_screen: "Capture Full Screen",

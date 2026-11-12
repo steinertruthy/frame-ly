@@ -10,6 +10,7 @@ pub struct AppInfo {
     platform: &'static str,
     arch: &'static str,
     log_dir: String,
+    supports_recording: bool,
 }
 
 #[tauri::command]
@@ -19,6 +20,7 @@ pub fn app_info(state: State<'_, AppState>, app: AppHandle) -> AppInfo {
         platform: std::env::consts::OS,
         arch: std::env::consts::ARCH,
         log_dir: state.log_dir.display().to_string(),
+        supports_recording: state.backend.supports_recording(),
     }
 }
 

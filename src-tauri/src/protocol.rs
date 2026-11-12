@@ -29,6 +29,14 @@ pub fn respond(app: &AppHandle, path: &str) -> Response<Vec<u8>> {
             .map(|b| image("image/bmp", b))
             .unwrap_or_else(not_found);
     }
+    if path == "last-recording-thumb" {
+        let thumb =
+            app.state::<AppState>().recordings.last.lock().unwrap().as_ref().and_then(|l| l.thumb.clone());
+        return thumb
+            .and_then(|t| std::fs::read(t).ok())
+            .map(|b| image("image/jpeg", b))
+            .unwrap_or_else(not_found);
+    }
     if path == "last" || path.starts_with("last/") {
         let last = app.state::<AppState>().screenshots.last.lock().unwrap().clone();
         return last.map(|l| image("image/png", l.png.as_ref().clone())).unwrap_or_else(not_found);

@@ -74,4 +74,22 @@ impl CaptureBackend for WinBackend {
     fn display_at_cursor(&self) -> Option<String> {
         displays::at_cursor()
     }
+
+    fn supports_recording(&self) -> bool {
+        false
+    }
+
+    fn start_recording(&self, _: &super::NativeRecording, _: super::RecordingEvents) -> AppResult<()> {
+        Err(AppError::Platform("screen recording is not available on Windows yet".into()))
+    }
+
+    fn pause_recording(&self) {}
+
+    fn resume_recording(&self) {}
+
+    fn stop_recording(&self) -> AppResult<super::RecordingStats> {
+        Err(AppError::Platform("no recording in progress".into()))
+    }
+
+    fn discard_recording(&self) {}
 }

@@ -16,6 +16,8 @@ pub enum AppError {
     PermissionDenied(&'static str),
     #[error("System API error: {0}")]
     Platform(String),
+    #[error("Nothing was recorded")]
+    EmptyRecording,
 }
 
 impl AppError {
@@ -27,6 +29,7 @@ impl AppError {
             AppError::Runtime(_) => "runtime",
             AppError::PermissionDenied(_) => "permission_denied",
             AppError::Platform(_) => "platform",
+            AppError::EmptyRecording => "empty_recording",
         }
     }
 }

@@ -23,6 +23,7 @@ baseada em callbacks.
 | Screenshot | `SCScreenshotManager.captureImage` (monitor: filtro excluindo o próprio app; janela: `desktopIndependentWindow`) → `CGContext` sRGB BGRA |
 | Clipboard | PNG direto no `NSPasteboard` (`fl_copy_png`) |
 | Overlays | `NSWindow.level = .screenSaver`, cobre menu bar e Dock, acompanha todos os Spaces |
+| Gravação | `SCStream` (NV12, `minimumFrameInterval`, `sourceRect` para região, filtro de janela única) → `AVAssetWriter` H.264/HEVC por VideoToolbox, MP4 fragmentado (2 s), cores BT.709. Eventos para o Rust por callback C. |
 
 As capturas de pixels usam uma interface própria: o Swift preenche um buffer `malloc` BGRA e o Rust
 copia e libera com `fl_free_buffer`.

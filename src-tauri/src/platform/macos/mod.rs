@@ -23,6 +23,46 @@ extern "C" {
     fn fl_capture_window(id: u32, out: *mut *mut u8, w: *mut u32, h: *mut u32) -> *mut c_char;
     fn fl_free_buffer(ptr: *mut u8);
     fn fl_display_at_cursor() -> u32;
+    fn fl_rec_set_callback(cb: Option<extern "C" fn(*const c_char)>);
+    fn fl_rec_start(config_json: *const c_char) -> *mut c_char;
+    fn fl_rec_pause();
+    fn fl_rec_resume();
+    fn fl_rec_stop() -> *mut c_char;
+    fn fl_rec_discard();
+}
+
+/// Rust side of the recorder's event callback. FrameLyKit calls `on_recording_event` (any
+/// thread) with a JSON event; it is forwarded to the handler of the current recording.
+static EVENTS: std::sync::Mutex<Option<super::RecordingEvents>> = std::sync::Mutex::new(None);
+
+extern "C" fn on_recording_event(json: *const c_char) {
+    // SAFETY: FrameLyKit passes a valid NUL-terminated string that lives for this call.
+    let json = unsafe { CStr::from_ptr(json) }.to_string_lossy();
+    match serde_json::from_str::<super::NativeEvent>(&json) {
+        Ok(event) => {
+            let handler = EVENTS.lock().unwrap().clone();
+            if let Some(h) = handler {
+                h(event);
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, %json, "unrecognized recorder event"),
+    }
+}
+
+/// Calls an export that takes a C string and returns an owned JSON envelope.
+fn call_with<T: DeserializeOwned>(
+    f: unsafe extern "C" fn(*const c_char) -> *mut c_char,
+    arg: &str,
+) -> AppResult<T> {
+    let arg = std::ffi::CString::new(arg).map_err(|_| AppError::Platform("argument contains NUL".into()))?;
+    // SAFETY: `arg` outlives the call; the returned string is owned and freed once.
+    let json = unsafe {
+        let ptr = f(arg.as_ptr());
+        let s = CStr::from_ptr(ptr).to_string_lossy().into_owned();
+        fl_free_string(ptr);
+        s
+    };
+    decode(&json)
 }
 
 type CaptureFn = unsafe extern "C" fn(u32, *mut *mut u8, *mut u32, *mut u32) -> *mut c_char;
@@ -82,6 +122,7 @@ fn call<T: DeserializeOwned>(f: unsafe extern "C" fn() -> *mut c_char) -> AppRes
 fn decode<T: DeserializeOwned>(json: &str) -> AppResult<T> {
     match serde_json::from_str::<Envelope<T>>(json)? {
         Envelope::Ok(v) => Ok(v),
+        Envelope::Err(e) if e.code == "empty_recording" => Err(AppError::EmptyRecording),
         Envelope::Err(e) if e.code == "permission_denied" => {
             Err(AppError::PermissionDenied(match e.message.as_str() {
                 "microphone" => "microphone",
@@ -143,6 +184,46 @@ impl CaptureBackend for MacBackend {
     fn display_at_cursor(&self) -> Option<String> {
         // SAFETY: pure query with no pointers.
         Some(unsafe { fl_display_at_cursor() }.to_string())
+    }
+
+    fn supports_recording(&self) -> bool {
+        true
+    }
+
+    fn start_recording(
+        &self,
+        config: &super::NativeRecording,
+        events: super::RecordingEvents,
+    ) -> AppResult<()> {
+        *EVENTS.lock().unwrap() = Some(events);
+        // SAFETY: registering a 'static extern "C" fn.
+        unsafe { fl_rec_set_callback(Some(on_recording_event)) };
+        let json = serde_json::to_string(config)?;
+        call_with::<bool>(fl_rec_start, &json).map(|_| ()).inspect_err(|_| {
+            EVENTS.lock().unwrap().take();
+        })
+    }
+
+    fn pause_recording(&self) {
+        // SAFETY: no arguments; no-op if nothing is recording.
+        unsafe { fl_rec_pause() }
+    }
+
+    fn resume_recording(&self) {
+        // SAFETY: no arguments; no-op if nothing is recording.
+        unsafe { fl_rec_resume() }
+    }
+
+    fn stop_recording(&self) -> AppResult<super::RecordingStats> {
+        let result = call(fl_rec_stop);
+        EVENTS.lock().unwrap().take();
+        result
+    }
+
+    fn discard_recording(&self) {
+        // SAFETY: no arguments.
+        unsafe { fl_rec_discard() };
+        EVENTS.lock().unwrap().take();
     }
 }
 

@@ -33,3 +33,25 @@ pub fn copy_image(_png: &[u8], frame: &Frame) -> AppResult<()> {
         })
         .map_err(|e| AppError::Platform(format!("clipboard: {e}")))
 }
+
+#[cfg(target_os = "macos")]
+pub fn copy_file(path: &std::path::Path) -> AppResult<()> {
+    extern "C" {
+        fn fl_copy_file(path: *const std::ffi::c_char) -> bool;
+    }
+    let c = std::ffi::CString::new(path.to_string_lossy().as_bytes())
+        .map_err(|_| AppError::Platform("invalid path".into()))?;
+    // SAFETY: NUL-terminated string valid for the call.
+    if unsafe { fl_copy_file(c.as_ptr()) } {
+        Ok(())
+    } else {
+        Err(AppError::Platform("could not write to the pasteboard".into()))
+    }
+}
+
+#[cfg(windows)]
+pub fn copy_file(path: &std::path::Path) -> AppResult<()> {
+    let mut clipboard =
+        arboard::Clipboard::new().map_err(|e| AppError::Platform(format!("clipboard: {e}")))?;
+    clipboard.set().file_list(&[path]).map_err(|e| AppError::Platform(format!("clipboard: {e}")))
+}

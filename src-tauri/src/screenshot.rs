@@ -48,7 +48,16 @@ pub enum Request {
     Select { mode: SelectMode },
 }
 
+/// Why the selection overlay is open: the same picker serves screenshots and recordings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Purpose {
+    Screenshot,
+    Record,
+}
+
 struct Session {
+    purpose: Purpose,
     mode: SelectMode,
     displays: Vec<Display>,
     frames: HashMap<String, Arc<Frame>>,
@@ -75,6 +84,7 @@ pub struct Screenshots {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OverlayInit {
+    purpose: Purpose,
     mode: SelectMode,
     display: Display,
     frame_width: u32,
@@ -131,49 +141,55 @@ pub async fn start(app: AppHandle, request: Request) -> AppResult<()> {
             tracing::info!(ms = t.elapsed().as_millis() as u64, ?frame, "display captured");
             deliver(&app, frame).await
         }
-        Request::Select { mode } => {
-            if state(&app).screenshots.session.lock().unwrap().is_some() {
-                focus_overlays(&app);
-                return Ok(());
-            }
-            let t = Instant::now();
-            let (displays, frames, windows) = on_worker(move || {
-                let displays = backend.displays()?;
-                // Freeze every display at the same moment, in parallel.
-                let frames = std::thread::scope(|s| {
-                    let jobs: Vec<_> = displays
-                        .iter()
-                        .map(|d| {
-                            let b = &backend;
-                            s.spawn(move || (d.id.clone(), b.capture_display(&d.id)))
-                        })
-                        .collect();
-                    jobs.into_iter().map(|j| j.join().expect("capture thread panicked")).collect::<Vec<_>>()
-                });
-                let mut map = HashMap::new();
-                for (id, frame) in frames {
-                    map.insert(id, Arc::new(frame?));
-                }
-                let windows = backend.windows().unwrap_or_default();
-                Ok((displays, map, windows))
-            })
-            .await?;
-            tracing::info!(
-                ms = t.elapsed().as_millis() as u64,
-                displays = displays.len(),
-                "displays frozen for selection"
-            );
+        Request::Select { mode } => select(app, mode, Purpose::Screenshot).await,
+    }
+}
 
-            *state(&app).screenshots.session.lock().unwrap() =
-                Some(Session { mode, displays: displays.clone(), frames, windows });
-            for (i, d) in displays.iter().enumerate() {
-                if let Err(e) = open_overlay(&app, i, d) {
-                    cancel(&app);
-                    return Err(e);
-                }
-            }
-            Ok(())
+/// Freezes all displays and opens the selection overlays.
+pub async fn select(app: AppHandle, mode: SelectMode, purpose: Purpose) -> AppResult<()> {
+    let backend: Arc<dyn CaptureBackend> = Arc::clone(&state(&app).backend);
+    {
+        if state(&app).screenshots.session.lock().unwrap().is_some() {
+            focus_overlays(&app);
+            return Ok(());
         }
+        let t = Instant::now();
+        let (displays, frames, windows) = on_worker(move || {
+            let displays = backend.displays()?;
+            // Freeze every display at the same moment, in parallel.
+            let frames = std::thread::scope(|s| {
+                let jobs: Vec<_> = displays
+                    .iter()
+                    .map(|d| {
+                        let b = &backend;
+                        s.spawn(move || (d.id.clone(), b.capture_display(&d.id)))
+                    })
+                    .collect();
+                jobs.into_iter().map(|j| j.join().expect("capture thread panicked")).collect::<Vec<_>>()
+            });
+            let mut map = HashMap::new();
+            for (id, frame) in frames {
+                map.insert(id, Arc::new(frame?));
+            }
+            let windows = backend.windows().unwrap_or_default();
+            Ok((displays, map, windows))
+        })
+        .await?;
+        tracing::info!(
+            ms = t.elapsed().as_millis() as u64,
+            displays = displays.len(),
+            "displays frozen for selection"
+        );
+
+        *state(&app).screenshots.session.lock().unwrap() =
+            Some(Session { purpose, mode, displays: displays.clone(), frames, windows });
+        for (i, d) in displays.iter().enumerate() {
+            if let Err(e) = open_overlay(&app, i, d) {
+                cancel(&app);
+                return Err(e);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -247,7 +263,14 @@ pub fn overlay_init(app: &AppHandle, display_id: &str) -> AppResult<OverlayInit>
         })
         .cloned()
         .collect();
-    Ok(OverlayInit { mode: s.mode, frame_width: frame.width, frame_height: frame.height, display, windows })
+    Ok(OverlayInit {
+        purpose: s.purpose,
+        mode: s.mode,
+        frame_width: frame.width,
+        frame_height: frame.height,
+        display,
+        windows,
+    })
 }
 
 /// BMP bytes of a frozen frame for the `framely://frame/<id>` protocol route.
@@ -263,16 +286,31 @@ pub async fn finish_region(
     selection: (f64, f64, f64, f64),
     viewport: (f64, f64),
 ) -> AppResult<()> {
-    let frame = {
-        let st = state(&app);
-        let mut guard = st.screenshots.session.lock().unwrap();
-        let s = guard.take().ok_or_else(|| AppError::Runtime("no capture in progress".into()))?;
-        s.frames
-            .get(&display_id)
-            .cloned()
-            .ok_or_else(|| AppError::Runtime(format!("unknown display {display_id}")))?
-    };
+    let session = state(&app)
+        .screenshots
+        .session
+        .lock()
+        .unwrap()
+        .take()
+        .ok_or_else(|| AppError::Runtime("no capture in progress".into()))?;
     close_overlays(&app);
+    if session.purpose == Purpose::Record {
+        let display = session
+            .displays
+            .into_iter()
+            .find(|d| d.id == display_id)
+            .ok_or_else(|| AppError::Runtime(format!("unknown display {display_id}")))?;
+        // CSS px → the OS units of `display.bounds` (points / physical px), display-local.
+        let k = display.bounds.width / viewport.0.max(1.0);
+        let (x, y, w, h) = selection;
+        let rect = crate::platform::Rect { x: x * k, y: y * k, width: w * k, height: h * k };
+        return crate::recording::begin(app, crate::recording::Target::Region { display, rect }).await;
+    }
+    let frame = session
+        .frames
+        .get(&display_id)
+        .cloned()
+        .ok_or_else(|| AppError::Runtime(format!("unknown display {display_id}")))?;
     let rect = image::css_to_pixels(selection, viewport, (frame.width, frame.height));
     let cropped = on_worker(move || frame.crop(rect)).await?;
     deliver(&app, cropped).await
@@ -287,6 +325,16 @@ pub async fn finish_window(app: AppHandle, window_id: String) -> AppResult<()> {
         .take()
         .ok_or_else(|| AppError::Runtime("no capture in progress".into()))?;
     close_overlays(&app);
+    if session.purpose == Purpose::Record {
+        let window = session
+            .windows
+            .iter()
+            .find(|w| w.id == window_id)
+            .cloned()
+            .ok_or_else(|| AppError::Runtime(format!("unknown window {window_id}")))?;
+        let display = display_containing(&session.displays, &window).cloned();
+        return crate::recording::begin(app, crate::recording::Target::Window { window, display }).await;
+    }
     let backend = Arc::clone(&state(&app).backend);
     let frame = on_worker(move || match backend.capture_window(&window_id) {
         Ok(f) => Ok(f),
@@ -300,13 +348,18 @@ pub async fn finish_window(app: AppHandle, window_id: String) -> AppResult<()> {
     deliver(&app, frame).await
 }
 
-fn crop_window_from_session(s: &Session, window_id: &str) -> Option<Frame> {
-    let w = s.windows.iter().find(|w| w.id == window_id)?;
+/// The display holding the center of `w`.
+pub fn display_containing<'a>(displays: &'a [Display], w: &WindowInfo) -> Option<&'a Display> {
     let (cx, cy) = (w.bounds.x + w.bounds.width / 2.0, w.bounds.y + w.bounds.height / 2.0);
-    let d = s.displays.iter().find(|d| {
+    displays.iter().find(|d| {
         let b = d.bounds;
         cx >= b.x && cx < b.x + b.width && cy >= b.y && cy < b.y + b.height
-    })?;
+    })
+}
+
+fn crop_window_from_session(s: &Session, window_id: &str) -> Option<Frame> {
+    let w = s.windows.iter().find(|w| w.id == window_id)?;
+    let d = display_containing(&s.displays, w)?;
     let frame = s.frames.get(&d.id)?;
     let sel = (w.bounds.x - d.bounds.x, w.bounds.y - d.bounds.y, w.bounds.width, w.bounds.height);
     frame.crop(image::css_to_pixels(sel, (d.bounds.width, d.bounds.height), (frame.width, frame.height))).ok()
@@ -370,7 +423,7 @@ async fn deliver(app: &AppHandle, frame: Frame) -> AppResult<()> {
     *state(app).screenshots.last.lock().unwrap() = Some(Arc::new(last));
     app.emit(COMPLETED_EVENT, &info)?;
     if settings.capture.show_preview {
-        show_preview(app)?;
+        show_preview(app, PreviewKind::Image)?;
     }
     Ok(())
 }
@@ -400,10 +453,17 @@ pub fn save_last(app: &AppHandle) -> AppResult<CaptureInfo> {
     Ok(info)
 }
 
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PreviewKind {
+    Image,
+    Video,
+}
+
 /// Small floating card in the bottom-right corner of the display under the pointer.
-fn show_preview(app: &AppHandle) -> AppResult<()> {
+pub fn show_preview(app: &AppHandle, kind: PreviewKind) -> AppResult<()> {
     if let Some(w) = app.get_webview_window(PREVIEW) {
-        app.emit_to(PREVIEW, "capture://preview-refresh", ())?;
+        app.emit_to(PREVIEW, "capture://preview-refresh", kind)?;
         let _ = w.show();
         return Ok(());
     }
@@ -426,7 +486,12 @@ fn show_preview(app: &AppHandle) -> AppResult<()> {
         }
         None => (MARGIN, MARGIN),
     };
-    let window = WebviewWindowBuilder::new(app, PREVIEW, WebviewUrl::App("preview.html".into()))
+    let kind_param = match kind {
+        PreviewKind::Image => "image",
+        PreviewKind::Video => "video",
+    };
+    let url = WebviewUrl::App(format!("preview.html?kind={kind_param}").into());
+    let window = WebviewWindowBuilder::new(app, PREVIEW, url)
         .title("FrameLy")
         .inner_size(W, H)
         .position(x, y)

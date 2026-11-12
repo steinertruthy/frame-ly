@@ -9,6 +9,9 @@
   import { system } from '$lib/stores/system.svelte';
   import PermissionRow from '$lib/components/PermissionRow.svelte';
   import CaptureActions from '$lib/components/CaptureActions.svelte';
+  import RecordActions from '$lib/components/RecordActions.svelte';
+  import RecordingBanner from '$lib/components/RecordingBanner.svelte';
+  import { recording } from '$lib/stores/recording.svelte';
 
   let { info }: { info: AppInfo } = $props();
   const storage = $derived(settings.value?.storage);
@@ -42,8 +45,17 @@
   </section>
 {/if}
 
+{#if info.supportsRecording}
+  <h2 class="label">{t('record.title')}</h2>
+  {#if recording.active}
+    <RecordingBanner />
+  {:else}
+    <RecordActions disabled={!system.screenReady} />
+  {/if}
+{/if}
+
 <h2 class="label">{t('capture.title')}</h2>
-<CaptureActions disabled={!system.screenReady} />
+<CaptureActions disabled={!system.screenReady || recording.active} />
 
 {#if storage}
   <h2 class="label">{t('home.folders')}</h2>

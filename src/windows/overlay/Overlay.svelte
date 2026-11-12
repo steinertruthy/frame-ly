@@ -161,6 +161,7 @@
 <div
   class="root"
   class:window-mode={mode === 'window'}
+  class:record={init?.purpose === 'record'}
   role="application"
   {onpointerdown}
   {onpointermove}
@@ -202,7 +203,18 @@
 
   {#if init}
     <div class="hints" class:hidden={!showHints}>
-      <span>{t(mode === 'region' ? 'overlay.hint.region' : 'overlay.hint.window')}</span>
+      {#if init.purpose === 'record'}<span class="rec-dot"></span>{/if}
+      <span>
+        {t(
+          init.purpose === 'record'
+            ? mode === 'region'
+              ? 'overlay.hint.record.region'
+              : 'overlay.hint.record.window'
+            : mode === 'region'
+              ? 'overlay.hint.region'
+              : 'overlay.hint.window',
+        )}
+      </span>
       <span class="sep"></span>
       <span>{t(mode === 'region' ? 'overlay.hint.toggle.region' : 'overlay.hint.toggle.window')}</span>
       <span class="sep"></span>
@@ -362,6 +374,22 @@
   .hints.hidden {
     opacity: 0;
     transform: translate(-50%, -8px);
+  }
+  /* Recording selections use the recording color instead of the brand blue. */
+  .record .focus {
+    outline-color: var(--rec-500);
+  }
+  .record .focus.window {
+    background: rgba(255, 75, 92, 0.12);
+  }
+  .record .handle {
+    box-shadow: 0 0 0 1.5px var(--rec-500);
+  }
+  .rec-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--rec-500);
   }
   .sep {
     width: 3px;

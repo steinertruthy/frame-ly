@@ -34,6 +34,8 @@ plataforma (`CaptureBackend`, Etapa 1); não há outras camadas.
 | `src-tauri/src/windows.rs` | Criação das janelas nativas e aparência por SO (vibrancy no macOS). |
 | `src-tauri/src/tray.rs` | Ícone da bandeja/menu bar com ações de captura. |
 | `src-tauri/src/screenshot.rs` | Sessão de captura, overlays, entrega (PNG, pasta, clipboard) e prévia. |
+| `src-tauri/src/recording.rs` | Fluxo de gravação: alvo, contagem, controle, entrega, recuperação. |
+| `src-tauri/src/core/recorder.rs`, `core/video.rs` | Estado/relógio da gravação; tamanho de saída e bitrate (puros, testados). |
 | `src-tauri/src/protocol.rs` | Protocolo `framely://` para imagens em memória. |
 | `src-tauri/src/core/image.rs` | Quadros BGRA, recorte, PNG e BMP (puro, testado). |
 | `src/lib/design/tokens.css` | Design tokens (cores, tipografia, raio, movimento) com temas claro/escuro. |
@@ -66,6 +68,30 @@ Região/Janela: capture_display(todos, em paralelo) → quadros congelados      
   app; no Windows, `WDA_EXCLUDEFROMCAPTURE` nas janelas de overlay e prévia.
 - **Desempenho (M-series, 3024×1964):** captura ~85 ms; PNG ~95 ms em release; clipboard ~0 ms
   (o PNG já codificado vai direto para o NSPasteboard).
+
+## Fluxo de gravação (`src-tauri/src/recording.rs`)
+
+```
+alvo: tela (monitor sob o cursor) | janela/região (mesmo overlay das screenshots, em vermelho)
+  → contagem regressiva (janela própria; Esc/clique cancela)
+  → FrameLyKit: SCStream → AVAssetWriter (VideoToolbox) → MP4 fragmentado em cache/recordings/<id>.mp4
+     + manifesto <id>.json + miniatura <id>.jpg
+  → status a cada 500 ms → ícone/tempo na menu bar + banner na tela inicial
+  → parar (UI, menu, clique no ícone, CLI, ou o próprio sistema) → arquivo finalizado
+  → movido para a pasta de gravações → prévia do vídeo
+```
+
+- **Máquina de estados** (`core/recorder.rs`): `Idle → Countdown → Recording ⇄ Paused → Finalizing`,
+  com transições inválidas rejeitadas e relógio que desconta pausas (testado).
+- **Pausa** não para o stream: as amostras do intervalo pausado são descartadas e as seguintes são
+  re-temporizadas (`PauseTimeline.swift`, testado). Retomar é instantâneo.
+- **Tamanho e bitrate** (`core/video.rs`): resolução nativa/1080p/720p mantendo proporção, limite
+  do codec (H.264 ≤ 4096×2304), dimensões pares, bitrate por bits/pixel/quadro conforme a qualidade.
+- **Recuperação:** o MP4 é fragmentado a cada 2 s. Se o FrameLy encerrar inesperadamente, o próximo
+  início encontra o manifesto e move o arquivo para a pasta de gravações como "(recovered)" — testado
+  com `kill -9` durante a gravação.
+- **Parada pelo sistema** (janela fechada, monitor desconectado, botão "Parar" do macOS, permissão
+  revogada): o arquivo é finalizado e entregue normalmente.
 
 ## Comportamento de ciclo de vida
 

@@ -7,4 +7,6 @@ pub mod locale;
 pub mod logging;
 #[allow(dead_code)] // consumed by the capture pipeline from Stage 2
 pub mod paths;
+pub mod recorder;
 pub mod settings;
+pub mod video;

@@ -2,10 +2,10 @@
 
 Gravação de tela e screenshots para macOS e Windows — simples, rápido e leve.
 
-> Estado atual: **Etapa 2**. Screenshots funcionando de ponta a ponta: região (com lupa de
-> pixels), janela e tela inteira; cópia para a área de transferência, salvamento em PNG e prévia
-> flutuante. Acesso pela tela inicial, pelo menu da bandeja e pela linha de comando. Gravação de
-> vídeo chega nas próximas etapas — veja [docs/roadmap.md](docs/roadmap.md).
+> Estado atual: **Etapa 3**. Screenshots (região com lupa, janela, tela inteira) e gravação de
+> tela no macOS: tela inteira, janela ou região, H.264/HEVC por hardware, contagem regressiva,
+> pausar/retomar, prévia do vídeo e recuperação de gravações interrompidas. Gravação no Windows e
+> áudio chegam nas próximas etapas — veja [docs/roadmap.md](docs/roadmap.md).
 
 ## Stack
 
@@ -44,4 +44,5 @@ Alfred, Atalhos do macOS ou AutoHotkey:
 
 ```bash
 /Applications/FrameLy.app/Contents/MacOS/framely --capture region   # region | window | screen | cancel
+/Applications/FrameLy.app/Contents/MacOS/framely --record screen     # region | window | screen | pause | stop
 ```
