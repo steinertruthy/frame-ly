@@ -2,9 +2,7 @@
 
 use crate::{
     core::errors::{AppError, AppResult},
-    platform::{
-        AudioDevice, CaptureBackend, Display, Permission, PermissionState, Permissions, WindowInfo,
-    },
+    platform::{AudioDevice, CaptureBackend, Display, Permission, PermissionState, Permissions, WindowInfo},
     AppState,
 };
 use std::sync::Arc;
@@ -64,9 +62,7 @@ pub fn open_permission_settings(
         .backend
         .permission_settings_url(permission)
         .ok_or_else(|| AppError::Platform("no settings page for this permission".into()))?;
-    app.opener()
-        .open_url(url, None::<&str>)
-        .map_err(|e| AppError::Platform(e.to_string()))
+    app.opener().open_url(url, None::<&str>).map_err(|e| AppError::Platform(e.to_string()))
 }
 
 /// macOS applies a newly granted Screen Recording permission only after a relaunch.

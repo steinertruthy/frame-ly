@@ -2,9 +2,7 @@ use crate::platform::PermissionState;
 use windows::{
     core::{w, PCWSTR},
     Graphics::Capture::GraphicsCaptureSession,
-    Win32::System::Registry::{
-        RegGetValueW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ,
-    },
+    Win32::System::Registry::{RegGetValueW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ},
 };
 
 /// Desktop apps can always use Windows.Graphics.Capture when the OS supports it.
@@ -41,9 +39,8 @@ fn read_value(root: HKEY, subkey: PCWSTR) -> Option<String> {
 /// global switch (HKLM, set by policy/admin) plus the user switches for all apps and for
 /// "desktop apps" (`NonPackaged`). Any "Deny" blocks capture.
 pub fn microphone() -> PermissionState {
-    const KEY: PCWSTR = w!(
-        r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone"
-    );
+    const KEY: PCWSTR =
+        w!(r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone");
     const DESKTOP: PCWSTR = w!(
         r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone\NonPackaged"
     );
@@ -52,11 +49,7 @@ pub fn microphone() -> PermissionState {
         read_value(HKEY_CURRENT_USER, KEY),
         read_value(HKEY_CURRENT_USER, DESKTOP),
     ];
-    if values
-        .iter()
-        .flatten()
-        .any(|v| v.eq_ignore_ascii_case("Deny"))
-    {
+    if values.iter().flatten().any(|v| v.eq_ignore_ascii_case("Deny")) {
         PermissionState::Denied
     } else {
         PermissionState::Granted

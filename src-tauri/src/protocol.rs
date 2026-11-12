@@ -1,0 +1,37 @@
+//! `framely://` URI scheme: serves in-memory images to FrameLy's own web views without
+//! writing temp files or opening the asset protocol to the file system.
+
+use crate::{screenshot, AppState};
+use tauri::{
+    http::{header, Response, StatusCode},
+    AppHandle, Manager,
+};
+
+fn image(content_type: &str, body: Vec<u8>) -> Response<Vec<u8>> {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, content_type)
+        .header(header::CACHE_CONTROL, "no-store")
+        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .body(body)
+        .expect("static response parts are valid")
+}
+
+fn not_found() -> Response<Vec<u8>> {
+    Response::builder().status(StatusCode::NOT_FOUND).body(Vec::new()).expect("valid response")
+}
+
+pub fn respond(app: &AppHandle, path: &str) -> Response<Vec<u8>> {
+    let path = percent_encoding::percent_decode_str(path).decode_utf8_lossy();
+    let path = path.trim_start_matches('/');
+    if let Some(display_id) = path.strip_prefix("frame/") {
+        return screenshot::frozen_frame_bmp(app, display_id)
+            .map(|b| image("image/bmp", b))
+            .unwrap_or_else(not_found);
+    }
+    if path == "last" || path.starts_with("last/") {
+        let last = app.state::<AppState>().screenshots.last.lock().unwrap().clone();
+        return last.map(|l| image("image/png", l.png.as_ref().clone())).unwrap_or_else(not_found);
+    }
+    not_found()
+}

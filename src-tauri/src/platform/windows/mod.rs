@@ -7,14 +7,18 @@
 //!   and deep-link to Settings.
 
 mod audio;
+mod capture;
+pub mod chrome;
 mod displays;
 mod enum_windows;
 mod permissions;
 
-use super::{
-    AudioDevice, CaptureBackend, Display, Permission, PermissionState, Permissions, WindowInfo,
+use super::{AudioDevice, CaptureBackend, Display, Permission, PermissionState, Permissions, WindowInfo};
+use crate::core::{
+    errors::{AppError, AppResult},
+    image::Frame,
 };
-use crate::core::errors::{AppError, AppResult};
+use windows::Win32::Foundation::HWND;
 
 pub struct WinBackend;
 
@@ -36,10 +40,7 @@ impl CaptureBackend for WinBackend {
     }
 
     fn permissions(&self) -> Permissions {
-        Permissions {
-            screen: permissions::screen(),
-            microphone: permissions::microphone(),
-        }
+        Permissions { screen: permissions::screen(), microphone: permissions::microphone() }
     }
 
     fn request_permission(&self, p: Permission) -> AppResult<PermissionState> {
@@ -56,5 +57,21 @@ impl CaptureBackend for WinBackend {
             Permission::Screen => None,
             Permission::Microphone => Some("ms-settings:privacy-microphone"),
         }
+    }
+
+    fn capture_display(&self, display_id: &str) -> AppResult<Frame> {
+        let monitor = displays::monitor_by_id(display_id)
+            .ok_or_else(|| AppError::Platform(format!("display {display_id} not found")))?;
+        capture::grab(&capture::item_for_monitor(monitor)?)
+    }
+
+    fn capture_window(&self, window_id: &str) -> AppResult<Frame> {
+        let raw = usize::from_str_radix(window_id.trim_start_matches("0x"), 16)
+            .map_err(|_| AppError::Platform(format!("invalid window id {window_id:?}")))?;
+        capture::grab(&capture::item_for_window(HWND(raw as *mut _))?)
+    }
+
+    fn display_at_cursor(&self) -> Option<String> {
+        displays::at_cursor()
     }
 }

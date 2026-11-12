@@ -4,8 +4,8 @@
 |---|---|---|
 | 0 | Toolchain, esqueleto Tauri + Svelte, design tokens, janela principal, bandeja, ajustes, logs, CI | ✅ |
 | 1 | `CaptureBackend`, FrameLyKit (Swift), listagem de monitores/janelas/áudio, permissões | ✅ |
-| 2 | Screenshots ponta a ponta (tela, monitor, janela, região), clipboard, preview | ⏳ |
-| 3 | Gravação de vídeo no macOS (SCK + AVAssetWriter), pausa, recuperação | |
+| 2 | Screenshots ponta a ponta (tela, monitor, janela, região), clipboard, preview | ✅ |
+| 3 | Gravação de vídeo no macOS (SCK + AVAssetWriter), pausa, recuperação | ⏳ |
 | 4 | Gravação de vídeo no Windows (WGC + Media Foundation) | |
 | 5 | Áudio: microfone, sistema, mix, sincronização | |
 | 6 | Painel rápido da bandeja + atalhos globais | |

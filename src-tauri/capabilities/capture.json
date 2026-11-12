@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "capture",
+  "description": "Selection overlays and the post-capture preview",
+  "windows": ["overlay-*", "preview"],
+  "permissions": ["core:default", "core:window:allow-show", "core:window:allow-set-focus"]
+}

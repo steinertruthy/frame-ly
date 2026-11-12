@@ -32,12 +32,40 @@ plataforma (`CaptureBackend`, Etapa 1); não há outras camadas.
 | `src-tauri/src/platform/` | Trait `CaptureBackend` e tipos compartilhados; `macos/` (FFI para FrameLyKit) e `windows/` (Win32/WinRT). Ver [platform.md](platform.md). |
 | `native/macos/FrameLyKit/` | Engine macOS em Swift (biblioteca estática). |
 | `src-tauri/src/windows.rs` | Criação das janelas nativas e aparência por SO (vibrancy no macOS). |
-| `src-tauri/src/tray.rs` | Ícone da bandeja/menu bar. |
+| `src-tauri/src/tray.rs` | Ícone da bandeja/menu bar com ações de captura. |
+| `src-tauri/src/screenshot.rs` | Sessão de captura, overlays, entrega (PNG, pasta, clipboard) e prévia. |
+| `src-tauri/src/protocol.rs` | Protocolo `framely://` para imagens em memória. |
+| `src-tauri/src/core/image.rs` | Quadros BGRA, recorte, PNG e BMP (puro, testado). |
 | `src/lib/design/tokens.css` | Design tokens (cores, tipografia, raio, movimento) com temas claro/escuro. |
 | `src/lib/i18n/` | Dicionários tipados pt-BR/en; uma chave faltando quebra o type-check. |
 | `src/lib/ipc/` | Wrappers tipados de comandos e eventos; encaminhamento de erros da UI para o log. |
 | `src/lib/stores/` | Estado reativo (runes). A UI só reflete o que o backend salvou de fato. |
 | `src/windows/<janela>/` | Um entry HTML por tipo de janela; cada janela carrega só o que usa. |
+
+## Fluxo de screenshot (`src-tauri/src/screenshot.rs`)
+
+```
+Tela inteira:  capture_display(monitor sob o cursor) ─────────────────────────────┐
+Região/Janela: capture_display(todos, em paralelo) → quadros congelados          │
+               → 1 overlay por monitor (overlay.html)                             │
+               → overlay carrega o quadro via framely://localhost/frame/<id>     │
+               → região: recorte do quadro congelado                              │
+                 janela: capture_window nativo (fallback: recorte do quadro) ─────┤
+                                                                                   ▼
+                     encode PNG → salvar (opcional) → clipboard (opcional) → prévia
+```
+
+- **Quadro congelado:** o usuário seleciona sobre a imagem exata que será salva (menus abertos e
+  estados de hover são preservados) e a lupa mostra pixels reais.
+- **`framely://`:** protocolo próprio que serve imagens em memória (BMP sem compressão para os
+  overlays, PNG da última captura para a prévia). Nada vai para arquivos temporários e o asset
+  protocol continua desligado.
+- **Conversão de coordenadas:** o overlay envia a seleção em pixels CSS + o tamanho do viewport; o
+  Rust converte usando o tamanho real do quadro. Funciona igual com pontos (macOS) e DPI (Windows).
+- **Janelas do FrameLy nunca aparecem nas capturas:** o filtro do ScreenCaptureKit exclui o próprio
+  app; no Windows, `WDA_EXCLUDEFROMCAPTURE` nas janelas de overlay e prévia.
+- **Desempenho (M-series, 3024×1964):** captura ~85 ms; PNG ~95 ms em release; clipboard ~0 ms
+  (o PNG já codificado vai direto para o NSPasteboard).
 
 ## Comportamento de ciclo de vida
 
@@ -55,4 +83,5 @@ plataforma (`CaptureBackend`, Etapa 1); não há outras camadas.
 ## Segurança
 
 - CSP restritiva; o asset protocol está desligado até a biblioteca precisar dele.
-- A UI não tem permissão genérica de abrir caminhos: `open_folder` só aceita as pastas do FrameLy.
+- A UI não tem permissão genérica de abrir caminhos: `open_folder` só aceita as pastas do FrameLy, e
+  as ações da prévia só operam sobre a última captura feita pelo próprio app.

@@ -27,6 +27,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(import.meta.dirname, 'main.html'),
+        overlay: resolve(import.meta.dirname, 'overlay.html'),
+        preview: resolve(import.meta.dirname, 'preview.html'),
       },
     },
   },

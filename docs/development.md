@@ -19,7 +19,9 @@
 | `pnpm check:windows` | Clippy do código Windows a partir do macOS (requer `brew install llvm`). |
 | `pnpm app:mac` | Build de debug assinado com a identidade de dev e abre o app (testes de permissão). |
 | `swift test` (em `native/macos/FrameLyKit/`) | Testes da engine Swift. |
-| `cargo test -- --ignored` | Testes "ao vivo" contra as APIs reais do SO (lista monitores, janelas, áudio). |
+| `cargo test -- --ignored` | Testes "ao vivo" contra as APIs reais do SO (lista, captura). |
+| `cargo test --release -- --ignored --nocapture png_encode_speed` | Mede a codificação PNG de uma tela 3024×1964. |
+| `<app>/Contents/MacOS/framely --capture region` | Dispara ações no app aberto (`region`, `window`, `screen`, `cancel`). |
 
 ## Logs e depuração
 

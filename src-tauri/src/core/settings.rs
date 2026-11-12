@@ -48,6 +48,21 @@ pub struct Appearance {
     pub theme: Theme,
 }
 
+/// What happens after a screenshot is taken. At least one of copy/save must stay enabled.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Capture {
+    pub copy_to_clipboard: bool,
+    pub save_to_disk: bool,
+    pub show_preview: bool,
+}
+
+impl Default for Capture {
+    fn default() -> Self {
+        Self { copy_to_clipboard: true, save_to_disk: true, show_preview: true }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Storage {
@@ -61,6 +76,7 @@ pub struct Settings {
     pub version: u32,
     pub general: General,
     pub appearance: Appearance,
+    pub capture: Capture,
     pub storage: Storage,
 }
 
@@ -76,12 +92,8 @@ impl DefaultDirs {
     pub fn from_os() -> Self {
         let home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
         Self {
-            videos: dirs::video_dir()
-                .unwrap_or_else(|| home.join("Videos"))
-                .join("FrameLy"),
-            pictures: dirs::picture_dir()
-                .unwrap_or_else(|| home.join("Pictures"))
-                .join("FrameLy"),
+            videos: dirs::video_dir().unwrap_or_else(|| home.join("Videos")).join("FrameLy"),
+            pictures: dirs::picture_dir().unwrap_or_else(|| home.join("Pictures")).join("FrameLy"),
         }
     }
 }
@@ -92,22 +104,21 @@ impl Settings {
             version: CURRENT_VERSION,
             general: General::default(),
             appearance: Appearance::default(),
-            storage: Storage {
-                recordings_dir: d.videos.clone(),
-                screenshots_dir: d.pictures.clone(),
-            },
+            capture: Capture::default(),
+            storage: Storage { recordings_dir: d.videos.clone(), screenshots_dir: d.pictures.clone() },
         }
     }
 
     pub fn validate(&self) -> AppResult<()> {
+        if !self.capture.copy_to_clipboard && !self.capture.save_to_disk {
+            return Err(AppError::InvalidSettings("screenshots must be copied, saved, or both".into()));
+        }
         for (name, p) in [
             ("recordingsDir", &self.storage.recordings_dir),
             ("screenshotsDir", &self.storage.screenshots_dir),
         ] {
             if p.as_os_str().is_empty() || !p.is_absolute() {
-                return Err(AppError::InvalidSettings(format!(
-                    "{name} must be an absolute path"
-                )));
+                return Err(AppError::InvalidSettings(format!("{name} must be an absolute path")));
             }
         }
         Ok(())
@@ -180,10 +191,7 @@ impl SettingsStore {
             Err(e) => return Err(e.into()),
         };
         write_atomic(&path, &settings)?;
-        Ok(Self {
-            path,
-            current: RwLock::new(settings),
-        })
+        Ok(Self { path, current: RwLock::new(settings) })
     }
 
     pub fn get(&self) -> Settings {
@@ -218,10 +226,7 @@ mod tests {
     use super::*;
 
     fn dirs_in(root: &Path) -> DefaultDirs {
-        DefaultDirs {
-            videos: root.join("Videos/FrameLy"),
-            pictures: root.join("Pictures/FrameLy"),
-        }
+        DefaultDirs { videos: root.join("Videos/FrameLy"), pictures: root.join("Pictures/FrameLy") }
     }
 
     #[test]
@@ -253,11 +258,8 @@ mod tests {
     fn partial_and_unversioned_files_get_defaults() {
         let tmp = tempfile::tempdir().unwrap();
         let d = dirs_in(tmp.path());
-        let s = Settings::from_json(
-            r#"{ "appearance": { "theme": "light" }, "unknownKey": 1 }"#,
-            &d,
-        )
-        .unwrap();
+        let s =
+            Settings::from_json(r#"{ "appearance": { "theme": "light" }, "unknownKey": 1 }"#, &d).unwrap();
         assert_eq!(s.version, CURRENT_VERSION);
         assert_eq!(s.appearance.theme, Theme::Light);
         assert_eq!(s.general.language, Language::System);
@@ -274,13 +276,7 @@ mod tests {
         assert_eq!(store.get(), Settings::defaults(&d));
         let backups = fs::read_dir(tmp.path())
             .unwrap()
-            .filter(|e| {
-                e.as_ref()
-                    .unwrap()
-                    .file_name()
-                    .to_string_lossy()
-                    .starts_with("settings.corrupt-")
-            })
+            .filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().starts_with("settings.corrupt-"))
             .count();
         assert_eq!(backups, 1);
     }
@@ -294,18 +290,31 @@ mod tests {
         s.storage.screenshots_dir = PathBuf::from("relative/dir");
         let err = store.replace(s).unwrap_err();
         assert_eq!(err.code(), "invalid_settings");
-        assert_eq!(
-            store.get(),
-            Settings::defaults(&d),
-            "state unchanged after a rejected update"
-        );
+        assert_eq!(store.get(), Settings::defaults(&d), "state unchanged after a rejected update");
+    }
+
+    #[test]
+    fn capture_needs_an_output() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = dirs_in(tmp.path());
+        let store = SettingsStore::load(tmp.path().join("s.json"), &d).unwrap();
+        let mut s = store.get();
+        assert!(s.capture.copy_to_clipboard && s.capture.save_to_disk && s.capture.show_preview);
+        s.capture.copy_to_clipboard = false;
+        s.capture.save_to_disk = false;
+        assert_eq!(store.replace(s).unwrap_err().code(), "invalid_settings");
+    }
+
+    #[test]
+    fn stage1_files_gain_capture_defaults() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = dirs_in(tmp.path());
+        let s = Settings::from_json(r#"{"version":1,"general":{"language":"en"}}"#, &d).unwrap();
+        assert_eq!(s.capture, Capture::default());
     }
 
     #[test]
     fn language_serializes_as_bcp47() {
-        assert_eq!(
-            serde_json::to_string(&Language::PtBr).unwrap(),
-            r#""pt-BR""#
-        );
+        assert_eq!(serde_json::to_string(&Language::PtBr).unwrap(), r#""pt-BR""#);
     }
 }

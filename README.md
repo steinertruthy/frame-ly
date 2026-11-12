@@ -2,10 +2,10 @@
 
 Gravação de tela e screenshots para macOS e Windows — simples, rápido e leve.
 
-> Estado atual: **Etapa 1**. Janela principal, bandeja, ajustes persistentes, logs estruturados,
-> engines nativas ligadas (macOS em Swift, Windows em Rust) com listagem de monitores, janelas e
-> microfones, e fluxo de permissões. Captura e gravação chegam nas próximas etapas —
-> veja [docs/roadmap.md](docs/roadmap.md).
+> Estado atual: **Etapa 2**. Screenshots funcionando de ponta a ponta: região (com lupa de
+> pixels), janela e tela inteira; cópia para a área de transferência, salvamento em PNG e prévia
+> flutuante. Acesso pela tela inicial, pelo menu da bandeja e pela linha de comando. Gravação de
+> vídeo chega nas próximas etapas — veja [docs/roadmap.md](docs/roadmap.md).
 
 ## Stack
 
@@ -36,3 +36,12 @@ pnpm tauri build      # pacote de release
 ```
 
 Mais em [docs/development.md](docs/development.md).
+
+## Linha de comando
+
+Com o FrameLy aberto, o executável repassa ações para a instância em execução — útil para Raycast,
+Alfred, Atalhos do macOS ou AutoHotkey:
+
+```bash
+/Applications/FrameLy.app/Contents/MacOS/framely --capture region   # region | window | screen | cancel
+```

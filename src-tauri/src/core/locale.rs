@@ -26,6 +26,9 @@ pub fn current(setting: Language) -> Lang {
 }
 
 pub struct TrayStrings {
+    pub capture_region: &'static str,
+    pub capture_window: &'static str,
+    pub capture_screen: &'static str,
     pub open: &'static str,
     pub quit: &'static str,
     pub tooltip: &'static str,
@@ -34,11 +37,17 @@ pub struct TrayStrings {
 pub fn tray_strings(lang: Lang) -> TrayStrings {
     match lang {
         Lang::PtBr => TrayStrings {
+            capture_region: "Capturar região",
+            capture_window: "Capturar janela",
+            capture_screen: "Capturar tela inteira",
             open: "Abrir FrameLy",
             quit: "Sair do FrameLy",
             tooltip: "FrameLy",
         },
         Lang::En => TrayStrings {
+            capture_region: "Capture Region",
+            capture_window: "Capture Window",
+            capture_screen: "Capture Full Screen",
             open: "Open FrameLy",
             quit: "Quit FrameLy",
             tooltip: "FrameLy",

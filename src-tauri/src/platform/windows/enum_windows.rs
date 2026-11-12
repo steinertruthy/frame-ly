@@ -13,21 +13,15 @@ use windows::{
             PROCESS_QUERY_LIMITED_INFORMATION,
         },
         UI::WindowsAndMessaging::{
-            EnumWindows, GetClassNameW, GetWindow, GetWindowLongPtrW, GetWindowTextLengthW,
-            GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, GWL_EXSTYLE,
-            GW_OWNER, WS_EX_TOOLWINDOW,
+            EnumWindows, GetClassNameW, GetWindow, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
+            GetWindowThreadProcessId, IsIconic, IsWindowVisible, GWL_EXSTYLE, GW_OWNER, WS_EX_TOOLWINDOW,
         },
     },
 };
 
 /// Shell surfaces that are never "an application window".
-const EXCLUDED_CLASSES: &[&str] = &[
-    "Progman",
-    "WorkerW",
-    "Shell_TrayWnd",
-    "Shell_SecondaryTrayWnd",
-    "Windows.UI.Core.CoreWindow",
-];
+const EXCLUDED_CLASSES: &[&str] =
+    &["Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "Windows.UI.Core.CoreWindow"];
 
 unsafe extern "system" fn collect(hwnd: HWND, data: LPARAM) -> BOOL {
     // SAFETY: `data` is the &mut Vec passed by `list` for the duration of EnumWindows.
@@ -64,10 +58,7 @@ fn is_capturable(hwnd: HWND) -> bool {
         if !IsWindowVisible(hwnd).as_bool() || IsIconic(hwnd).as_bool() {
             return false;
         }
-        if GetWindow(hwnd, GW_OWNER)
-            .map(|h| !h.is_invalid())
-            .unwrap_or(false)
-        {
+        if GetWindow(hwnd, GW_OWNER).map(|h| !h.is_invalid()).unwrap_or(false) {
             return false;
         }
         if GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOOLWINDOW.0 != 0 {
@@ -116,13 +107,8 @@ fn exe_path(pid: u32) -> Option<String> {
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
         let mut buf = [0u16; 1024];
         let mut len = buf.len() as u32;
-        let ok = QueryFullProcessImageNameW(
-            handle,
-            PROCESS_NAME_WIN32,
-            PWSTR(buf.as_mut_ptr()),
-            &mut len,
-        )
-        .is_ok();
+        let ok =
+            QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32, PWSTR(buf.as_mut_ptr()), &mut len).is_ok();
         let _ = CloseHandle(handle);
         ok.then(|| String::from_utf16_lossy(&buf[..len as usize]))
     }

@@ -13,6 +13,7 @@
   import { system } from '$lib/stores/system.svelte';
   import Badge from '$lib/components/Badge.svelte';
   import PermissionRow from '$lib/components/PermissionRow.svelte';
+  import Toggle from '$lib/components/Toggle.svelte';
 
   let { info }: { info: AppInfo } = $props();
   const s = $derived(settings.value);
@@ -63,6 +64,32 @@
           { value: 'dark' as Theme, label: t('settings.theme.dark') },
         ]}
         onchange={(v) => settings.update((d) => (d.appearance.theme = v))}
+      />
+    </SettingRow>
+  </Section>
+
+  <Section title={t('settings.capture')}>
+    <SettingRow title={t('settings.capture.copy')} hint={t('settings.capture.copy.hint')}>
+      <Toggle
+        label={t('settings.capture.copy')}
+        checked={s.capture.copyToClipboard}
+        disabled={s.capture.copyToClipboard && !s.capture.saveToDisk}
+        onchange={(v) => settings.update((d) => (d.capture.copyToClipboard = v))}
+      />
+    </SettingRow>
+    <SettingRow title={t('settings.capture.save')} hint={t('settings.capture.save.hint')}>
+      <Toggle
+        label={t('settings.capture.save')}
+        checked={s.capture.saveToDisk}
+        disabled={s.capture.saveToDisk && !s.capture.copyToClipboard}
+        onchange={(v) => settings.update((d) => (d.capture.saveToDisk = v))}
+      />
+    </SettingRow>
+    <SettingRow title={t('settings.capture.preview')} hint={t('settings.capture.preview.hint')}>
+      <Toggle
+        label={t('settings.capture.preview')}
+        checked={s.capture.showPreview}
+        onchange={(v) => settings.update((d) => (d.capture.showPreview = v))}
       />
     </SettingRow>
   </Section>

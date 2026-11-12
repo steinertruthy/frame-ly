@@ -20,6 +20,12 @@ baseada em callbacks.
 | Janelas | `SCShareableContent` (exige permissão de Gravação de Tela; nunca dispara o prompt) |
 | Microfones | `AVCaptureDevice.DiscoverySession` (`.microphone`, `.external`) |
 | Permissões | `CGPreflight/RequestScreenCaptureAccess`, `AVCaptureDevice.authorizationStatus/requestAccess` |
+| Screenshot | `SCScreenshotManager.captureImage` (monitor: filtro excluindo o próprio app; janela: `desktopIndependentWindow`) → `CGContext` sRGB BGRA |
+| Clipboard | PNG direto no `NSPasteboard` (`fl_copy_png`) |
+| Overlays | `NSWindow.level = .screenSaver`, cobre menu bar e Dock, acompanha todos os Spaces |
+
+As capturas de pixels usam uma interface própria: o Swift preenche um buffer `malloc` BGRA e o Rust
+copia e libera com `fl_free_buffer`.
 
 Coordenadas: pontos globais com origem no canto superior esquerdo (o mesmo espaço do ScreenCaptureKit).
 
@@ -30,6 +36,9 @@ Coordenadas: pontos globais com origem no canto superior esquerdo (o mesmo espa�
 | Monitores | `EnumDisplayMonitors`, `GetMonitorInfoW`, `GetDpiForMonitor`, `EnumDisplaySettingsW`, nomes via `QueryDisplayConfig`/`DisplayConfigGetDeviceInfo` |
 | Janelas | `EnumWindows` com filtro estilo Alt-Tab: visível, não minimizada, sem dono, sem `WS_EX_TOOLWINDOW`, não *cloaked* (DWM); limites via `DWMWA_EXTENDED_FRAME_BOUNDS` |
 | Microfones | Core Audio `IMMDeviceEnumerator` (endpoints de captura ativos, padrão via `eConsole`) |
+| Screenshot | Windows.Graphics.Capture (`CreateForMonitor` / `CreateForWindow`), primeiro quadro copiado para textura *staging* D3D11 (fallback WARP sem GPU) |
+| Clipboard | `arboard` (DIB) |
+| Overlays | Janelas sem borda no retângulo físico do monitor, `WDA_EXCLUDEFROMCAPTURE` |
 | Permissões | Tela: `GraphicsCaptureSession::IsSupported`. Microfone: chaves de privacidade em `ConsentStore\microphone` (global, usuário e "apps da área de trabalho") |
 
 Coordenadas: pixels físicos (o processo é per-monitor DPI aware); `scaleFactor` = DPI / 96.

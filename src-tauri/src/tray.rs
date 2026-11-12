@@ -2,6 +2,7 @@
 
 use crate::{
     core::{errors::AppResult, locale, settings::Language},
+    screenshot::{self, Request, SelectMode},
     windows,
 };
 use tauri::{
@@ -15,11 +16,22 @@ const TRAY_ID: &str = "framely";
 
 fn build_menu<R: Runtime>(app: &AppHandle<R>, language: Language) -> AppResult<Menu<R>> {
     let s = locale::tray_strings(locale::current(language));
+    let region = MenuItem::with_id(app, "capture-region", s.capture_region, true, None::<&str>)?;
+    let window = MenuItem::with_id(app, "capture-window", s.capture_window, true, None::<&str>)?;
+    let screen = MenuItem::with_id(app, "capture-screen", s.capture_screen, true, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", s.open, true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", s.quit, true, Some("CmdOrCtrl+Q"))?;
     Ok(Menu::with_items(
         app,
-        &[&open, &PredefinedMenuItem::separator(app)?, &quit],
+        &[
+            &region,
+            &window,
+            &screen,
+            &PredefinedMenuItem::separator(app)?,
+            &open,
+            &PredefinedMenuItem::separator(app)?,
+            &quit,
+        ],
     )?)
 }
 
@@ -39,6 +51,9 @@ pub fn create(app: &AppHandle, language: Language) -> AppResult<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => windows::show_main(app),
+            "capture-region" => screenshot::trigger(app, Request::Select { mode: SelectMode::Region }),
+            "capture-window" => screenshot::trigger(app, Request::Select { mode: SelectMode::Window }),
+            "capture-screen" => screenshot::trigger(app, Request::Display { display_id: None }),
             "quit" => {
                 tracing::info!("quit requested from tray");
                 app.exit(0);

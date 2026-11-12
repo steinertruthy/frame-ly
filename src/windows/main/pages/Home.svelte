@@ -8,6 +8,7 @@
   import { toast } from '$lib/stores/toasts.svelte';
   import { system } from '$lib/stores/system.svelte';
   import PermissionRow from '$lib/components/PermissionRow.svelte';
+  import CaptureActions from '$lib/components/CaptureActions.svelte';
 
   let { info }: { info: AppInfo } = $props();
   const storage = $derived(settings.value?.storage);
@@ -40,6 +41,9 @@
     </div>
   </section>
 {/if}
+
+<h2 class="label">{t('capture.title')}</h2>
+<CaptureActions disabled={!system.screenReady} />
 
 {#if storage}
   <h2 class="label">{t('home.folders')}</h2>

@@ -1,10 +1,13 @@
 //! macOS backend: thin FFI over FrameLyKit (Swift). See `native/macos/FrameLyKit/Sources/FrameLyKit/FFI.swift`
 //! for the JSON envelope protocol.
 
-use super::{
-    AudioDevice, CaptureBackend, Display, Permission, PermissionState, Permissions, WindowInfo,
+pub mod chrome;
+
+use super::{AudioDevice, CaptureBackend, Display, Permission, PermissionState, Permissions, WindowInfo};
+use crate::core::{
+    errors::{AppError, AppResult},
+    image::Frame,
 };
-use crate::core::errors::{AppError, AppResult};
 use serde::{de::DeserializeOwned, Deserialize};
 use std::ffi::{c_char, CStr};
 
@@ -16,6 +19,35 @@ extern "C" {
     fn fl_permissions() -> *mut c_char;
     fn fl_request_screen() -> *mut c_char;
     fn fl_request_microphone() -> *mut c_char;
+    fn fl_capture_display(id: u32, out: *mut *mut u8, w: *mut u32, h: *mut u32) -> *mut c_char;
+    fn fl_capture_window(id: u32, out: *mut *mut u8, w: *mut u32, h: *mut u32) -> *mut c_char;
+    fn fl_free_buffer(ptr: *mut u8);
+    fn fl_display_at_cursor() -> u32;
+}
+
+type CaptureFn = unsafe extern "C" fn(u32, *mut *mut u8, *mut u32, *mut u32) -> *mut c_char;
+
+/// Calls a FrameLyKit capture export and copies the BGRA buffer into a `Frame`.
+fn capture(f: CaptureFn, id: &str) -> AppResult<Frame> {
+    let id: u32 = id.parse().map_err(|_| AppError::Platform(format!("invalid id {id:?}")))?;
+    let (mut data, mut w, mut h) = (std::ptr::null_mut(), 0u32, 0u32);
+    // SAFETY: on success FrameLyKit fills a malloc'd buffer of exactly w*h*4 bytes that we
+    // copy and release once; on failure it returns an owned error string and no buffer.
+    unsafe {
+        let err = f(id, &mut data, &mut w, &mut h);
+        if !err.is_null() {
+            let json = CStr::from_ptr(err).to_string_lossy().into_owned();
+            fl_free_string(err);
+            return decode::<()>(&json).and(Err(AppError::Platform("capture failed".into())));
+        }
+        if data.is_null() {
+            return Err(AppError::Platform("capture returned no data".into()));
+        }
+        let len = w as usize * h as usize * 4;
+        let bytes = std::slice::from_raw_parts(data, len).to_vec();
+        fl_free_buffer(data);
+        Frame::new(w, h, bytes)
+    }
 }
 
 #[derive(Deserialize)]
@@ -78,10 +110,7 @@ impl CaptureBackend for MacBackend {
     fn permissions(&self) -> Permissions {
         call(fl_permissions).unwrap_or_else(|e| {
             tracing::error!(error = %e, "failed to read permissions");
-            Permissions {
-                screen: PermissionState::NotDetermined,
-                microphone: PermissionState::NotDetermined,
-            }
+            Permissions { screen: PermissionState::NotDetermined, microphone: PermissionState::NotDetermined }
         })
     }
 
@@ -102,6 +131,19 @@ impl CaptureBackend for MacBackend {
             }
         })
     }
+
+    fn capture_display(&self, display_id: &str) -> AppResult<Frame> {
+        capture(fl_capture_display, display_id)
+    }
+
+    fn capture_window(&self, window_id: &str) -> AppResult<Frame> {
+        capture(fl_capture_window, window_id)
+    }
+
+    fn display_at_cursor(&self) -> Option<String> {
+        // SAFETY: pure query with no pointers.
+        Some(unsafe { fl_display_at_cursor() }.to_string())
+    }
 }
 
 #[cfg(test)]
@@ -110,15 +152,12 @@ mod tests {
 
     #[test]
     fn decodes_envelopes() {
-        let ok: Vec<AudioDevice> =
-            decode(r#"{"ok":[{"id":"a","name":"Mic","isDefault":true}]}"#).unwrap();
+        let ok: Vec<AudioDevice> = decode(r#"{"ok":[{"id":"a","name":"Mic","isDefault":true}]}"#).unwrap();
         assert_eq!(ok[0].name, "Mic");
-        let err =
-            decode::<Vec<WindowInfo>>(r#"{"err":{"code":"permission_denied","message":"screen"}}"#)
-                .unwrap_err();
+        let err = decode::<Vec<WindowInfo>>(r#"{"err":{"code":"permission_denied","message":"screen"}}"#)
+            .unwrap_err();
         assert_eq!(err.code(), "permission_denied");
-        let err =
-            decode::<Permissions>(r#"{"err":{"code":"platform","message":"boom"}}"#).unwrap_err();
+        let err = decode::<Permissions>(r#"{"err":{"code":"platform","message":"boom"}}"#).unwrap_err();
         assert_eq!(err.code(), "platform");
     }
 

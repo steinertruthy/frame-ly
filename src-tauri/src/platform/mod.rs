@@ -4,16 +4,22 @@
 //! Methods are blocking (some wait on OS prompts or async system APIs) and must be called
 //! off the main thread — the command layer uses `spawn_blocking`.
 //!
-//! Screenshot (Stage 2) and recording (Stages 3–5) methods join this trait with the
-//! features that implement them.
+//! Recording methods (Stages 3–5) join this trait with the features that implement them.
 
-use crate::core::errors::AppResult;
+use crate::core::{errors::AppResult, image::Frame};
 use serde::{Deserialize, Serialize};
 
+pub mod clipboard;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(windows)]
 mod windows;
+
+/// Native window styling that Tauri doesn't expose (overlay levels, capture exclusion…).
+#[cfg(target_os = "macos")]
+pub use macos::chrome;
+#[cfg(windows)]
+pub use windows::chrome;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Rect {
@@ -33,6 +39,8 @@ pub struct Display {
     pub id: String,
     pub name: String,
     pub bounds: Rect,
+    /// Usable area (excludes menu bar / Dock / taskbar), same space as `bounds`.
+    pub work_area: Rect,
     pub pixel_width: u32,
     pub pixel_height: u32,
     pub scale_factor: f64,
@@ -105,6 +113,12 @@ pub trait CaptureBackend: Send + Sync {
     fn request_permission(&self, p: Permission) -> AppResult<PermissionState>;
     /// Deep link into the OS privacy settings for `p`, if the OS has one.
     fn permission_settings_url(&self, p: Permission) -> Option<&'static str>;
+    /// Full-resolution image of one display, without FrameLy's own windows where the OS allows.
+    fn capture_display(&self, display_id: &str) -> AppResult<Frame>;
+    /// One window's content, even if partially covered by other windows.
+    fn capture_window(&self, window_id: &str) -> AppResult<Frame>;
+    /// The display under the mouse pointer.
+    fn display_at_cursor(&self) -> Option<String>;
 }
 
 pub fn backend() -> Box<dyn CaptureBackend> {
@@ -122,10 +136,7 @@ mod tests {
 
     #[test]
     fn serializes_for_the_ui() {
-        let p = Permissions {
-            screen: PermissionState::NotDetermined,
-            microphone: PermissionState::Granted,
-        };
+        let p = Permissions { screen: PermissionState::NotDetermined, microphone: PermissionState::Granted };
         assert_eq!(
             serde_json::to_string(&p).unwrap(),
             r#"{"screen":"notDetermined","microphone":"granted"}"#
@@ -133,12 +144,8 @@ mod tests {
         let d = Display {
             id: "1".into(),
             name: "Built-in".into(),
-            bounds: Rect {
-                x: 0.0,
-                y: 0.0,
-                width: 1512.0,
-                height: 982.0,
-            },
+            bounds: Rect { x: 0.0, y: 0.0, width: 1512.0, height: 982.0 },
+            work_area: Rect { x: 0.0, y: 33.0, width: 1512.0, height: 870.0 },
             pixel_width: 3024,
             pixel_height: 1964,
             scale_factor: 2.0,
@@ -157,17 +164,21 @@ mod tests {
         let b = backend();
         let displays = b.displays().unwrap();
         assert!(!displays.is_empty(), "at least one display");
-        assert_eq!(
-            displays.iter().filter(|d| d.is_primary).count(),
-            1,
-            "exactly one primary"
-        );
+        assert_eq!(displays.iter().filter(|d| d.is_primary).count(), 1, "exactly one primary");
         println!("displays: {displays:#?}");
         println!("audio: {:#?}", b.audio_inputs().unwrap());
         println!("permissions: {:?}", b.permissions());
         match b.windows() {
             Ok(w) => println!("{} windows, e.g. {:?}", w.len(), w.first()),
             Err(e) => println!("windows unavailable: {e}"),
+        }
+        println!("cursor on display {:?}", b.display_at_cursor());
+        match b.capture_display(&displays[0].id) {
+            Ok(f) => {
+                assert_eq!((f.width, f.height), (displays[0].pixel_width, displays[0].pixel_height));
+                println!("captured {f:?}");
+            }
+            Err(e) => println!("capture unavailable: {e}"),
         }
     }
 }

@@ -13,14 +13,14 @@ use windows::{
             DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO, DISPLAYCONFIG_SOURCE_DEVICE_NAME,
             DISPLAYCONFIG_TARGET_DEVICE_NAME, QDC_ONLY_ACTIVE_PATHS,
         },
-        Foundation::{LPARAM, RECT},
+        Foundation::{LPARAM, POINT, RECT},
         Graphics::Gdi::{
-            EnumDisplayMonitors, EnumDisplaySettingsW, GetMonitorInfoW, DEVMODEW,
-            ENUM_CURRENT_SETTINGS, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW,
+            EnumDisplayMonitors, EnumDisplaySettingsW, GetMonitorInfoW, MonitorFromPoint, DEVMODEW,
+            ENUM_CURRENT_SETTINGS, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
         },
         UI::{
             HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
-            WindowsAndMessaging::MONITORINFOF_PRIMARY,
+            WindowsAndMessaging::{GetCursorPos, MONITORINFOF_PRIMARY},
         },
     },
 };
@@ -84,36 +84,48 @@ unsafe extern "system" fn collect(monitor: HMONITOR, _: HDC, _: *mut RECT, data:
     true.into()
 }
 
-pub fn list() -> AppResult<Vec<Display>> {
+fn monitors() -> AppResult<Vec<HMONITOR>> {
     let mut monitors: Vec<HMONITOR> = Vec::new();
     // SAFETY: the callback only pushes into `monitors`, which outlives the call.
     unsafe {
-        EnumDisplayMonitors(
-            None,
-            None,
-            Some(collect),
-            LPARAM(&mut monitors as *mut _ as isize),
-        )
-        .ok()
-        .map_err(|e| win_err("EnumDisplayMonitors", e))?;
+        EnumDisplayMonitors(None, None, Some(collect), LPARAM(&mut monitors as *mut _ as isize))
+            .ok()
+            .map_err(|e| win_err("EnumDisplayMonitors", e))?;
     }
+    Ok(monitors)
+}
+
+/// GDI device name (e.g. `\\.\DISPLAY1`), used as the display id, plus the monitor info.
+fn device_name(monitor: HMONITOR) -> Option<(String, MONITORINFOEXW)> {
+    let mut info = MONITORINFOEXW::default();
+    info.monitorInfo.cbSize = size_of::<MONITORINFOEXW>() as u32;
+    // SAFETY: MONITORINFOEXW starts with MONITORINFO and cbSize announces the extended size.
+    let ok = unsafe { GetMonitorInfoW(monitor, &mut info as *mut MONITORINFOEXW as *mut MONITORINFO) };
+    ok.as_bool().then(|| (wide_to_string(&info.szDevice), info))
+}
+
+pub fn monitor_by_id(id: &str) -> Option<HMONITOR> {
+    monitors().ok()?.into_iter().find(|m| device_name(*m).is_some_and(|(n, _)| n == id))
+}
+
+pub fn at_cursor() -> Option<String> {
+    let mut p = POINT::default();
+    // SAFETY: out-pointer to a POINT.
+    unsafe { GetCursorPos(&mut p) }.ok()?;
+    // SAFETY: pure query.
+    let monitor = unsafe { MonitorFromPoint(p, MONITOR_DEFAULTTONEAREST) };
+    device_name(monitor).map(|(n, _)| n)
+}
+
+pub fn list() -> AppResult<Vec<Display>> {
+    let monitors = monitors()?;
     let names = friendly_names();
 
     let mut out = Vec::with_capacity(monitors.len());
     for (index, monitor) in monitors.into_iter().enumerate() {
-        let mut info = MONITORINFOEXW::default();
-        info.monitorInfo.cbSize = size_of::<MONITORINFOEXW>() as u32;
-        // SAFETY: MONITORINFOEXW starts with MONITORINFO and cbSize announces the extended size.
-        let ok = unsafe {
-            GetMonitorInfoW(
-                monitor,
-                &mut info as *mut MONITORINFOEXW as *mut MONITORINFO,
-            )
-        };
-        if !ok.as_bool() {
+        let Some((device, info)) = device_name(monitor) else {
             continue;
-        }
-        let device = wide_to_string(&info.szDevice);
+        };
         let r = info.monitorInfo.rcMonitor;
         let (width, height) = ((r.right - r.left) as u32, (r.bottom - r.top) as u32);
 
@@ -121,10 +133,7 @@ pub fn list() -> AppResult<Vec<Display>> {
         // SAFETY: valid monitor handle and out-pointers.
         let _ = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
 
-        let mut mode = DEVMODEW {
-            dmSize: size_of::<DEVMODEW>() as u16,
-            ..Default::default()
-        };
+        let mut mode = DEVMODEW { dmSize: size_of::<DEVMODEW>() as u16, ..Default::default() };
         let wide_device: Vec<u16> = device.encode_utf16().chain(std::iter::once(0)).collect();
         // SAFETY: NUL-terminated device name and a DEVMODEW with dmSize set.
         let hz = unsafe {
@@ -139,16 +148,17 @@ pub fn list() -> AppResult<Vec<Display>> {
         .filter(|&f| f > 1);
 
         out.push(Display {
-            name: names
-                .get(&device)
-                .cloned()
-                .unwrap_or_else(|| format!("Display {}", index + 1)),
+            name: names.get(&device).cloned().unwrap_or_else(|| format!("Display {}", index + 1)),
             id: device,
-            bounds: Rect {
-                x: r.left as f64,
-                y: r.top as f64,
-                width: width as f64,
-                height: height as f64,
+            bounds: Rect { x: r.left as f64, y: r.top as f64, width: width as f64, height: height as f64 },
+            work_area: {
+                let w = info.monitorInfo.rcWork;
+                Rect {
+                    x: w.left as f64,
+                    y: w.top as f64,
+                    width: (w.right - w.left) as f64,
+                    height: (w.bottom - w.top) as f64,
+                }
             },
             pixel_width: width,
             pixel_height: height,

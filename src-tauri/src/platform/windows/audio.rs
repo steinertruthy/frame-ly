@@ -5,12 +5,10 @@ use windows::{
     Win32::{
         Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
         Media::Audio::{
-            eCapture, eConsole, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
-            DEVICE_STATE_ACTIVE,
+            eCapture, eConsole, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator, DEVICE_STATE_ACTIVE,
         },
         System::Com::{
-            CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED,
-            STGM_READ,
+            CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ,
         },
     },
 };
@@ -27,11 +25,7 @@ unsafe fn take_pwstr(p: PWSTR) -> String {
 
 unsafe fn device_id(d: &IMMDevice) -> AppResult<String> {
     // SAFETY: GetId returns a CoTaskMem string we own.
-    unsafe {
-        Ok(take_pwstr(
-            d.GetId().map_err(|e| win_err("IMMDevice::GetId", e))?,
-        ))
-    }
+    unsafe { Ok(take_pwstr(d.GetId().map_err(|e| win_err("IMMDevice::GetId", e))?)) }
 }
 
 unsafe fn friendly_name(d: &IMMDevice) -> Option<String> {
@@ -49,13 +43,10 @@ pub fn list_inputs() -> AppResult<Vec<AudioDevice>> {
     // with a different model, since Core Audio enumeration works in either apartment.
     unsafe {
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        let enumerator: IMMDeviceEnumerator =
-            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
-                .map_err(|e| win_err("MMDeviceEnumerator", e))?;
-        let default_id = enumerator
-            .GetDefaultAudioEndpoint(eCapture, eConsole)
-            .ok()
-            .and_then(|d| device_id(&d).ok());
+        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+            .map_err(|e| win_err("MMDeviceEnumerator", e))?;
+        let default_id =
+            enumerator.GetDefaultAudioEndpoint(eCapture, eConsole).ok().and_then(|d| device_id(&d).ok());
         let collection = enumerator
             .EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE)
             .map_err(|e| win_err("EnumAudioEndpoints", e))?;

@@ -8,6 +8,7 @@ export interface Settings {
   version: number;
   general: { language: Language };
   appearance: { theme: Theme };
+  capture: { copyToClipboard: boolean; saveToDisk: boolean; showPreview: boolean };
   storage: { recordingsDir: string; screenshotsDir: string };
 }
 
@@ -31,6 +32,7 @@ export interface Display {
   id: string;
   name: string;
   bounds: Rect;
+  workArea: Rect;
   pixelWidth: number;
   pixelHeight: number;
   scaleFactor: number;
@@ -60,4 +62,23 @@ export type Permissions = Record<Permission, PermissionState>;
 export interface AppError {
   code: 'io' | 'json' | 'invalid_settings' | 'runtime' | 'permission_denied' | 'platform' | string;
   message: string;
+}
+
+export type SelectMode = 'region' | 'window';
+export type CaptureRequest = { kind: 'display'; displayId: string | null } | { kind: 'select'; mode: SelectMode };
+
+export interface OverlayInit {
+  mode: SelectMode;
+  display: Display;
+  frameWidth: number;
+  frameHeight: number;
+  windows: WindowInfo[];
+}
+
+export interface CaptureInfo {
+  width: number;
+  height: number;
+  path: string | null;
+  fileName: string | null;
+  copied: boolean;
 }
