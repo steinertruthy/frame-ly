@@ -144,13 +144,37 @@ pub fn rename(app: &AppHandle, id: i64, name: &str) -> AppResult<Item> {
 }
 
 /// Moves the file to the Trash / Recycle Bin (recoverable) and drops it from the index.
+/// A file that is already gone (deleted outside FrameLy) is simply dropped from the index.
 pub fn trash(app: &AppHandle, id: i64) -> AppResult<()> {
     let item = item(app, id)?;
-    trash::delete(&item.path).map_err(|e| AppError::Platform(format!("could not move to trash: {e}")))?;
+    let path = Path::new(&item.path);
+    if path.exists() {
+        move_to_trash(path).map_err(|e| {
+            tracing::warn!(path = %item.path, error = %e, "move to trash failed");
+            AppError::Platform(format!("could not move to trash: {e}"))
+        })?;
+        tracing::info!(path = %item.path, "moved to trash");
+    } else {
+        tracing::info!(path = %item.path, "file already gone; removed from library");
+    }
     with_db(app, |db| db.remove(id))?;
-    tracing::info!(path = %item.path, "moved to trash");
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(())
+}
+
+/// macOS: `NSFileManager.trashItemAtURL`. The crate's default asks Finder through AppleScript,
+/// which a hardened, signed app may not do (no Automation permission) — so it always failed.
+#[cfg(target_os = "macos")]
+fn move_to_trash(path: &Path) -> Result<(), trash::Error> {
+    use trash::macos::{DeleteMethod, TrashContextExtMacos};
+    let mut ctx = trash::TrashContext::default();
+    ctx.set_delete_method(DeleteMethod::NsFileManager);
+    ctx.delete(path)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn move_to_trash(path: &Path) -> Result<(), trash::Error> {
+    trash::delete(path)
 }
 
 pub fn copy(app: &AppHandle, id: i64) -> AppResult<()> {
@@ -172,4 +196,20 @@ pub fn thumbnail(app: &AppHandle, id: i64) -> AppResult<Vec<u8>> {
         state(app).backend.thumbnail(Path::new(&item.path), &cached, THUMB_PX)?;
     }
     Ok(std::fs::read(cached)?)
+}
+
+#[cfg(test)]
+mod tests {
+    /// Touches the real Trash, so it only runs on request: `cargo test -- --ignored trash`.
+    #[test]
+    #[ignore]
+    fn moves_a_file_to_the_trash() {
+        let dir = std::env::temp_dir().join(format!("framely-trash-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("FrameLy trash test.png");
+        std::fs::write(&file, b"test").unwrap();
+        super::move_to_trash(&file).unwrap();
+        assert!(!file.exists());
+        let _ = std::fs::remove_dir(&dir);
+    }
 }

@@ -1,9 +1,11 @@
 import { commands, isAppError } from '$lib/ipc/commands';
+import { logUi } from '$lib/ipc/log';
 import { t, type MessageKey } from '$lib/i18n/index.svelte';
 import { toast } from '$lib/stores/toasts.svelte';
 import type { LibraryItem } from '$lib/ipc/types';
 
 function fail(e: unknown) {
+  logUi('warn', `library action failed: ${isAppError(e) ? `${e.code}: ${e.message}` : String(e)}`);
   toast('error', t((isAppError(e) ? `error.${e.code}` : 'error.generic') as MessageKey) ?? t('error.generic'));
 }
 
