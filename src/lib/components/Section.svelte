@@ -20,11 +20,9 @@
     margin: 0 0 var(--space-2) 4px;
   }
   .card {
-    background: color-mix(in srgb, var(--surface) 86%, transparent);
-    border-radius: var(--radius-lg);
-    box-shadow:
-      inset 0 0 0 1px var(--border),
-      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    background: var(--surface);
+    border-radius: 14px;
+    box-shadow: inset 0 0 0 1px var(--border);
     overflow: hidden;
   }
 </style>

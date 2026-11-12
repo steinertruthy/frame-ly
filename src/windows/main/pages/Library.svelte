@@ -60,7 +60,10 @@
   <h1>{t('library.title')}</h1>
   <div class="tabs" role="tablist">
     {#each [['recent', 'library.tab.recent'], ['image', 'library.tab.images'], ['video', 'library.tab.videos']] as const as [id, label] (id)}
-      <button role="tab" aria-selected={library.tab === id} class:active={library.tab === id} onclick={() => library.showTab(id)}>{t(label)}</button>
+      {@const n = library.overview ? (id === 'image' ? library.overview.images : id === 'video' ? library.overview.videos : null) : null}
+      <button role="tab" aria-selected={library.tab === id} class:active={library.tab === id} onclick={() => library.showTab(id)}>
+        {t(label)}{#if n != null}<span class="n">{n}</span>{/if}
+      </button>
     {/each}
   </div>
   <div class="tools">
@@ -103,6 +106,7 @@
       {#each group.items as item (item.id)}
         <MediaTile
           {item}
+          card
           onopen={(i) => (viewing = { id: i.id, focusName: false })}
           oncontext={(i, e) => (menu = { x: e.clientX, y: e.clientY, item: i })}
         />
@@ -144,8 +148,8 @@
     margin-bottom: var(--space-5);
   }
   h1 {
-    font-size: var(--text-2xl);
-    font-weight: 700;
+    font-size: 22px;
+    font-weight: 650;
   }
   .tabs {
     display: flex;
@@ -153,6 +157,9 @@
   }
   .tabs button {
     position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     height: 32px;
     padding: 0 12px;
     border: 0;
@@ -165,12 +172,19 @@
       color var(--dur-fast);
   }
   .tabs button:hover {
+    background: var(--surface-hover);
     color: var(--text);
   }
   .tabs button.active {
-    background: var(--accent-soft);
+    background: var(--nav-active);
     color: var(--text);
-    box-shadow: inset 0 0 0 1px rgba(57, 120, 215, 0.3);
+    box-shadow: inset 0 0 0 1px var(--nav-active-border);
+  }
+  .n {
+    color: var(--text-3);
+    font-size: var(--text-sm);
+    font-weight: 550;
+    font-variant-numeric: tabular-nums;
   }
   .tools {
     display: flex;
@@ -185,12 +199,16 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 30px;
+    height: 32px;
     padding: 0 10px;
     border-radius: var(--radius-md);
-    background: var(--bg-2);
-    box-shadow: inset 0 0 0 1px var(--border-strong);
+    background: var(--bg);
+    box-shadow: inset 0 0 0 1px var(--border);
     color: var(--text-3);
+    transition: box-shadow var(--dur-fast);
+  }
+  .search:hover {
+    box-shadow: inset 0 0 0 1px var(--border-strong);
   }
   .search:focus-within {
     box-shadow: var(--focus-ring);
@@ -234,8 +252,8 @@
   }
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: var(--space-4) var(--space-3);
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 14px;
   }
   .empty {
     display: flex;
@@ -252,9 +270,10 @@
     width: 60px;
     height: 60px;
     margin-bottom: 8px;
-    border-radius: 18px;
-    background: var(--accent-soft);
-    color: var(--accent);
+    border-radius: 16px;
+    background: var(--icon-tile);
+    box-shadow: inset 0 0 0 1px var(--border);
+    color: var(--icon-accent);
   }
   .empty h2 {
     color: var(--text);

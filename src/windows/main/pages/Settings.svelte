@@ -451,8 +451,8 @@
   }
   .cats h1 {
     margin: 0 0 var(--space-4) 10px;
-    font-size: var(--text-2xl);
-    font-weight: 700;
+    font-size: 22px;
+    font-weight: 650;
   }
   .cat {
     display: flex;
@@ -464,22 +464,23 @@
     border-radius: var(--radius-md);
     background: transparent;
     color: var(--text-2);
-    font-weight: 600;
+    font-weight: 550;
     text-align: left;
     transition:
       background var(--dur-fast),
       color var(--dur-fast);
   }
   .cat:hover {
-    background: rgba(137, 149, 168, 0.08);
+    background: var(--surface-hover);
     color: var(--text);
   }
   .cat.active {
-    background: var(--accent-soft);
+    background: var(--nav-active);
+    box-shadow: inset 0 0 0 1px var(--nav-active-border);
     color: var(--text);
   }
   .cat.active :global(svg) {
-    color: var(--blue-300);
+    color: var(--icon-accent);
   }
   .content {
     min-width: 0;
@@ -492,8 +493,8 @@
     margin-bottom: var(--space-3);
   }
   .content-head h2 {
-    font-size: var(--text-xl);
-    font-weight: 700;
+    font-size: 17px;
+    font-weight: 650;
   }
   .saved {
     display: inline-flex;

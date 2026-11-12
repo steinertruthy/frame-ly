@@ -30,18 +30,22 @@
   }
   select {
     appearance: none;
-    height: 30px;
+    height: 32px;
     min-width: 200px;
     max-width: 280px;
     padding: 0 32px 0 12px;
     border: 0;
     border-radius: var(--radius-md);
-    background: var(--bg-2);
-    box-shadow: inset 0 0 0 1px var(--border-strong);
+    background: var(--bg);
+    box-shadow: inset 0 0 0 1px var(--border);
     color: var(--text);
+    transition: box-shadow var(--dur-fast);
     font-size: var(--text-sm);
     font-weight: 550;
     text-overflow: ellipsis;
+  }
+  select:hover:not(:disabled) {
+    box-shadow: inset 0 0 0 1px var(--border-strong);
   }
   select:focus-visible {
     box-shadow: var(--focus-ring);
