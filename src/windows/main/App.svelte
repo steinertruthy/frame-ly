@@ -66,7 +66,7 @@
   <aside class="sidebar">
     <div class="titlebar" data-drag data-tauri-drag-region role="presentation" {ondblclick}></div>
     <div class="brand" data-tauri-drag-region>
-      <LogoMark size={24} />
+      <LogoMark size={30} tile />
       <span>FrameLy</span>
     </div>
     <nav>
@@ -141,6 +141,7 @@
     padding: 0 12px 14px;
     background: var(--bg-sidebar);
     box-shadow: inset -1px 0 0 var(--border);
+    transition: padding var(--dur-slow) var(--ease-out);
     overflow: hidden;
   }
   .titlebar {
@@ -154,11 +155,12 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 8px 22px;
+    padding: 4px 2px 22px;
     font-family: var(--font-display);
-    font-weight: 700;
+    font-weight: 650;
     font-size: var(--text-lg);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.015em;
+    color: var(--text);
   }
   nav {
     display: flex;
@@ -176,7 +178,7 @@
     border-radius: var(--radius-md);
     background: transparent;
     color: var(--text-2);
-    font-weight: 600;
+    font-weight: 550;
     text-align: left;
     transition:
       background var(--dur-fast) var(--ease-out),
@@ -206,26 +208,16 @@
     margin-top: 8px;
   }
   .nav-item:hover {
-    background: rgba(137, 149, 168, 0.08);
+    background: var(--surface-hover);
     color: var(--text);
   }
   .nav-item.active {
-    background: linear-gradient(90deg, rgba(57, 120, 215, 0.22), rgba(57, 120, 215, 0.06));
+    background: var(--nav-active);
+    box-shadow: inset 0 0 0 1px var(--nav-active-border);
     color: var(--text);
   }
-  .nav-item.active::before {
-    content: '';
-    position: absolute;
-    left: -12px;
-    top: 9px;
-    bottom: 9px;
-    width: 3px;
-    border-radius: 0 3px 3px 0;
-    background: var(--blue-400);
-    box-shadow: 0 0 12px var(--blue-400);
-  }
   .nav-item.active :global(svg) {
-    color: var(--blue-300);
+    color: var(--icon-accent);
   }
   .live {
     display: flex;

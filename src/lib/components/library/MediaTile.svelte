@@ -1,27 +1,38 @@
 <script lang="ts">
   import { Play } from '@lucide/svelte';
   import { framelyUrl } from '$lib/ipc/protocol';
-  import { formatDuration } from '$lib/stores/format';
-  import { locale } from '$lib/i18n/index.svelte';
+  import { formatBytes, formatDuration } from '$lib/stores/format';
+  import { locale, t } from '$lib/i18n/index.svelte';
   import type { LibraryItem } from '$lib/ipc/types';
 
   interface Props {
     item: LibraryItem;
     compact?: boolean;
+    /** A card with the name and "Today · 14:52 · 4.2 MB" under the thumbnail (Home). */
+    card?: boolean;
     onopen: (item: LibraryItem) => void;
     oncontext?: (item: LibraryItem, e: MouseEvent) => void;
   }
-  let { item, compact = false, onopen, oncontext }: Props = $props();
+  let { item, compact = false, card = false, onopen, oncontext }: Props = $props();
   let failed = $state(false);
   // `v` busts the cache when the file changes (the thumbnail cache is keyed by size too).
   const src = $derived(framelyUrl(`thumb/${item.id}?v=${item.size}`));
   const time = $derived(new Intl.DateTimeFormat(locale(), { hour: '2-digit', minute: '2-digit' }).format(new Date(item.createdAt)));
   const name = $derived(item.name.replace(/\.[^.]+$/, ''));
+  const day = $derived.by(() => {
+    const d = new Date(item.createdAt);
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    if (d >= start) return t('library.group.today');
+    if (d.getTime() >= start.getTime() - 86_400_000) return t('library.group.yesterday');
+    return new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short' }).format(d);
+  });
 </script>
 
 <button
   class="tile"
   class:compact
+  class:card
   onclick={() => onopen(item)}
   oncontextmenu={(e) => {
     if (!oncontext) return;
@@ -39,7 +50,12 @@
       {#if item.durationMs != null}<span class="badge">{formatDuration(item.durationMs)}</span>{/if}
     {/if}
   </span>
-  {#if !compact}
+  {#if card}
+    <span class="body">
+      <span class="name">{name}</span>
+      <span class="meta">{day} · {time} · {formatBytes(item.size)}</span>
+    </span>
+  {:else if !compact}
     <span class="name">{name}</span>
     <span class="meta">{time}</span>
   {/if}
@@ -146,6 +162,43 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  /* Card (Home): one surface holding thumbnail and text; the border lights up on hover. */
+  .card {
+    gap: 0;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--border);
+    transition:
+      background var(--dur-fast),
+      box-shadow var(--dur-fast);
+  }
+  .card .thumb {
+    border-radius: 0;
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
+  .card:hover {
+    background: var(--surface-hover);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+  .card:hover .thumb {
+    transform: none;
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
+  .card:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+  .body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 11px 14px 12px;
+  }
+  .card .name {
+    margin: 0;
+    font-size: var(--text-md);
   }
   .meta {
     color: var(--text-3);

@@ -51,7 +51,7 @@
     grid-template-columns: repeat(var(--count), minmax(0, 1fr));
     padding: 3px;
     border-radius: 9px;
-    background: var(--bg-2);
+    background: var(--bg);
     box-shadow: inset 0 0 0 1px var(--border);
     min-width: 220px;
   }
@@ -68,11 +68,8 @@
     width: calc((100% - 6px) / var(--count));
     transform: translateX(calc(100% * var(--index)));
     border-radius: 7px;
-    background: var(--surface-raised);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.05),
-      0 0 0 1px var(--border-strong),
-      0 4px 14px -6px var(--glow);
+    background: var(--seg-active);
+    box-shadow: inset 0 0 0 1px var(--border);
     transition: transform var(--dur-med) var(--ease-out);
   }
   button {

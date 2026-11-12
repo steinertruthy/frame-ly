@@ -277,23 +277,16 @@
     border: 0;
     border-radius: 13px;
     overflow: hidden;
-    background: var(--hero);
-    color: #f1f4fa;
+    background: var(--primary-fill);
+    color: var(--accent-text);
     text-align: left;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.1),
-      inset 0 0 0 1px rgba(108, 157, 230, 0.2),
-      0 14px 30px -18px rgba(57, 120, 215, 0.9);
+    box-shadow: inset 0 0 0 1px var(--primary-border);
     transition:
       transform var(--dur-med) var(--ease-out),
-      box-shadow var(--dur-med);
+      background var(--dur-fast);
   }
   .shot:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.12),
-      inset 0 0 0 1px rgba(108, 157, 230, 0.35),
-      0 18px 36px -16px rgba(57, 120, 215, 1);
+    background: var(--primary-hover);
   }
   .shot:active:not(:disabled) {
     transform: scale(0.985);
@@ -320,7 +313,7 @@
     font: 700 var(--text-lg) var(--font-display);
   }
   .shot-sub {
-    color: rgba(241, 244, 250, 0.7);
+    color: color-mix(in srgb, var(--accent-text) 72%, transparent);
     font-size: var(--text-sm);
   }
   .shot-keys {

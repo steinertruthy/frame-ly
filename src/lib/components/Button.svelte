@@ -61,15 +61,10 @@
   .primary {
     background: var(--primary-fill);
     color: var(--accent-text);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.22),
-      0 6px 18px -8px var(--glow);
+    box-shadow: inset 0 0 0 1px var(--primary-border);
   }
   .primary:hover:not(:disabled) {
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.28),
-      0 8px 26px -6px var(--glow);
-    filter: brightness(1.06);
+    background: var(--primary-hover);
   }
   .secondary {
     background: var(--surface-raised);
@@ -95,6 +90,6 @@
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
   .danger:hover:not(:disabled) {
-    filter: brightness(1.07);
+    background: var(--rec-hover);
   }
 </style>

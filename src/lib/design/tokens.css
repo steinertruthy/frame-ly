@@ -1,8 +1,7 @@
 /*
- * FrameLy — "Dark Mystic" identity.
- * Near-black navy surfaces, a deep blue that carries the brand, and blue light used sparingly:
- * on the primary action, focus, active states and the slow ambient aurora behind the UI.
- * Coral is reserved for recording; nothing else uses it.
+ * FrameLy identity.
+ * Graphite-navy surfaces separated by hairlines (60/30), muted blues for interaction and focus,
+ * and coral reserved for recording (10%) — nothing else uses it.
  */
 :root {
   /* Brand blues (dark → luminous) */
@@ -15,7 +14,7 @@
   --blue-400: #3978d7;
   --blue-300: #6c9de6;
   --blue-200: #a9c6f2;
-  --rec-500: #ff5468;
+  --rec-500: #d94656;
   --ok-500: #2bd39a;
   --warn-500: #f7b23b;
   /* Back-compat aliases used across components */
@@ -53,33 +52,48 @@
   --dur-med: 220ms;
   --dur-slow: 380ms;
 
-  /* Dark (identity) */
-  --bg: #080d18;
-  --bg-2: #0c1423;
-  --bg-sidebar: rgba(6, 10, 20, 0.55);
-  --surface: #111c2d;
-  --surface-2: #0e1727;
-  --surface-hover: #182640;
-  --surface-raised: #15223a;
-  --border: rgba(137, 149, 168, 0.1);
-  --border-strong: rgba(137, 149, 168, 0.2);
-  --text: #f1f4fa;
-  --text-2: #8995a8;
-  --text-3: #5c687d;
-  --accent: #3978d7;
-  --accent-hover: #4d89e4;
-  --accent-soft: rgba(57, 120, 215, 0.15);
-  --accent-text: #ffffff;
-  --glow: rgba(57, 120, 215, 0.45);
-  --focus-ring: 0 0 0 3px rgba(57, 120, 215, 0.45);
-  --shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 40px -18px rgba(0, 0, 0, 0.7);
-  --primary-fill: linear-gradient(180deg, #4383e3 0%, #2c62c2 100%);
-  --hero: radial-gradient(120% 140% at 0% 0%, #2a58a8 0%, #172e5c 45%, #0c1423 100%);
-  --aurora-1: rgba(36, 75, 145, 0.55);
-  --aurora-2: rgba(57, 120, 215, 0.28);
-  --aurora-3: rgba(22, 104, 140, 0.22);
-  --grain-opacity: 0.06;
+  /* Dark (identity): quiet graphite-navy surfaces separated by hairlines, muted blues for
+     interaction, coral only for recording. Light is used sparingly, never as decoration. */
+  --bg: #0b0e14;
+  --bg-2: #0e121a;
+  --bg-sidebar: #0d1018;
+  --surface: #11151f;
+  --surface-2: #0e121a;
+  --surface-hover: #141925;
+  --surface-raised: #171d2a;
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --text: #edf0f7;
+  --text-2: #8b95a8;
+  --text-3: #737d90;
+  --accent: #4c7bd9;
+  --accent-hover: #5d89e0;
+  --accent-soft: rgba(76, 123, 217, 0.14);
+  --accent-text: #e6edfa;
+  --link: #8bb0ee;
+  --link-hover: #a9c6f2;
+  --icon-accent: #8bb0ee;
+  --glow: rgba(76, 123, 217, 0.18);
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px rgba(76, 123, 217, 0.75);
+  --shadow-sm: inset 0 0 0 1px var(--border);
+  --shadow-md: inset 0 0 0 1px var(--border), 0 18px 40px -22px rgba(0, 0, 0, 0.8);
+  --primary-fill: #1f3459;
+  --primary-hover: #27416f;
+  --primary-border: #325188;
+  --nav-active: #172236;
+  --nav-active-border: rgba(40, 59, 94, 0.6);
+  --brand-tile: #1a2945;
+  --icon-tile: #161f30;
+  --seg-active: #1b273d;
+  --rec-hover: #e25565;
+  --rec-tile: #24161d;
+  --rec-icon: #e26d7a;
+  --kbd-bg: rgba(255, 255, 255, 0.03);
+  --hero: radial-gradient(120% 140% at 0% 0%, rgba(25, 43, 76, 0.34) 0%, transparent 60%);
+  --aurora-1: rgba(25, 43, 76, 0.22);
+  --aurora-2: rgba(40, 70, 130, 0.1);
+  --aurora-3: rgba(22, 60, 90, 0.08);
+  --grain-opacity: 0.03;
   color-scheme: dark;
 }
 
@@ -104,11 +118,27 @@
   --focus-ring: 0 0 0 3px rgba(43, 99, 196, 0.3);
   --shadow-sm: 0 1px 2px rgba(12, 20, 35, 0.06), 0 0 0 1px rgba(12, 20, 35, 0.04);
   --shadow-md: 0 14px 34px -16px rgba(12, 20, 35, 0.25), 0 0 0 1px rgba(12, 20, 35, 0.05);
-  --hero: radial-gradient(120% 140% at 0% 0%, #3a6fd0 0%, #244b91 50%, #172e5c 100%);
+  --hero: radial-gradient(120% 140% at 0% 0%, rgba(43, 99, 196, 0.08) 0%, transparent 60%);
   --aurora-1: rgba(57, 120, 215, 0.18);
   --aurora-2: rgba(108, 157, 230, 0.18);
   --aurora-3: rgba(40, 150, 190, 0.1);
   --grain-opacity: 0.025;
+  --link: #2b63c4;
+  --link-hover: #2456b0;
+  --icon-accent: #2b63c4;
+  --primary-fill: #2b63c4;
+  --primary-hover: #2456b0;
+  --primary-border: #2456b0;
+  --nav-active: #dfe7f4;
+  --nav-active-border: rgba(43, 99, 196, 0.2);
+  --brand-tile: #dfe7f4;
+  --icon-tile: #e6edf8;
+  --seg-active: #ffffff;
+  --rec-hover: #c93b4b;
+  --rec-tile: #fbe9eb;
+  --rec-icon: #c93b4b;
+  --kbd-bg: rgba(12, 20, 35, 0.04);
+  --accent-text: #ffffff;
   color-scheme: light;
 }
 
@@ -133,20 +163,33 @@
     --focus-ring: 0 0 0 3px rgba(43, 99, 196, 0.3);
     --shadow-sm: 0 1px 2px rgba(12, 20, 35, 0.06), 0 0 0 1px rgba(12, 20, 35, 0.04);
     --shadow-md: 0 14px 34px -16px rgba(12, 20, 35, 0.25), 0 0 0 1px rgba(12, 20, 35, 0.05);
-    --hero: radial-gradient(120% 140% at 0% 0%, #3a6fd0 0%, #244b91 50%, #172e5c 100%);
+    --hero: radial-gradient(120% 140% at 0% 0%, rgba(43, 99, 196, 0.08) 0%, transparent 60%);
     --aurora-1: rgba(57, 120, 215, 0.18);
     --aurora-2: rgba(108, 157, 230, 0.18);
     --aurora-3: rgba(40, 150, 190, 0.1);
     --grain-opacity: 0.025;
+    --link: #2b63c4;
+    --link-hover: #2456b0;
+    --icon-accent: #2b63c4;
+    --primary-fill: #2b63c4;
+    --primary-hover: #2456b0;
+    --primary-border: #2456b0;
+    --nav-active: #dfe7f4;
+    --nav-active-border: rgba(43, 99, 196, 0.2);
+    --brand-tile: #dfe7f4;
+    --icon-tile: #e6edf8;
+    --seg-active: #ffffff;
+    --rec-hover: #c93b4b;
+    --rec-tile: #fbe9eb;
+    --rec-icon: #c93b4b;
+    --kbd-bg: rgba(12, 20, 35, 0.04);
+    --accent-text: #ffffff;
     color-scheme: light;
   }
 }
 
 /* Motion: off when the user asks for it, or when the OS does (unless they chose "always"). */
 :root[data-motion='reduced'] {
-  --dur-fast: 0ms;
-  --dur-med: 0ms;
-  --dur-slow: 0ms;
 }
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion='full']) {
