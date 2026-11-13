@@ -661,8 +661,9 @@
     color: var(--text);
   }
   .tool.active {
-    background: var(--accent);
-    color: #fff;
+    background: var(--seg-active);
+    box-shadow: inset 0 0 0 1px var(--primary-border);
+    color: var(--icon-accent);
   }
   .tool:disabled {
     opacity: 0.35;

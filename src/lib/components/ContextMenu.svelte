@@ -85,16 +85,28 @@
     font-size: var(--text-sm);
     text-align: left;
   }
+  button :global(svg) {
+    color: var(--text-2);
+  }
   button:hover,
   button:focus-visible {
-    background: var(--accent);
-    color: #fff;
+    background: var(--surface-hover);
     box-shadow: none;
   }
-  .danger {
-    color: var(--rec-500);
+  button:hover :global(svg),
+  button:focus-visible :global(svg) {
+    color: var(--icon-accent);
   }
-  .danger:hover {
-    background: var(--rec-500);
+  .danger,
+  .danger :global(svg) {
+    color: var(--rec-icon);
+  }
+  .danger:hover,
+  .danger:focus-visible {
+    background: color-mix(in srgb, var(--rec-500) 14%, transparent);
+  }
+  .danger:hover :global(svg),
+  .danger:focus-visible :global(svg) {
+    color: var(--rec-icon);
   }
 </style>

@@ -75,7 +75,7 @@
       title={t('library.more')}
       onclick={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
-        oncontext(item, { x: r.right - 190, y: r.bottom + 4 });
+        oncontext(item, { x: r.right - 190, y: r.bottom + 6 });
       }}
     >
       <MoreHorizontal size={16} />
@@ -207,37 +207,40 @@
     flex-direction: column;
     min-width: 0;
   }
-  .shell .body {
-    padding-right: 38px;
-  }
   .card .meta {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* Top-right corner, over the thumbnail: a small dark chip that stays legible on any image. */
   .more {
     position: absolute;
-    right: 6px;
-    bottom: 12px;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
     display: grid;
     place-items: center;
     width: 28px;
-    height: 28px;
+    height: 24px;
     padding: 0;
     border: 0;
     border-radius: 7px;
-    background: transparent;
-    color: var(--text-3);
+    background: rgba(7, 9, 13, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    color: rgba(237, 240, 247, 0.85);
+    opacity: 0.75;
     transition:
-      background var(--dur-fast),
-      color var(--dur-fast);
+      opacity var(--dur-fast),
+      background var(--dur-fast);
   }
-  .shell:hover .more {
-    color: var(--text-2);
+  .shell:hover .more,
+  .more:focus-visible {
+    opacity: 1;
   }
   .more:hover {
-    background: var(--surface-raised);
-    color: var(--text);
+    background: rgba(7, 9, 13, 0.8);
+    color: #fff;
   }
   .more:focus-visible {
     box-shadow: var(--focus-ring);
