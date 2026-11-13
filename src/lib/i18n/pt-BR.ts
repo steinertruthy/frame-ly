@@ -60,8 +60,6 @@ export const ptBR: Messages = {
   'rec.audio.short.none': 'Mudo',
 
   'panel.shot.sub': 'Selecione uma área da tela',
-  'panel.shot.screen': 'Tela inteira',
-  'panel.shot.window': 'Uma janela',
   'panel.rec.start': 'Gravar',
   'panel.recent': 'Recentes',
   'panel.audio.both': 'Mic e som',

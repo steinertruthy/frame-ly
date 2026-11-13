@@ -65,8 +65,6 @@ export const en = {
 
   // Quick panel
   'panel.shot.sub': 'Select an area of the screen',
-  'panel.shot.screen': 'Entire screen',
-  'panel.shot.window': 'A window',
   'panel.rec.start': 'Record',
   'panel.recent': 'Recent',
   'panel.audio.both': 'Mic and sound',

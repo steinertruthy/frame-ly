@@ -60,8 +60,6 @@ export const fr: Messages = {
   'rec.audio.short.none': 'Muet',
 
   'panel.shot.sub': 'Sélectionnez une zone de l’écran',
-  'panel.shot.screen': 'Tout l’écran',
-  'panel.shot.window': 'Une fenêtre',
   'panel.rec.start': 'Enregistrer',
   'panel.recent': 'Récents',
   'panel.audio.both': 'Micro et son',

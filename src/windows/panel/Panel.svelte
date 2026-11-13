@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
-  import { Settings, Images, Camera, ChevronDown, Mic, Volume2, Pause, Play, Square, AppWindow, Monitor } from '@lucide/svelte';
+  import { Settings, Images, Camera, ChevronDown, Mic, Volume2, Pause, Play, Square } from '@lucide/svelte';
   import Aurora from '$lib/components/Aurora.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
   import LevelMeter from '$lib/components/LevelMeter.svelte';
@@ -161,11 +161,6 @@
       </span>
       {@render chip(keys('captureRegion'), 'on-primary')}
     </button>
-    <div class="shot-more">
-      <button onclick={() => commands.panelHide().then(() => commands.takeScreenshot({ kind: 'display', displayId: null })).catch(fail)}><Monitor size={12} />{t('panel.shot.screen')}</button>
-      <span class="sep-dot"></span>
-      <button onclick={() => commands.panelHide().then(() => commands.takeScreenshot({ kind: 'select', mode: 'window' })).catch(fail)}><AppWindow size={12} />{t('panel.shot.window')}</button>
-    </div>
 
     <!-- 2. Recording -->
     {#if info.supportsRecording}
@@ -327,32 +322,6 @@
     white-space: nowrap;
     color: color-mix(in srgb, var(--accent-text) 72%, transparent);
     font-size: var(--text-sm);
-  }
-  .shot-more {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin-top: -4px;
-  }
-  .shot-more button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    border: 0;
-    background: none;
-    color: var(--text-2);
-    font-size: var(--text-xs);
-    font-weight: 600;
-  }
-  .shot-more button:hover {
-    color: var(--text);
-  }
-  .sep-dot {
-    width: 3px;
-    height: 3px;
-    border-radius: 50%;
-    background: var(--text-3);
   }
 
   /* 2. Recording */

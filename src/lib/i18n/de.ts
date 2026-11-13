@@ -60,8 +60,6 @@ export const de: Messages = {
   'rec.audio.short.none': 'Stumm',
 
   'panel.shot.sub': 'Bereich des Bildschirms auswählen',
-  'panel.shot.screen': 'Ganzer Bildschirm',
-  'panel.shot.window': 'Ein Fenster',
   'panel.rec.start': 'Aufnehmen',
   'panel.recent': 'Zuletzt',
   'panel.audio.both': 'Mikro und Ton',
