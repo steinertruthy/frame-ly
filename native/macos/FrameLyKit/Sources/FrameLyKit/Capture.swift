@@ -12,6 +12,17 @@ private func shareableContent() throws -> SCShareableContent {
     return try blocking { try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) }
 }
 
+/// FrameLy itself, to exclude from screenshots and recordings. Asked for with off-screen windows
+/// included: when capture starts from the menu bar, every FrameLy window may be hidden, and an
+/// on-screen-only query would then leave FrameLy out of the list, so nothing would be excluded and
+/// windows shown later (recording controls, tray panel, preview) would end up in the capture.
+/// Excluding the application also covers windows it opens after the capture starts.
+func ownApplications() throws -> [SCRunningApplication] {
+    let all = try blocking { try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false) }
+    let ownPid = ProcessInfo.processInfo.processIdentifier
+    return all.applications.filter { $0.processID == ownPid }
+}
+
 /// Renders a CGImage into an sRGB, little-endian premultiplied-first (= BGRA) buffer.
 private func bgraBuffer(_ image: CGImage) throws -> (UnsafeMutablePointer<UInt8>, Int, Int) {
     let (w, h) = (image.width, image.height)
@@ -54,8 +65,7 @@ func captureDisplay(_ displayId: CGDirectDisplayID) throws -> CGImage {
         throw FFIError.platform("display \(displayId) not found")
     }
     // Never include FrameLy's own windows (main window, overlays, preview).
-    let ownPid = ProcessInfo.processInfo.processIdentifier
-    let ownApps = content.applications.filter { $0.processID == ownPid }
+    let ownApps = try ownApplications()
     let filter = SCContentFilter(display: display, excludingApplications: ownApps, exceptingWindows: [])
     let config = SCStreamConfiguration()
     let scale = filter.pointPixelScale

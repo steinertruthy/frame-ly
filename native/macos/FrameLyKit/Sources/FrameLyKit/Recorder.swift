@@ -150,8 +150,8 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
     func start() throws {
         guard CGPreflightScreenCaptureAccess() else { throw FFIError.permissionDenied("screen") }
         let content = try blocking { try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) }
-        let ownPid = ProcessInfo.processInfo.processIdentifier
-        let ownApps = content.applications.filter { $0.processID == ownPid }
+        // FrameLy's own windows (recording controls, tray panel, region frame…) stay out of the video.
+        let ownApps = try ownApplications()
 
         let stream = SCStreamConfiguration()
         stream.width = config.width
