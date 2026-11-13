@@ -1,78 +1,67 @@
 <script lang="ts">
+  /** Recording setup in the tray panel: what to record, sound sources, and "More options". */
   import { slide } from 'svelte/transition';
-  import { Monitor, AppWindow, SquareDashed, Mic, Volume2, AudioLines, VolumeX, ChevronDown } from '@lucide/svelte';
+  import { ChevronDown, Mic, MicOff, Volume2, VolumeX } from '@lucide/svelte';
   import Segmented from './Segmented.svelte';
   import Select from './Select.svelte';
   import { t } from '$lib/i18n/index.svelte';
   import { settings } from '$lib/stores/settings.svelte';
   import { system } from '$lib/stores/system.svelte';
-  import { applyAudioMode, audioMode, type AudioMode } from '$lib/recordSetup';
   import { recordPrefs } from '$lib/stores/recordPrefs.svelte';
   import type { Fps, RecordTarget, VideoQuality, VideoResolution } from '$lib/ipc/types';
 
-  /** `compact` = quick panel width. */
-  let { compact = false }: { compact?: boolean } = $props();
   let advanced = $state(false);
-
   const s = $derived(settings.value);
-  const mode = $derived(s ? audioMode(s.audio) : 'none');
-  const usesMic = $derived(mode === 'both' || mode === 'mic');
+
+  function toggle(source: 'microphone' | 'systemAudio') {
+    void settings.update((d) => (d.audio[source] = !d.audio[source]));
+  }
 </script>
 
 {#if s}
-  <div class="setup" class:compact>
-    <div class="field">
-      <span class="label">{t('rec.what')}</span>
-      <Segmented
-        stretch
-        size={compact ? 'sm' : 'md'}
-        label={t('rec.what')}
-        value={s.recording.target}
-        options={[
-          { value: 'screen' as RecordTarget, label: t('rec.target.screen'), icon: Monitor },
-          { value: 'window' as RecordTarget, label: t('rec.target.window'), icon: AppWindow },
-          { value: 'region' as RecordTarget, label: t('rec.target.region'), icon: SquareDashed },
-        ]}
-        onchange={(v) => settings.update((d) => (d.recording.target = v))}
-      />
-      {#if s.recording.target === 'screen' && system.displays.length > 1}
-        <div class="device" transition:slide={{ duration: 180 }}>
-          <Select
-            label={t('panel.monitor')}
-            value={recordPrefs.displayId}
-            options={[{ value: '', label: t('panel.monitor.auto') }, ...system.displays.map((d) => ({ value: d.id, label: d.name }))]}
-            onchange={(v) => (recordPrefs.displayId = v)}
-          />
-        </div>
-      {/if}
-    </div>
+  <div class="setup">
+    <Segmented
+      stretch
+      label={t('rec.options.area')}
+      value={s.recording.target}
+      options={[
+        { value: 'screen' as RecordTarget, label: t('home.shot.mode.screen') },
+        { value: 'window' as RecordTarget, label: t('home.shot.mode.window') },
+        { value: 'region' as RecordTarget, label: t('home.shot.mode.region') },
+      ]}
+      onchange={(v) => settings.update((d) => (d.recording.target = v))}
+    />
+    {#if s.recording.target === 'screen' && system.displays.length > 1}
+      <div class="device" transition:slide={{ duration: 180 }}>
+        <Select
+          label={t('panel.monitor')}
+          value={recordPrefs.displayId}
+          options={[{ value: '', label: t('panel.monitor.auto') }, ...system.displays.map((d) => ({ value: d.id, label: d.name }))]}
+          onchange={(v) => (recordPrefs.displayId = v)}
+        />
+      </div>
+    {/if}
 
-    <div class="field">
-      <span class="label">{t('rec.sound')}</span>
-      <Segmented
-        stretch
-        size={compact ? 'sm' : 'md'}
-        label={t('rec.sound')}
-        value={mode}
-        options={[
-          { value: 'both' as AudioMode, label: t('rec.audio.short.both'), icon: AudioLines },
-          { value: 'mic' as AudioMode, label: t('rec.audio.short.mic'), icon: Mic },
-          { value: 'system' as AudioMode, label: t('rec.audio.short.system'), icon: Volume2 },
-          { value: 'none' as AudioMode, label: t('rec.audio.short.none'), icon: VolumeX },
-        ]}
-        onchange={(v) => settings.update((d) => applyAudioMode(d.audio, v))}
-      />
-      {#if usesMic}
-        <div class="device" transition:slide={{ duration: 180 }}>
-          <Select
-            label={t('audio.device')}
-            value={s.audio.microphoneDevice ?? ''}
-            options={[{ value: '', label: t('audio.device.default') }, ...system.audioInputs.map((d) => ({ value: d.id, label: d.name }))]}
-            onchange={(v) => settings.update((d) => (d.audio.microphoneDevice = v || null))}
-          />
-        </div>
-      {/if}
+    <div class="sources">
+      <button class="source" aria-pressed={s.audio.microphone} onclick={() => toggle('microphone')}>
+        {#if s.audio.microphone}<Mic size={16} />{:else}<MicOff size={16} />{/if}
+        <span>{t('audio.microphone')}</span>
+      </button>
+      <button class="source" aria-pressed={s.audio.systemAudio} onclick={() => toggle('systemAudio')} title={t('audio.system')}>
+        {#if s.audio.systemAudio}<Volume2 size={16} />{:else}<VolumeX size={16} />{/if}
+        <span>{t('home.rec.system')}</span>
+      </button>
     </div>
+    {#if s.audio.microphone}
+      <div class="device" transition:slide={{ duration: 180 }}>
+        <Select
+          label={t('audio.device')}
+          value={s.audio.microphoneDevice ?? ''}
+          options={[{ value: '', label: t('audio.device.default') }, ...system.audioInputs.map((d) => ({ value: d.id, label: d.name }))]}
+          onchange={(v) => settings.update((d) => (d.audio.microphoneDevice = v || null))}
+        />
+      </div>
+    {/if}
 
     <button class="more" onclick={() => (advanced = !advanced)} aria-expanded={advanced}>
       <ChevronDown size={14} />
@@ -87,11 +76,7 @@
             size="sm"
             label={t('rec.smoothness')}
             value={String(s.recording.fps)}
-            options={[
-              { value: '24', label: '24' },
-              { value: '30', label: '30' },
-              { value: '60', label: '60' },
-            ]}
+            options={['24', '30', '60'].map((v) => ({ value: v, label: v }))}
             onchange={(v) => settings.update((d) => (d.recording.fps = Number(v) as Fps))}
           />
         </div>
@@ -142,27 +127,56 @@
   .setup {
     display: flex;
     flex-direction: column;
-    gap: 14px;
-  }
-  .compact {
     gap: 10px;
-  }
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-  }
-  .label {
-    font-size: var(--text-xs);
-    font-weight: 650;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-3);
   }
   .device :global(.select),
   .device :global(select) {
     width: 100%;
     max-width: none;
+  }
+  .sources {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .source {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 0;
+    height: 38px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--border);
+    color: var(--text-3);
+    font-weight: 600;
+    transition:
+      background var(--dur-fast),
+      color var(--dur-fast),
+      box-shadow var(--dur-fast);
+  }
+  .source span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .source[aria-pressed='true'] {
+    background: var(--nav-active);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-border) 70%, transparent);
+    color: var(--text);
+  }
+  .source[aria-pressed='true'] :global(svg) {
+    color: var(--icon-accent);
+  }
+  .source:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+  .source[aria-pressed='true']:hover {
+    background: color-mix(in srgb, var(--nav-active) 80%, var(--surface-hover));
   }
   .more {
     display: inline-flex;

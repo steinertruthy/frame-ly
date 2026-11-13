@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
-  import { Settings, Images, Scan, ChevronDown, Mic, Volume2, Pause, Play, Square, AppWindow, Monitor } from '@lucide/svelte';
+  import { Settings, Images, Camera, ChevronDown, Mic, Volume2, Pause, Play, Square, AppWindow, Monitor } from '@lucide/svelte';
   import Aurora from '$lib/components/Aurora.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
   import LevelMeter from '$lib/components/LevelMeter.svelte';
@@ -17,7 +17,7 @@
   import { library } from '$lib/stores/library.svelte';
   import { recordPrefs } from '$lib/stores/recordPrefs.svelte';
   import { recording, formatDuration } from '$lib/stores/recording.svelte';
-  import { audioMode, recordRequest, summaryKeys } from '$lib/recordSetup';
+  import { audioMode, recordRequest } from '$lib/recordSetup';
   import { formatAccelerator, type ShortcutAction } from '$lib/shortcuts';
 
   let { info }: { info: AppInfo } = $props();
@@ -29,7 +29,9 @@
   const s = $derived(settings.value);
   const rec = $derived(recording.status);
   const live = $derived(rec.phase !== 'idle');
-  const summary = $derived(s ? summaryKeys(s.recording.target, audioMode(s.audio)) : null);
+  const summary = $derived(
+    s ? `${t(`rec.target.${s.recording.target}` as MessageKey)} · ${t(`panel.audio.${audioMode(s.audio)}` as MessageKey)}` : '',
+  );
   const keys = (a: ShortcutAction) => formatAccelerator(s?.shortcuts[a] ?? '', info.platform);
 
   onMount(() => {
@@ -99,6 +101,10 @@
   );
 </script>
 
+{#snippet chip(list: string[], cls = '')}
+  {#if list.length}<kbd class="keys {cls}">{#each list as k, i (i)}<span>{k}</span>{/each}</kbd>{/if}
+{/snippet}
+
 <Aurora intensity={0.7} />
 
 <div class="panel" class:mac={info.platform === 'macos'} bind:this={root} tabindex="-1" role="dialog" aria-label="FrameLy">
@@ -134,7 +140,7 @@
       </div>
       <div class="hint">
         {#each [['stopRecording', 'record.stop'], ['togglePause', 'shortcuts.action.togglePause']] as const as [a, label] (a)}
-          {#if keys(a).length}<span>{t(label)} <kbd>{keys(a).join(info.platform === 'macos' ? '' : '+')}</kbd></span>{/if}
+          {#if keys(a).length}<span>{t(label)} {@render chip(keys(a))}</span>{/if}
         {/each}
       </div>
     </section>
@@ -148,12 +154,12 @@
 
     <!-- 1. Screenshot -->
     <button class="shot" disabled={!system.screenReady} onclick={screenshot}>
-      <span class="shot-icon"><Scan size={20} strokeWidth={1.8} /></span>
+      <span class="shot-icon"><Camera size={19} strokeWidth={1.8} /></span>
       <span class="shot-text">
         <span class="shot-title">{t('home.shot.title')}</span>
         <span class="shot-sub">{t('panel.shot.sub')}</span>
       </span>
-      {#if keys('captureRegion').length}<kbd class="shot-keys">{keys('captureRegion').join(info.platform === 'macos' ? '' : '+')}</kbd>{/if}
+      {@render chip(keys('captureRegion'), 'on-primary')}
     </button>
     <div class="shot-more">
       <button onclick={() => commands.panelHide().then(() => commands.takeScreenshot({ kind: 'display', displayId: null })).catch(fail)}><Monitor size={12} />{t('panel.shot.screen')}</button>
@@ -167,13 +173,13 @@
         <div class="rec-row">
           <button class="rec-start" disabled={!system.screenReady} onclick={record}><span class="rec-dot"></span>{t('panel.rec.start')}</button>
           <button class="rec-summary" onclick={() => (options = !options)} aria-expanded={options}>
-            {#if summary}<span>{t(summary[0])} · {t(summary[1])}</span>{/if}
-            <ChevronDown size={14} />
+            <span>{summary}</span>
+            <ChevronDown size={16} />
           </button>
         </div>
         {#if options}
           <div class="rec-options" transition:slide={{ duration: 220 }}>
-            <RecordSetup compact />
+            <RecordSetup />
           </div>
         {/if}
       </section>
@@ -183,7 +189,7 @@
     {#if library.recent.length}
       <section class="recent">
         <div class="recent-head">
-          <span class="eyebrow">{t('panel.recent')}</span>
+          <span class="recent-label">{t('panel.recent')}</span>
           <button class="link" onclick={() => commands.showMainWindow('library')}>{t('home.seeAll')}</button>
         </div>
         <div class="recent-grid">
@@ -199,7 +205,7 @@
     <!-- 4. App -->
     <footer>
       <button class="link" onclick={() => commands.showMainWindow('home')}>{t('panel.open')}</button>
-      {#if keys('openPanel').length}<kbd>{keys('openPanel').join(info.platform === 'macos' ? '' : '+')}</kbd>{/if}
+      {@render chip(keys('openPanel'))}
     </footer>
   {/if}
 </div>
@@ -220,7 +226,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding: 12px 14px 12px;
+    padding: 14px 14px 0;
     border-radius: 16px;
     background: color-mix(in srgb, var(--bg) 96%, transparent);
     box-shadow: inset 0 0 0 1px var(--border-strong);
@@ -243,16 +249,19 @@
     align-items: center;
     gap: 8px;
   }
+  header {
+    padding: 0 2px;
+  }
   .brand {
     flex: 1;
-    font: 700 var(--text-lg) var(--font-display);
-    letter-spacing: -0.02em;
+    font: 650 var(--text-lg) var(--font-display);
+    letter-spacing: -0.015em;
   }
   .icon {
     display: grid;
     place-items: center;
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     border: 0;
     border-radius: 8px;
     background: transparent;
@@ -271,9 +280,9 @@
     align-items: center;
     gap: 12px;
     width: 100%;
-    padding: 14px;
+    padding: 14px 12px 14px 14px;
     border: 0;
-    border-radius: 13px;
+    border-radius: 14px;
     overflow: hidden;
     background: var(--primary-fill);
     color: var(--accent-text);
@@ -297,9 +306,11 @@
     place-items: center;
     width: 40px;
     height: 40px;
+    flex-shrink: 0;
     border-radius: 11px;
-    background: rgba(139, 176, 238, 0.16);
-    box-shadow: inset 0 0 0 1px rgba(139, 176, 238, 0.25);
+    background: rgba(139, 176, 238, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(139, 176, 238, 0.28);
+    color: var(--primary-icon);
   }
   .shot-text {
     flex: 1;
@@ -308,18 +319,14 @@
     min-width: 0;
   }
   .shot-title {
-    font: 700 var(--text-lg) var(--font-display);
+    font: 650 var(--text-lg) var(--font-display);
   }
   .shot-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: color-mix(in srgb, var(--accent-text) 72%, transparent);
     font-size: var(--text-sm);
-  }
-  .shot-keys {
-    padding: 2px 6px;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.12);
-    font-size: 11px;
-    color: rgba(237, 240, 247, 0.85);
   }
   .shot-more {
     display: flex;
@@ -350,22 +357,22 @@
 
   /* 2. Recording */
   .rec {
-    border-radius: 12px;
+    border-radius: 14px;
     background: var(--surface);
     box-shadow: inset 0 0 0 1px var(--border);
   }
   .rec-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px;
+    gap: 8px;
+    padding: 8px;
   }
   .rec-start {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    height: 34px;
-    padding: 0 12px;
+    gap: 9px;
+    height: 36px;
+    padding: 0 16px;
     border: 0;
     border-radius: 9px;
     background: var(--rec-500);
@@ -393,13 +400,13 @@
     align-items: center;
     justify-content: space-between;
     gap: 6px;
-    height: 34px;
-    padding: 0 8px;
+    height: 36px;
+    padding: 0 8px 0 10px;
     border: 0;
     border-radius: 9px;
     background: transparent;
     color: var(--text-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     text-align: left;
   }
   .rec-summary span {
@@ -419,7 +426,8 @@
     transform: rotate(180deg);
   }
   .rec-options {
-    padding: 4px 12px 12px;
+    padding: 12px 12px 12px;
+    box-shadow: inset 0 1px 0 var(--border);
   }
 
   /* 3. Recent */
@@ -428,6 +436,10 @@
     align-items: baseline;
     justify-content: space-between;
     margin-bottom: 8px;
+  }
+  .recent-label {
+    color: var(--text-2);
+    font-size: var(--text-sm);
   }
   .recent-grid {
     display: grid;
@@ -438,8 +450,8 @@
     border: 0;
     background: none;
     color: var(--link);
-    font-size: var(--text-xs);
-    font-weight: 600;
+    font-size: var(--text-sm);
+    font-weight: 550;
   }
   .link:hover {
     color: var(--link-hover);
@@ -450,19 +462,31 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-top: 2px;
+    margin: 0 -14px;
+    padding: 12px 16px 14px;
+    box-shadow: inset 0 1px 0 var(--border);
     color: var(--text-3);
   }
-  footer .link {
-    font-size: var(--text-sm);
-  }
-  kbd {
-    padding: 1px 5px;
-    border-radius: 5px;
-    background: var(--surface-2);
-    box-shadow: inset 0 0 0 1px var(--border);
-    font: 600 11px var(--font-mono);
+  /* Shortcut chip: "⌥ ⇧ ⌘ 4" */
+  .keys {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: 7px;
+    background: var(--kbd-bg);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
     color: var(--text-2);
+    font: 500 11px/18px var(--font-ui);
+    white-space: nowrap;
+  }
+  .keys.on-primary {
+    flex-shrink: 0;
+    gap: 4px;
+    padding: 2px 7px;
+    background: rgba(7, 9, 13, 0.3);
+    box-shadow: inset 0 0 0 1px rgba(139, 176, 238, 0.22);
+    color: color-mix(in srgb, var(--accent-text) 85%, transparent);
   }
   .notice,
   .error {
@@ -489,7 +513,7 @@
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    padding: 14px 6px 4px;
+    padding: 14px 6px 16px;
   }
   .state {
     display: flex;
