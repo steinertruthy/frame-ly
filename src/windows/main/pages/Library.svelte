@@ -128,8 +128,10 @@
     cancel={t('library.cancel')}
     danger
     onconfirm={() => {
+      // `item` is derived from `confirmTrash`: read it before clearing, or it becomes null.
+      const target = item;
       confirmTrash = null;
-      void itemActions.trash(item);
+      void itemActions.trash(target);
     }}
     oncancel={() => (confirmTrash = null)}
   />

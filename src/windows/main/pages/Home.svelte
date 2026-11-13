@@ -239,6 +239,9 @@
 
   /* Studio */
   .studio {
+    /* Its own layer above the recents, so the options popover is never drawn under them. */
+    position: relative;
+    z-index: 2;
     display: grid;
     grid-template-columns: 1fr 1fr;
     border-radius: 14px;
