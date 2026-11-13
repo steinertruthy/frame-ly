@@ -22,6 +22,7 @@
   <div class="setup">
     <Segmented
       stretch
+      size="sm"
       label={t('rec.options.area')}
       value={s.recording.target}
       options={[
@@ -44,11 +45,11 @@
 
     <div class="sources">
       <button class="source" aria-pressed={s.audio.microphone} onclick={() => toggle('microphone')}>
-        {#if s.audio.microphone}<Mic size={16} />{:else}<MicOff size={16} />{/if}
+        {#if s.audio.microphone}<Mic size={14} />{:else}<MicOff size={14} />{/if}
         <span>{t('audio.microphone')}</span>
       </button>
       <button class="source" aria-pressed={s.audio.systemAudio} onclick={() => toggle('systemAudio')} title={t('audio.system')}>
-        {#if s.audio.systemAudio}<Volume2 size={16} />{:else}<VolumeX size={16} />{/if}
+        {#if s.audio.systemAudio}<Volume2 size={14} />{:else}<VolumeX size={14} />{/if}
         <span>{t('home.rec.system')}</span>
       </button>
     </div>
@@ -137,22 +138,23 @@
   .sources {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 6px;
   }
   .source {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
-    height: 38px;
+    height: 30px;
     padding: 0 10px;
     border: 0;
-    border-radius: 9px;
+    border-radius: 8px;
     background: transparent;
     box-shadow: inset 0 0 0 1px var(--border);
     color: var(--text-3);
-    font-weight: 600;
+    font-size: var(--text-sm);
+    font-weight: 550;
     transition:
       background var(--dur-fast),
       color var(--dur-fast),

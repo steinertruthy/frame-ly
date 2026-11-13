@@ -169,7 +169,7 @@
           <button class="rec-start" disabled={!system.screenReady} onclick={record}><span class="rec-dot"></span>{t('panel.rec.start')}</button>
           <button class="rec-summary" onclick={() => (options = !options)} aria-expanded={options}>
             <span>{summary}</span>
-            <ChevronDown size={16} />
+            <ChevronDown size={14} />
           </button>
         </div>
         {#if options}
@@ -333,20 +333,21 @@
   .rec-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px;
+    gap: 6px;
+    padding: 6px;
   }
   .rec-start {
     display: inline-flex;
     align-items: center;
-    gap: 9px;
-    height: 36px;
-    padding: 0 16px;
+    gap: 7px;
+    height: 30px;
+    padding: 0 12px;
     border: 0;
-    border-radius: 9px;
+    border-radius: 8px;
     background: var(--rec-500);
     color: #fff;
-    font-weight: 650;
+    font-size: var(--text-sm);
+    font-weight: 600;
     white-space: nowrap;
     transition: background var(--dur-fast);
   }
@@ -358,8 +359,8 @@
   }
   .rec-dot {
     border-radius: 50%;
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     background: currentColor;
   }
   .rec-summary {
@@ -369,8 +370,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 6px;
-    height: 36px;
-    padding: 0 8px 0 10px;
+    height: 30px;
+    padding: 0 6px 0 8px;
     border: 0;
     border-radius: 9px;
     background: transparent;
