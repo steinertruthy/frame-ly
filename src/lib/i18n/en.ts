@@ -177,7 +177,7 @@ export const en = {
   'library.info.video': 'Recording',
   'library.info.image': 'Screenshot',
   'library.info.date': 'Created',
-  'library.info.resolution': 'Size',
+  'library.info.resolution': 'Resolution',
   'library.info.duration': 'Length',
   'library.info.size': 'File size',
   'library.info.location': 'Folder',

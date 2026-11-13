@@ -166,7 +166,7 @@ export const es: Messages = {
   'library.info.video': 'Grabación',
   'library.info.image': 'Captura',
   'library.info.date': 'Creado',
-  'library.info.resolution': 'Tamaño',
+  'library.info.resolution': 'Resolución',
   'library.info.duration': 'Duración',
   'library.info.size': 'Tamaño del archivo',
   'library.info.location': 'Carpeta',

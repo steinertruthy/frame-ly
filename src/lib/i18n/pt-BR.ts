@@ -166,7 +166,7 @@ export const ptBR: Messages = {
   'library.info.video': 'Gravação',
   'library.info.image': 'Screenshot',
   'library.info.date': 'Criado em',
-  'library.info.resolution': 'Tamanho',
+  'library.info.resolution': 'Resolução',
   'library.info.duration': 'Duração',
   'library.info.size': 'Tamanho do arquivo',
   'library.info.location': 'Pasta',
