@@ -25,7 +25,8 @@
     flex-direction: column;
     align-items: center;
     gap: var(--space-2);
-    z-index: 100;
+    /* Topmost layer: feedback must show above the media viewer (100) and dialogs (120). */
+    z-index: 200;
     pointer-events: none;
   }
   .toast {
