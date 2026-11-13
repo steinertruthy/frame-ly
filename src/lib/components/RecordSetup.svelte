@@ -1,7 +1,7 @@
 <script lang="ts">
   /** Recording setup in the tray panel: what to record, sound sources, and "More options". */
   import { slide } from 'svelte/transition';
-  import { ChevronDown, Mic, MicOff, Volume2, VolumeX } from '@lucide/svelte';
+  import { ChevronDown, Mic, MicOff, Monitor, Volume2, VolumeX } from '@lucide/svelte';
   import Segmented from './Segmented.svelte';
   import Select from './Select.svelte';
   import { t } from '$lib/i18n/index.svelte';
@@ -35,6 +35,8 @@
     {#if s.recording.target === 'screen' && system.displays.length > 1}
       <div class="device" transition:slide={{ duration: 180 }}>
         <Select
+          icon={Monitor}
+          prefix={t('panel.monitor')}
           label={t('panel.monitor')}
           value={recordPrefs.displayId}
           options={[{ value: '', label: t('panel.monitor.auto') }, ...system.displays.map((d) => ({ value: d.id, label: d.name }))]}
@@ -56,6 +58,8 @@
     {#if s.audio.microphone}
       <div class="device" transition:slide={{ duration: 180 }}>
         <Select
+          icon={Mic}
+          prefix={t('audio.microphone')}
           label={t('audio.device')}
           value={s.audio.microphoneDevice ?? ''}
           options={[{ value: '', label: t('audio.device.default') }, ...system.audioInputs.map((d) => ({ value: d.id, label: d.name }))]}

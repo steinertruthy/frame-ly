@@ -4,6 +4,7 @@
    * Closes on Escape, on a click outside, or with its own Close button; focus returns to the trigger.
    */
   import { onMount } from 'svelte';
+  import { Mic, Monitor } from '@lucide/svelte';
   import Segmented from './Segmented.svelte';
   import Select from './Select.svelte';
   import { t } from '$lib/i18n/index.svelte';
@@ -67,6 +68,8 @@
       />
       {#if s.recording.target === 'screen' && system.displays.length > 1}
         <Select
+          icon={Monitor}
+          prefix={t('panel.monitor')}
           label={t('panel.monitor')}
           value={recordPrefs.displayId}
           options={[{ value: '', label: t('panel.monitor.auto') }, ...system.displays.map((d) => ({ value: d.id, label: d.name }))]}
@@ -77,8 +80,9 @@
 
     {#if s.audio.microphone}
       <div class="field">
-        <span class="label">{t('audio.microphone')}</span>
         <Select
+          icon={Mic}
+          prefix={t('audio.microphone')}
           label={t('audio.device')}
           value={s.audio.microphoneDevice ?? ''}
           options={[{ value: '', label: t('audio.device.default') }, ...system.audioInputs.map((d) => ({ value: d.id, label: d.name }))]}

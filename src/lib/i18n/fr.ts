@@ -121,7 +121,7 @@ export const fr: Messages = {
   'audio.system': 'Son de l’ordinateur',
   'audio.device': 'Micro',
   'audio.device.hint': 'Choisissez le micro à utiliser.',
-  'audio.device.default': 'Le même que l’ordinateur',
+  'audio.device.default': 'Par défaut du système',
   'audio.systemVolume': 'Volume du son de l’ordinateur',
   'audio.micVolume': 'Volume du micro',
   'audio.test': 'Tester',

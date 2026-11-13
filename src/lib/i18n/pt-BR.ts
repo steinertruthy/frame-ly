@@ -121,7 +121,7 @@ export const ptBR: Messages = {
   'audio.system': 'Som do computador',
   'audio.device': 'Microfone',
   'audio.device.hint': 'Escolha o microfone que deseja usar.',
-  'audio.device.default': 'O mesmo do computador',
+  'audio.device.default': 'Padrão do sistema',
   'audio.systemVolume': 'Volume do som do computador',
   'audio.micVolume': 'Volume do microfone',
   'audio.test': 'Testar',

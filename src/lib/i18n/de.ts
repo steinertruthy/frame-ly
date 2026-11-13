@@ -121,7 +121,7 @@ export const de: Messages = {
   'audio.system': 'Computerton',
   'audio.device': 'Mikrofon',
   'audio.device.hint': 'Wähle das Mikrofon, das du verwenden möchtest.',
-  'audio.device.default': 'Wie am Computer eingestellt',
+  'audio.device.default': 'Systemstandard',
   'audio.systemVolume': 'Lautstärke des Computertons',
   'audio.micVolume': 'Mikrofonlautstärke',
   'audio.test': 'Testen',

@@ -131,7 +131,7 @@ export const en = {
   'audio.system': 'Computer sound',
   'audio.device': 'Microphone to use',
   'audio.device.hint': 'Pick the microphone you want to record with.',
-  'audio.device.default': 'Same as your computer',
+  'audio.device.default': 'System default',
   'audio.systemVolume': 'Computer sound volume',
   'audio.micVolume': 'Microphone volume',
   'audio.test': 'Test',
