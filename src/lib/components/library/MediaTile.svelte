@@ -225,11 +225,10 @@
     padding: 0;
     border: 0;
     border-radius: 7px;
-    background: rgba(7, 9, 13, 0.55);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(8px);
-    color: rgba(237, 240, 247, 0.85);
-    opacity: 0.75;
+    background: rgba(7, 9, 13, 0.78);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    color: rgba(237, 240, 247, 0.9);
+    opacity: 0.85;
     transition:
       opacity var(--dur-fast),
       background var(--dur-fast);
@@ -239,7 +238,7 @@
     opacity: 1;
   }
   .more:hover {
-    background: rgba(7, 9, 13, 0.8);
+    background: rgba(7, 9, 13, 0.92);
     color: #fff;
   }
   .more:focus-visible {
