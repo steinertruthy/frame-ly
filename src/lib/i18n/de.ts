@@ -150,6 +150,7 @@ export const de: Messages = {
   'library.empty.videos.title': 'Noch keine Aufnahmen',
   'library.empty.videos.body': 'Starte eine Aufnahme auf der Startseite oder in der Menüleiste – sie wird hier gesichert.',
   'library.noResults': 'Nichts gefunden für „{q}“.',
+  'library.more': 'Weitere Aktionen',
   'library.open': 'Öffnen',
   'library.show': 'Im Ordner zeigen',
   'library.copy': 'Kopieren',

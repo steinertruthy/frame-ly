@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Search, ExternalLink, FolderOpen, Copy, Pencil, Trash2, Images, PenLine } from '@lucide/svelte';
+  import { Search, Images } from '@lucide/svelte';
   import Select from '$lib/components/Select.svelte';
-  import ContextMenu, { type MenuItem } from '$lib/components/ContextMenu.svelte';
+  import ContextMenu from '$lib/components/ContextMenu.svelte';
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import MediaTile from '$lib/components/library/MediaTile.svelte';
   import Viewer from '$lib/components/library/Viewer.svelte';
-  import { itemActions } from '$lib/components/library/actions';
+  import { itemActions, itemMenu } from '$lib/components/library/actions';
   import { t, locale, type MessageKey } from '$lib/i18n/index.svelte';
   import { library } from '$lib/stores/library.svelte';
   import { groupByDate } from '$lib/library';
@@ -35,16 +35,8 @@
     return t(`library.group.${g.key}` as MessageKey);
   }
 
-  function menuItems(item: LibraryItem): MenuItem[] {
-    return [
-      ...(item.kind === 'image' ? [{ label: t('editor.edit'), icon: PenLine, run: () => itemActions.edit(item) }] : []),
-      { label: t('library.open'), icon: ExternalLink, run: () => itemActions.open(item) },
-      { label: t('library.show'), icon: FolderOpen, run: () => itemActions.reveal(item) },
-      { label: t('library.copy'), icon: Copy, run: () => itemActions.copy(item) },
-      { label: t('library.rename'), icon: Pencil, run: () => (viewing = { id: item.id, focusName: true }) },
-      { label: t('library.trash'), icon: Trash2, danger: true, run: () => (confirmTrash = item) },
-    ];
-  }
+  const menuItems = (item: LibraryItem) =>
+    itemMenu(item, { rename: (i) => (viewing = { id: i.id, focusName: true }), trash: (i) => (confirmTrash = i) });
 
   function onkeydown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
@@ -108,7 +100,7 @@
           {item}
           card
           onopen={(i) => (viewing = { id: i.id, focusName: false })}
-          oncontext={(i, e) => (menu = { x: e.clientX, y: e.clientY, item: i })}
+          oncontext={(i, at) => (menu = { ...at, item: i })}
         />
       {/each}
     </div>

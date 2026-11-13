@@ -150,6 +150,7 @@ export const es: Messages = {
   'library.empty.videos.title': 'Aún no hay grabaciones',
   'library.empty.videos.body': 'Empieza una grabación desde Inicio o la barra de menús — se guardará aquí.',
   'library.noResults': 'No hay nada que coincida con “{q}”.',
+  'library.more': 'Más acciones',
   'library.open': 'Abrir',
   'library.show': 'Mostrar en la carpeta',
   'library.copy': 'Copiar',

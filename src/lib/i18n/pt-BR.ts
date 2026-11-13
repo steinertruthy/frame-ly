@@ -150,6 +150,7 @@ export const ptBR: Messages = {
   'library.empty.videos.title': 'Nenhuma gravação ainda',
   'library.empty.videos.body': 'Comece uma gravação pelo Início ou pela barra de menus — ela fica salva aqui.',
   'library.noResults': 'Nada encontrado para “{q}”.',
+  'library.more': 'Mais ações',
   'library.open': 'Abrir',
   'library.show': 'Mostrar na pasta',
   'library.copy': 'Copiar',

@@ -150,6 +150,7 @@ export const fr: Messages = {
   'library.empty.videos.title': 'Aucun enregistrement pour l’instant',
   'library.empty.videos.body': 'Lancez un enregistrement depuis l’Accueil ou la barre des menus — il sera sauvegardé ici.',
   'library.noResults': 'Aucun résultat pour « {q} ».',
+  'library.more': 'Plus d’actions',
   'library.open': 'Ouvrir',
   'library.show': 'Afficher dans le dossier',
   'library.copy': 'Copier',

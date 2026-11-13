@@ -1,7 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { ArrowRight, Camera, Mic, MicOff, SlidersHorizontal, Video, Volume2, VolumeX } from '@lucide/svelte';
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import ContextMenu from '$lib/components/ContextMenu.svelte';
   import MediaTile from '$lib/components/library/MediaTile.svelte';
+  import { itemActions, itemMenu } from '$lib/components/library/actions';
   import Viewer from '$lib/components/library/Viewer.svelte';
   import PermissionRow from '$lib/components/PermissionRow.svelte';
   import RecordOptions from '$lib/components/RecordOptions.svelte';
@@ -20,7 +23,9 @@
   import type { AppInfo, CaptureRequest, LibraryItem } from '$lib/ipc/types';
 
   let { info, onnavigate }: { info: AppInfo; onnavigate: (page: 'library' | 'settings') => void } = $props();
-  let viewing = $state<{ items: LibraryItem[]; id: number } | null>(null);
+  let viewing = $state<{ items: LibraryItem[]; id: number; focusName?: boolean } | null>(null);
+  let menu = $state<{ x: number; y: number; item: LibraryItem; list: LibraryItem[] } | null>(null);
+  let confirmTrash = $state<LibraryItem | null>(null);
   let customizing = $state(false);
   let customizeBtn: HTMLButtonElement | undefined = $state();
 
@@ -68,6 +73,11 @@
 
   function toggleAudio(source: 'microphone' | 'systemAudio') {
     void settings.update((d) => (d.audio[source] = !d.audio[source]));
+  }
+
+  // The menu closes before an action runs: capture the list now, not from `menu` later.
+  function menuItems(item: LibraryItem, list: LibraryItem[]) {
+    return itemMenu(item, { rename: (i) => (viewing = { items: list, id: i.id, focusName: true }), trash: (i) => (confirmTrash = i) });
   }
 
   function seeAll(tab: 'image' | 'video') {
@@ -170,7 +180,12 @@
   {#if library.recentImages.length}
     <div class="grid images">
       {#each library.recentImages as item (item.id)}
-        <MediaTile {item} card onopen={(i) => (viewing = { items: library.recentImages, id: i.id })} />
+        <MediaTile
+          {item}
+          card
+          onopen={(i) => (viewing = { items: library.recentImages, id: i.id })}
+          oncontext={(i, at) => (menu = { ...at, item: i, list: library.recentImages })}
+        />
       {/each}
     </div>
   {:else if library.loaded}
@@ -197,7 +212,12 @@
     {#if library.recentVideos.length}
       <div class="grid videos">
         {#each library.recentVideos as item (item.id)}
-          <MediaTile {item} card onopen={(i) => (viewing = { items: library.recentVideos, id: i.id })} />
+          <MediaTile
+            {item}
+            card
+            onopen={(i) => (viewing = { items: library.recentVideos, id: i.id })}
+            oncontext={(i, at) => (menu = { ...at, item: i, list: library.recentVideos })}
+          />
         {/each}
       </div>
     {:else if library.loaded}
@@ -215,8 +235,30 @@
   </section>
 {/if}
 
+{#if menu}
+  <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.item, menu.list)} onclose={() => (menu = null)} />
+{/if}
+
+{#if confirmTrash}
+  {@const item = confirmTrash}
+  <ConfirmDialog
+    title={t('library.trash.confirm', { name: item.name })}
+    body={t('library.trash.body')}
+    confirm={t('library.trash')}
+    cancel={t('library.cancel')}
+    danger
+    onconfirm={() => {
+      // `item` is derived from `confirmTrash`: read it before clearing, or it becomes null.
+      const target = item;
+      confirmTrash = null;
+      void itemActions.trash(target);
+    }}
+    oncancel={() => (confirmTrash = null)}
+  />
+{/if}
+
 {#if viewing}
-  <Viewer items={viewing.items} bind:id={viewing.id} onclose={() => (viewing = null)} />
+  <Viewer items={viewing.items} bind:id={viewing.id} focusName={viewing.focusName} onclose={() => (viewing = null)} />
 {/if}
 
 <style>

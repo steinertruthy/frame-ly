@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Play } from '@lucide/svelte';
+  import { MoreHorizontal, Play } from '@lucide/svelte';
   import { framelyUrl } from '$lib/ipc/protocol';
   import { formatBytes, formatDuration } from '$lib/stores/format';
   import { locale, t } from '$lib/i18n/index.svelte';
@@ -11,7 +11,8 @@
     /** A card with the name and "Today · 14:52 · 4.2 MB" under the thumbnail (Home). */
     card?: boolean;
     onopen: (item: LibraryItem) => void;
-    oncontext?: (item: LibraryItem, e: MouseEvent) => void;
+    /** Opens the item menu at a point (right-click, or the card's "⋯" button). */
+    oncontext?: (item: LibraryItem, at: { x: number; y: number }) => void;
   }
   let { item, compact = false, card = false, onopen, oncontext }: Props = $props();
   let failed = $state(false);
@@ -29,6 +30,7 @@
   });
 </script>
 
+{#snippet tile()}
 <button
   class="tile"
   class:compact
@@ -37,7 +39,7 @@
   oncontextmenu={(e) => {
     if (!oncontext) return;
     e.preventDefault();
-    oncontext(item, e);
+    oncontext(item, { x: e.clientX, y: e.clientY });
   }}
   title={item.name}
 >
@@ -60,6 +62,28 @@
     <span class="meta">{time}</span>
   {/if}
 </button>
+{/snippet}
+
+{#if card && oncontext}
+  <!-- The menu button sits beside the card button (buttons can't nest) and over its text area. -->
+  <div class="shell">
+    {@render tile()}
+    <button
+      class="more"
+      aria-label={t('library.more')}
+      aria-haspopup="menu"
+      title={t('library.more')}
+      onclick={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        oncontext(item, { x: r.right - 190, y: r.bottom + 4 });
+      }}
+    >
+      <MoreHorizontal size={16} />
+    </button>
+  </div>
+{:else}
+  {@render tile()}
+{/if}
 
 <style>
   .tile {
@@ -177,10 +201,53 @@
     border-radius: 0;
     box-shadow: inset 0 -1px 0 var(--border);
   }
+  .shell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .shell .body {
+    padding-right: 38px;
+  }
+  .card .meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .more {
+    position: absolute;
+    right: 6px;
+    bottom: 12px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-3);
+    transition:
+      background var(--dur-fast),
+      color var(--dur-fast);
+  }
+  .shell:hover .more {
+    color: var(--text-2);
+  }
+  .more:hover {
+    background: var(--surface-raised);
+    color: var(--text);
+  }
+  .more:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+  .shell:hover .card,
   .card:hover {
     background: var(--surface-hover);
     box-shadow: inset 0 0 0 1px var(--border-strong);
   }
+  .shell:hover .card .thumb,
   .card:hover .thumb {
     transform: none;
     box-shadow: inset 0 -1px 0 var(--border);

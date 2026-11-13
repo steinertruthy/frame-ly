@@ -161,6 +161,7 @@ export const en = {
   'library.empty.videos.title': 'No recordings yet',
   'library.empty.videos.body': 'Start a recording from Home or the menu bar — it will be saved here.',
   'library.noResults': 'Nothing matches “{q}”.',
+  'library.more': 'More actions',
   'library.open': 'Open',
   'library.show': 'Show in folder',
   'library.copy': 'Copy',
