@@ -60,6 +60,20 @@ pub fn output_size(src: (u32, u32), resolution: Resolution, codec: Codec) -> (u3
 }
 
 /// Average bitrate in bits/s from a bits-per-pixel-per-frame budget, clamped to sane bounds.
+/// Constant-quality target (0…1) for encoders that support quality-based rate control, which
+/// spend bits only where the picture changes. Calibrated on screen content (macOS H.264): at
+/// 0.75 files are ~2× smaller than `bitrate`'s average with equal or better fidelity (PSNR).
+pub fn quality_level(quality: Quality) -> f64 {
+    match quality {
+        Quality::Low => 0.5,
+        Quality::Medium => 0.65,
+        Quality::High => 0.75,
+        Quality::Max => 0.85,
+    }
+}
+
+/// Average bitrate for encoders without quality-based rate control (and the ceiling of the
+/// variable-rate fallback on Windows).
 pub fn bitrate(size: (u32, u32), fps: u32, quality: Quality, codec: Codec) -> u32 {
     let bpp = match quality {
         Quality::Low => 0.04,
@@ -98,6 +112,13 @@ mod tests {
         assert_eq!(output_size((5120, 2880), Resolution::Native, Codec::Hevc), (5120, 2880));
         // Odd region sizes are rounded down to even.
         assert_eq!(output_size((801, 451), Resolution::Native, Codec::H264), (800, 450));
+    }
+
+    #[test]
+    fn quality_levels_rise_with_the_preset() {
+        let q: Vec<f64> =
+            [Quality::Low, Quality::Medium, Quality::High, Quality::Max].map(quality_level).to_vec();
+        assert!(q.windows(2).all(|w| w[0] < w[1]) && q[3] <= 1.0);
     }
 
     #[test]

@@ -190,6 +190,8 @@ pub struct NativeRecording {
     pub height: u32,
     pub fps: u32,
     pub bitrate: u32,
+    /// Constant-quality target 0…1 (used where the encoder supports it; else `bitrate`).
+    pub quality: f64,
     pub codec: crate::core::video::Codec,
     pub shows_cursor: bool,
     pub output_path: String,

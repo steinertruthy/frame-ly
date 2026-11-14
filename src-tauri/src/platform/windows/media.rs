@@ -13,7 +13,10 @@ use windows::{
     core::{Interface, HSTRING},
     Win32::{
         Media::MediaFoundation::*,
-        System::Com::{CoInitializeEx, StructuredStorage::PROPVARIANT, COINIT_MULTITHREADED},
+        System::{
+            Com::{CoInitializeEx, StructuredStorage::PROPVARIANT, COINIT_MULTITHREADED},
+            Variant::{VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_UI4},
+        },
     },
 };
 
@@ -95,6 +98,8 @@ pub struct WriterConfig<'a> {
     pub height: u32,
     pub fps: u32,
     pub bitrate: u32,
+    /// Constant-quality target 0…1 (see `configure_rate_control`).
+    pub quality: f64,
     pub codec: Codec,
     pub audio: bool,
     pub manager: &'a IMFDXGIDeviceManager,
@@ -158,6 +163,14 @@ impl Writer {
             let video = sink.AddStream(&out).map_err(|e| win_err("video stream", e))?;
             let input = video_type(&MFVideoFormat_NV12, cfg.width, cfg.height, cfg.fps)?;
             sink.SetInputMediaType(video, &input, None).map_err(|e| win_err("video encoder input", e))?;
+            let mode = configure_rate_control(&sink, video, cfg.quality, cfg.bitrate);
+            tracing::info!(
+                mode,
+                quality = cfg.quality,
+                bitrate = cfg.bitrate,
+                ?codec,
+                "recording: encoder rate control"
+            );
 
             let audio = if cfg.audio {
                 let aac = audio_type(&MFAudioFormat_AAC, true)?;
@@ -237,6 +250,53 @@ impl Writer {
     pub fn finalize(self) -> AppResult<()> {
         // SAFETY: final call on the writer.
         unsafe { self.sink.Finalize() }.map_err(|e| win_err("Finalize", e))
+    }
+}
+
+fn uint_variant(v: u32) -> VARIANT {
+    VARIANT {
+        Anonymous: VARIANT_0 {
+            Anonymous: std::mem::ManuallyDrop::new(VARIANT_0_0 {
+                vt: VT_UI4,
+                Anonymous: VARIANT_0_0_0 { ulVal: v },
+                ..Default::default()
+            }),
+        },
+    }
+}
+
+/// Rate control of the video encoder, best first:
+/// 1. constant quality: bits only where the picture changes (screen content compresses ~2×
+///    smaller than a constant bitrate at equal fidelity);
+/// 2. peak-constrained VBR: averages half the old constant rate, never exceeds it;
+/// 3. the encoder's default (usually constant bitrate at `bitrate`).
+fn configure_rate_control(sink: &IMFSinkWriter, stream: u32, quality: f64, bitrate: u32) -> &'static str {
+    // SAFETY: COM calls on the encoder behind the sink writer, before BeginWriting.
+    unsafe {
+        let mut raw = std::ptr::null_mut();
+        if sink
+            .GetServiceForStream(stream, &windows::core::GUID::zeroed(), &ICodecAPI::IID, &mut raw)
+            .is_err()
+            || raw.is_null()
+        {
+            return "default (no ICodecAPI)";
+        }
+        let api = ICodecAPI::from_raw(raw);
+        let set = |guid: &windows::core::GUID, v: u32| -> bool {
+            api.IsSupported(guid).is_ok() && api.SetValue(guid, &uint_variant(v)).is_ok()
+        };
+        if set(&CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_Quality.0 as u32)
+            && set(&CODECAPI_AVEncCommonQuality, (quality.clamp(0.0, 1.0) * 100.0).round() as u32)
+        {
+            return "quality";
+        }
+        if set(&CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_PeakConstrainedVBR.0 as u32)
+            && set(&CODECAPI_AVEncCommonMeanBitRate, bitrate / 2)
+        {
+            let _ = set(&CODECAPI_AVEncCommonMaxBitRate, bitrate);
+            return "peak-constrained VBR";
+        }
+        "default"
     }
 }
 

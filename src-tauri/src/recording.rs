@@ -383,6 +383,7 @@ async fn start_native(
         height: size.1,
         fps: rec.fps,
         bitrate: video::bitrate(size, rec.fps, rec.quality, rec.codec),
+        quality: video::quality_level(rec.quality),
         codec: rec.codec,
         shows_cursor: rec.show_cursor,
         output_path: temp.display().to_string(),

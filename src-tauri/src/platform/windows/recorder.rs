@@ -320,6 +320,7 @@ impl Recorder {
             height: out.1,
             fps: config.fps,
             bitrate: config.bitrate,
+            quality: config.quality,
             codec: config.codec,
             audio: wants_system || wants_mic,
             manager: &manager,

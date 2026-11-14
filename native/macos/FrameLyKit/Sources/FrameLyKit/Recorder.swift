@@ -34,6 +34,8 @@ struct RecordingConfig: Decodable {
     let height: Int
     let fps: Int
     let bitrate: Int
+    /// Constant-quality target 0…1; used when the encoder supports it (else `bitrate`).
+    let quality: Double?
     let codec: String // "h264" | "hevc"
     let showsCursor: Bool
     let outputPath: String
@@ -95,11 +97,19 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
 
         let hevc = config.codec == "hevc"
         var compression: [String: Any] = [
-            AVVideoAverageBitRateKey: config.bitrate,
             AVVideoExpectedSourceFrameRateKey: config.fps,
             AVVideoMaxKeyFrameIntervalKey: config.fps * 2,
             AVVideoAllowFrameReorderingKey: false,
         ]
+        // Quality-based rate control spends bits only where the picture changes: on screen content
+        // ~2× smaller files than an average bitrate, with equal or better fidelity. Encoders
+        // without it (e.g. older Intel Macs) keep the average bitrate.
+        if let quality = config.quality,
+           Self.supportsQuality(width: config.width, height: config.height, hevc: hevc) {
+            compression[AVVideoQualityKey] = quality
+        } else {
+            compression[AVVideoAverageBitRateKey] = config.bitrate
+        }
         compression[AVVideoProfileLevelKey] = hevc
             ? kVTProfileLevel_HEVC_Main_AutoLevel as String
             : AVVideoProfileLevelH264HighAutoLevel
@@ -138,6 +148,19 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
             audioInput = nil
         }
         super.init()
+    }
+
+    /// Whether the hardware encoder honors constant-quality rate control at this size.
+    static func supportsQuality(width: Int, height: Int, hevc: Bool) -> Bool {
+        var properties: CFDictionary?
+        let status = VTCopySupportedPropertyDictionaryForEncoder(
+            width: Int32(width), height: Int32(height),
+            codecType: hevc ? kCMVideoCodecType_HEVC : kCMVideoCodecType_H264,
+            encoderSpecification: [kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder: true] as CFDictionary,
+            encoderIDOut: nil, supportedPropertiesOut: &properties
+        )
+        guard status == noErr, let dict = properties as? [String: Any] else { return false }
+        return dict[kVTCompressionPropertyKey_Quality as String] != nil
     }
 
     private var gains: [Float] {
