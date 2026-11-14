@@ -127,12 +127,22 @@ pub fn grab(item: &GraphicsCaptureItem) -> AppResult<Frame> {
 }
 
 fn copy_to_cpu(d3d: &ID3D11Device, frame: &Direct3D11CaptureFrame) -> AppResult<Frame> {
+    texture_to_frame(d3d, &frame_texture(frame)?)
+}
+
+/// The D3D11 texture behind a captured frame.
+pub(super) fn frame_texture(frame: &Direct3D11CaptureFrame) -> AppResult<ID3D11Texture2D> {
     let surface = frame.Surface().map_err(|e| win_err("frame surface", e))?;
     let access: IDirect3DDxgiInterfaceAccess = surface.cast().map_err(|e| win_err("surface access", e))?;
+    // SAFETY: valid WinRT surface wrapping a D3D11 texture.
+    unsafe { access.GetInterface() }.map_err(|e| win_err("surface texture", e))
+}
+
+/// Copies a BGRA texture to CPU memory.
+pub(super) fn texture_to_frame(d3d: &ID3D11Device, texture: &ID3D11Texture2D) -> AppResult<Frame> {
     // SAFETY: all D3D calls use valid interfaces and properly sized descriptors; the mapped
     // memory is read only between Map and Unmap.
     unsafe {
-        let texture: ID3D11Texture2D = access.GetInterface().map_err(|e| win_err("surface texture", e))?;
         let mut desc = D3D11_TEXTURE2D_DESC::default();
         texture.GetDesc(&mut desc);
         desc.Usage = D3D11_USAGE_STAGING;
@@ -143,7 +153,7 @@ fn copy_to_cpu(d3d: &ID3D11Device, frame: &Direct3D11CaptureFrame) -> AppResult<
         d3d.CreateTexture2D(&desc, None, Some(&mut staging)).map_err(|e| win_err("staging texture", e))?;
         let staging = staging.ok_or_else(|| AppError::Platform("staging texture missing".into()))?;
         let ctx = d3d.GetImmediateContext().map_err(|e| win_err("device context", e))?;
-        ctx.CopyResource(&staging, &texture);
+        ctx.CopyResource(&staging, texture);
         let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
         ctx.Map(&staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped)).map_err(|e| win_err("Map", e))?;
         let stride = mapped.RowPitch as usize;

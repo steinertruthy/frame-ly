@@ -331,6 +331,11 @@ pub async fn begin(app: AppHandle, target: Target) -> AppResult<()> {
         tokio::time::sleep(start_cue_lead()).await;
     }
 
+    // Windows excludes FrameLy from captures window by window (macOS excludes the whole app),
+    // so the main window must be gone before the first frame.
+    #[cfg(windows)]
+    crate::windows::hide_main(&app);
+
     match start_native(&app, &target, &rec).await {
         Ok(()) => {
             if let Target::Region { display, rect } = &target {
@@ -350,6 +355,8 @@ pub async fn begin(app: AppHandle, target: Target) -> AppResult<()> {
         Err(e) => {
             state(&app).recordings.inner.lock().unwrap().recorder.reset();
             publish(&app);
+            #[cfg(windows)]
+            crate::windows::show_main(&app);
             Err(e)
         }
     }

@@ -67,7 +67,9 @@ Região/Janela: capture_display(todos, em paralelo) → quadros congelados      
 - **Conversão de coordenadas:** o overlay envia a seleção em pixels CSS + o tamanho do viewport; o
   Rust converte usando o tamanho real do quadro. Funciona igual com pontos (macOS) e DPI (Windows).
 - **Janelas do FrameLy nunca aparecem nas capturas:** o filtro do ScreenCaptureKit exclui o próprio
-  app; no Windows, `WDA_EXCLUDEFROMCAPTURE` nas janelas de overlay e prévia.
+  app (consultado com janelas fora da tela incluídas); no Windows, `WDA_EXCLUDEFROMCAPTURE` em cada
+  janela flutuante (overlay, prévia, painel, pílula, contagem, moldura) e a janela principal é
+  escondida antes do primeiro quadro de uma gravação.
 - **Desempenho (M-series, 3024×1964):** captura ~85 ms; PNG ~95 ms em release; clipboard ~0 ms
   (o PNG já codificado vai direto para o NSPasteboard).
 

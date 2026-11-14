@@ -40,7 +40,10 @@ Coordenadas: pontos globais com origem no canto superior esquerdo (o mesmo espa�
 | Microfones | Core Audio `IMMDeviceEnumerator` (endpoints de captura ativos, padrão via `eConsole`) |
 | Screenshot | Windows.Graphics.Capture (`CreateForMonitor` / `CreateForWindow`), primeiro quadro copiado para textura *staging* D3D11 (fallback WARP sem GPU) |
 | Clipboard | `arboard` (DIB) |
-| Áudio | Etapa 4: WASAPI loopback (process loopback no Windows 11 para excluir o próprio app) + captura de microfone, mesmo modelo de mix |
+| Gravação | Windows.Graphics.Capture (quadros só quando a tela muda, limitados ao fps) → cópia para textura própria → `ID3D11VideoProcessor` na GPU (recorte da área, escala com proporção, BGRA → NV12 BT.709) → `IMFSinkWriter` (H.264/HEVC por hardware) em MP4 fragmentado (recuperável após falha). Amostras NV12 vêm de `IMFVideoSampleAllocatorEx`: se o encoder atrasa, o quadro é descartado em vez de travar a captura |
+| Áudio | WASAPI compartilhado: loopback do dispositivo de saída padrão (som do computador) + microfone, convertidos pelo próprio WASAPI para 48 kHz estéreo float (`AUTOCONVERTPCM`, com conversão manual de reserva); timestamps QPC, o mesmo relógio dos quadros; mix por `AudioMixer` (Rust, igual ao Swift) → AAC 192 kbit/s |
+| Pausa | `PauseTimeline` (Rust): a captura continua, amostras dentro da pausa são descartadas e as seguintes recuadas |
+| Vídeos na biblioteca | Media Foundation `IMFSourceReader`: duração (`MF_PD_DURATION`), tamanho e miniatura (quadro em 0,5 s convertido para RGB32) |
 | Overlays | Janelas sem borda no retângulo físico do monitor, `WDA_EXCLUDEFROMCAPTURE` |
 | Permissões | Tela: `GraphicsCaptureSession::IsSupported`. Microfone: chaves de privacidade em `ConsentStore\microphone` (global, usuário e "apps da área de trabalho") |
 

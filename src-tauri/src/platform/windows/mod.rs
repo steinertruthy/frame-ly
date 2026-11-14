@@ -5,22 +5,37 @@
 //! - Audio: Core Audio `IMMDeviceEnumerator` capture endpoints.
 //! - Permissions: unpackaged desktop apps get no OS prompt; we read the privacy consent store
 //!   and deep-link to Settings.
+//! - Recording: Windows.Graphics.Capture → D3D11 video processor → Media Foundation (hardware
+//!   H.264/HEVC, AAC) with WASAPI system audio + microphone (see `recorder`).
 
 mod audio;
 mod capture;
 pub mod chrome;
 mod displays;
 mod enum_windows;
+mod media;
 mod permissions;
+mod recorder;
+mod wasapi;
 
 use super::{AudioDevice, CaptureBackend, Display, Permission, PermissionState, Permissions, WindowInfo};
 use crate::core::{
     errors::{AppError, AppResult},
     image::Frame,
 };
+use std::sync::Mutex;
 use windows::Win32::Foundation::HWND;
 
 pub struct WinBackend;
+
+/// Settings' "test your microphone" meter (one at a time).
+static MIC_TEST: Mutex<Option<wasapi::MicMonitor>> = Mutex::new(None);
+
+fn is_video(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "mp4" | "mov" | "m4v"))
+}
 
 pub(crate) fn win_err(context: &str, e: windows::core::Error) -> AppError {
     AppError::Platform(format!("{context}: {e}"))
@@ -76,44 +91,61 @@ impl CaptureBackend for WinBackend {
     }
 
     fn supports_recording(&self) -> bool {
-        false
+        true
     }
 
-    fn start_recording(&self, _: &super::NativeRecording, _: super::RecordingEvents) -> AppResult<()> {
-        Err(AppError::Platform("screen recording is not available on Windows yet".into()))
+    fn start_recording(
+        &self,
+        config: &super::NativeRecording,
+        events: super::RecordingEvents,
+    ) -> AppResult<()> {
+        recorder::start(config, events)
     }
 
-    fn pause_recording(&self) {}
+    fn pause_recording(&self) {
+        recorder::pause();
+    }
 
-    fn resume_recording(&self) {}
+    fn resume_recording(&self) {
+        recorder::resume();
+    }
 
     fn stop_recording(&self) -> AppResult<super::RecordingStats> {
-        Err(AppError::Platform("no recording in progress".into()))
+        recorder::stop()
     }
 
-    fn discard_recording(&self) {}
+    fn discard_recording(&self) {
+        recorder::discard();
+    }
 
     fn recording_levels(&self) -> super::AudioLevels {
-        super::AudioLevels::default()
+        recorder::levels()
     }
 
-    // Windows audio (WASAPI loopback + microphone) ships with the Windows recorder (Stage 4).
-    fn mic_monitor_start(&self, _: Option<&str>) -> AppResult<()> {
-        Err(AppError::Platform("microphone test is not available on Windows yet".into()))
+    fn mic_monitor_start(&self, device_id: Option<&str>) -> AppResult<()> {
+        let mut current = MIC_TEST.lock().unwrap();
+        *current = None; // stop the previous one before opening the device again
+        *current = Some(wasapi::MicMonitor::start(device_id)?);
+        Ok(())
     }
 
     fn mic_monitor_level(&self) -> f32 {
-        0.0
+        MIC_TEST.lock().unwrap().as_ref().map_or(0.0, |m| m.level())
     }
 
-    fn mic_monitor_stop(&self) {}
+    fn mic_monitor_stop(&self) {
+        *MIC_TEST.lock().unwrap() = None;
+    }
 
-    // Video metadata/thumbnails come with Media Foundation in Stage 4.
-    fn video_info(&self, _: &std::path::Path) -> AppResult<crate::core::library::Meta> {
-        Err(AppError::Platform("video metadata is not available on Windows yet".into()))
+    fn video_info(&self, path: &std::path::Path) -> AppResult<crate::core::library::Meta> {
+        media::video_info(path)
     }
 
     fn thumbnail(&self, path: &std::path::Path, dest: &std::path::Path, max_pixels: u32) -> AppResult<()> {
-        crate::core::image::thumbnail_file(path, dest, max_pixels)
+        if is_video(path) {
+            media::video_thumbnail(path, dest, max_pixels)
+        } else {
+            crate::core::image::thumbnail_file(path, dest, max_pixels)
+        }
     }
 }
