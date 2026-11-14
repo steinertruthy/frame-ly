@@ -49,9 +49,9 @@ use windows::{
             Dxgi::Common::{DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_RATIONAL, DXGI_SAMPLE_DESC},
         },
         Media::MediaFoundation::{
-            IMFDXGIBuffer, IMFDXGIDeviceManager, IMFVideoSampleAllocatorEx, MFCreateDXGIDeviceManager,
-            MFCreateVideoSampleAllocatorEx, MFVideoFormat_NV12, MF_E_SAMPLEALLOCATOR_EMPTY,
-            MF_SA_D3D11_BINDFLAGS,
+            IMF2DBuffer, IMFDXGIBuffer, IMFDXGIDeviceManager, IMFVideoSampleAllocatorEx,
+            MFCreateDXGIDeviceManager, MFCreateVideoSampleAllocatorEx, MFVideoFormat_NV12,
+            MF_E_SAMPLEALLOCATOR_EMPTY, MF_SA_D3D11_BINDFLAGS,
         },
         System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency},
     },
@@ -715,6 +715,13 @@ impl Engine {
             let [mut stream] = streams;
             ManuallyDrop::drop(&mut stream.pInputSurface);
             blit.map_err(|e| win_err("VideoProcessorBlt", e))?;
+            // Pooled DXGI samples come with a current length of 0, which the encoder rejects
+            // as an empty frame (E_INVALIDARG): declare the whole NV12 surface as filled.
+            let length = match buffer.cast::<IMF2DBuffer>() {
+                Ok(b2) => b2.GetContiguousLength().map_err(|e| win_err("contiguous length", e))?,
+                Err(_) => buffer.GetMaxLength().map_err(|e| win_err("max length", e))?,
+            };
+            buffer.SetCurrentLength(length).map_err(|e| win_err("sample length", e))?;
 
             let writer = self.writer.lock().unwrap();
             if let Some(w) = writer.as_ref() {
