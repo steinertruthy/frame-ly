@@ -529,6 +529,18 @@ pub fn toggle_pause(app: &AppHandle) -> AppResult<()> {
     }
 }
 
+/// Hides or shows the floating controls for the current recording (recording continues).
+pub fn set_controls_visible(app: &AppHandle, visible: bool) {
+    if let Some(w) = app.get_webview_window(CONTROLS) {
+        let _ = if visible { w.show() } else { w.hide() };
+    }
+}
+
+/// Whether the floating controls exist and are hidden (so the tray panel can bring them back).
+pub fn controls_hidden(app: &AppHandle) -> bool {
+    app.get_webview_window(CONTROLS).is_some_and(|w| !w.is_visible().unwrap_or(true))
+}
+
 /// Cancels a running countdown (no-op otherwise).
 pub fn cancel_countdown(app: &AppHandle) {
     state(app).recordings.cancel_countdown.store(true, Ordering::SeqCst);
@@ -712,7 +724,9 @@ fn to_logical(display: &Display, r: Rect) -> Rect {
 }
 
 fn open_countdown(app: &AppHandle, display: Option<&Display>, seconds: u32) -> AppResult<()> {
-    const SIZE: f64 = 220.0;
+    // 200 pt circle plus a transparent margin that holds its shadow (a shadow larger than the
+    // window gets cut at the edges and shows as a square).
+    const SIZE: f64 = 260.0;
     let center = display
         .map(|d| to_logical(d, d.bounds))
         .map(|b| (b.x + b.width / 2.0, b.y + b.height / 2.0))
@@ -732,6 +746,7 @@ fn open_countdown(app: &AppHandle, display: Option<&Display>, seconds: u32) -> A
     .skip_taskbar(true)
     .shadow(false)
     .focused(true)
+    .accept_first_mouse(true)
     .visible_on_all_workspaces(true)
     .build()?;
     crate::platform::chrome::configure_floating(&window);
@@ -742,9 +757,10 @@ fn open_countdown(app: &AppHandle, display: Option<&Display>, seconds: u32) -> A
 /// Dock / taskbar). Never focused, so it doesn't steal keyboard input from what's recorded;
 /// excluded from the video like every FrameLy window.
 fn open_controls(app: &AppHandle, display: Option<&Display>) -> AppResult<()> {
-    const W: f64 = 340.0;
-    const H: f64 = 60.0;
-    const MARGIN: f64 = 18.0;
+    // The pill is 44 pt tall; the window adds a transparent margin for its shadow.
+    const W: f64 = 420.0;
+    const H: f64 = 76.0;
+    const MARGIN: f64 = 2.0;
     let display = match display {
         Some(d) => d.clone(),
         None => state(app)
@@ -766,6 +782,9 @@ fn open_controls(app: &AppHandle, display: Option<&Display>) -> AppResult<()> {
         .skip_taskbar(true)
         .shadow(false)
         .focused(false)
+        // Never focused (keyboard stays with what's recorded), so on macOS the first click
+        // would only activate the window: let it reach the buttons directly.
+        .accept_first_mouse(true)
         .visible_on_all_workspaces(true)
         .build()?;
     crate::platform::chrome::configure_floating(&window);

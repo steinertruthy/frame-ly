@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
-  import { Settings, Images, Camera, ChevronDown, Mic, Volume2, Pause, Play, Square } from '@lucide/svelte';
+  import { Settings, Images, Camera, ChevronDown, Mic, Volume2, Pause, Play, Square, Eye } from '@lucide/svelte';
   import Aurora from '$lib/components/Aurora.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
   import LevelMeter from '$lib/components/LevelMeter.svelte';
@@ -24,6 +24,15 @@
 
   let error = $state<string | null>(null);
   let options = $state(false);
+  /** The floating controls were hidden during this recording (offer to bring them back). */
+  let pillHidden = $state(false);
+  async function refreshPill() {
+    pillHidden = live ? await commands.recordingControlsHidden().catch(() => false) : false;
+  }
+  async function showPill() {
+    await commands.setRecordingControlsVisible(true).catch(() => {});
+    pillHidden = false;
+  }
   let root: HTMLDivElement | undefined = $state();
 
   const s = $derived(settings.value);
@@ -45,6 +54,7 @@
         root?.focus();
       }, 60);
       void system.refresh();
+      void refreshPill();
       library.sync();
     });
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && void commands.panelHide();
@@ -138,6 +148,9 @@
           <Square size={13} fill="currentColor" />{t('record.stop')}
         </button>
       </div>
+      {#if pillHidden}
+        <button class="link show-pill" onclick={showPill}><Eye size={14} />{t('record.showControls')}</button>
+      {/if}
       <div class="hint">
         {#each [['stopRecording', 'record.stop'], ['togglePause', 'shortcuts.action.togglePause']] as const as [a, label] (a)}
           {#if keys(a).length}<span>{t(label)} {@render chip(keys(a))}</span>{/if}
@@ -525,6 +538,11 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  .show-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
   .controls {
     display: flex;

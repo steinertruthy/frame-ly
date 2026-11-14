@@ -234,6 +234,8 @@ pub fn run() {
             commands::recording::resume_recording,
             commands::recording::stop_recording,
             commands::recording::cancel_countdown,
+            commands::recording::set_recording_controls_visible,
+            commands::recording::recording_controls_hidden,
             commands::recording::recording_status,
             commands::recording::recovered_recordings,
             commands::recording::last_recording,

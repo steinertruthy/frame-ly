@@ -3,7 +3,7 @@
    * Floating recording controls: elapsed time, sound levels, pause/resume and stop.
    * Lives on the recorded display, can be dragged anywhere, and is never part of the video.
    */
-  import { Mic, Volume2, Pause, Play, Square } from '@lucide/svelte';
+  import { Mic, Volume2, Pause, Play, Square, EyeOff } from '@lucide/svelte';
   import LevelMeter from '$lib/components/LevelMeter.svelte';
   import { t } from '$lib/i18n/index.svelte';
   import { commands } from '$lib/ipc/commands';
@@ -63,6 +63,14 @@
   >
     <Square size={12} fill="currentColor" />
   </button>
+  <button
+    class="btn ghost"
+    title={t('record.hideControls.hint')}
+    aria-label={t('record.hideControls')}
+    onclick={() => control(() => commands.setRecordingControlsVisible(false))}
+  >
+    <EyeOff size={14} />
+  </button>
 </div>
 
 <style>
@@ -85,8 +93,9 @@
     border-radius: 22px;
     background: rgb(12 20 35 / 0.92);
     border: 1px solid rgb(255 255 255 / 0.08);
+    /* Fits inside the window's transparent margin (a clipped shadow shows as a rectangle). */
     box-shadow:
-      0 10px 30px rgb(0 0 0 / 0.45),
+      0 6px 14px -4px rgb(0 0 0 / 0.55),
       0 0 0 0.5px rgb(0 0 0 / 0.6);
     color: #edf0f7;
     cursor: grab;
@@ -154,6 +163,15 @@
   .btn:disabled {
     opacity: 0.4;
     cursor: default;
+  }
+  .btn.ghost {
+    width: 28px;
+    background: transparent;
+    color: rgb(237 240 247 / 0.55);
+  }
+  .btn.ghost:hover {
+    background: rgb(255 255 255 / 0.08);
+    color: #edf0f7;
   }
   .btn.stop {
     background: var(--rec-500, #d94656);

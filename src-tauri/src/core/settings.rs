@@ -75,7 +75,7 @@ impl Default for General {
     fn default() -> Self {
         Self {
             language: Language::System,
-            launch_at_login: false,
+            launch_at_login: true,
             close_to_tray: true,
             show_on_launch: true,
             notifications: true,
@@ -492,7 +492,7 @@ mod tests {
         let s = Settings::from_json(r#"{"version":1,"general":{"language":"pt-BR"},"appearance":{}}"#, &d)
             .unwrap();
         assert_eq!(s.appearance.theme, Theme::System, "v1 users keep following the system");
-        assert!(s.general.close_to_tray && s.general.show_on_launch && !s.general.launch_at_login);
+        assert!(s.general.close_to_tray && s.general.show_on_launch && s.general.launch_at_login);
         assert_eq!(s.recording.target, RecordTarget::Screen);
         // Fresh installs get the dark identity.
         assert_eq!(Settings::defaults(&d).appearance.theme, Theme::Dark);

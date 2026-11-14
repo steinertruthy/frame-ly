@@ -28,6 +28,16 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
 }
 
 #[tauri::command]
+pub fn set_recording_controls_visible(app: AppHandle, visible: bool) {
+    recording::set_controls_visible(&app, visible);
+}
+
+#[tauri::command]
+pub fn recording_controls_hidden(app: AppHandle) -> bool {
+    recording::controls_hidden(&app)
+}
+
+#[tauri::command]
 pub fn cancel_countdown(app: AppHandle) {
     recording::cancel_countdown(&app);
 }

@@ -37,7 +37,7 @@
   }
   .wrap {
     position: fixed;
-    inset: 10px;
+    inset: 30px;
     display: grid;
     place-items: center;
     border: 0;
@@ -45,7 +45,9 @@
     background: rgba(5, 7, 12, 0.82);
     backdrop-filter: blur(16px);
     color: #fff;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 10px 24px -6px rgba(0, 0, 0, 0.55);
     cursor: pointer;
   }
   .ring {
@@ -67,6 +69,7 @@
     }
   }
   .num {
+    margin-top: -16px;
     font: 700 84px/1 var(--font-display);
     font-variant-numeric: tabular-nums;
     animation: pop 1s var(--ease-out);
@@ -82,8 +85,11 @@
   }
   .hint {
     position: absolute;
-    bottom: 40px;
+    bottom: 30px;
+    max-width: 130px;
     font-size: 11px;
+    line-height: 1.3;
+    text-align: center;
     color: rgba(255, 255, 255, 0.6);
   }
 </style>
