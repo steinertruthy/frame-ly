@@ -16,6 +16,8 @@
   import ShortcutRecorder from '$lib/components/ShortcutRecorder.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
   import StorageCard from '$lib/components/library/StorageCard.svelte';
+  import RecordingEstimate from '$lib/components/RecordingEstimate.svelte';
+  import { outputSize } from '$lib/videoEstimate';
   import { t, type MessageKey } from '$lib/i18n/index.svelte';
   import { LOCALES, LOCALE_NAMES } from '$lib/i18n/translate';
   import { commands, events } from '$lib/ipc/commands';
@@ -64,6 +66,11 @@
     void library.init();
     void refreshCache();
     return () => void un.then((u) => u());
+  });
+  /** Pixel size of the main screen, for the recording size estimate and presets. */
+  const screen = $derived.by((): [number, number] => {
+    const d = system.displays.find((x) => x.isPrimary) ?? system.displays[0];
+    return d ? [d.pixelWidth, d.pixelHeight] : [1920, 1080];
   });
   const shortcutActions = $derived(SHORTCUT_ACTIONS.filter((a) => info.supportsRecording || !RECORDING_ACTIONS.includes(a)));
   function describeShortcutError(e: AppError): string | null {
@@ -237,7 +244,14 @@
               </SettingRow>
             </Section>
             <Section title={t('settings.group.video')}>
-              <SettingRow title={t('settings.recording.quality')} hint={t('settings.recording.quality.hint')}>
+              <RecordingEstimate
+                {screen}
+                quality={s.recording.quality}
+                resolution={s.recording.resolution}
+                codec={s.recording.codec}
+                fps={s.recording.fps}
+              />
+              <SettingRow title={t('settings.recording.quality')} hint={t(`settings.recording.quality.hint.${s.recording.quality}`)}>
                 <Segmented
                   label={t('settings.recording.quality')}
                   value={s.recording.quality}
@@ -245,7 +259,7 @@
                   onchange={(v) => set((d) => (d.recording.quality = v))}
                 />
               </SettingRow>
-              <SettingRow title={t('settings.recording.fps')} hint={t('settings.recording.fps.hint')}>
+              <SettingRow title={t('settings.recording.fps')} hint={t(`settings.recording.fps.hint.${s.recording.fps}`)}>
                 <Segmented
                   label={t('settings.recording.fps')}
                   value={String(s.recording.fps)}
@@ -257,7 +271,12 @@
                   onchange={(v) => set((d) => (d.recording.fps = Number(v) as Fps))}
                 />
               </SettingRow>
-              <SettingRow title={t('settings.recording.resolution')} hint={t('settings.recording.resolution.hint')}>
+              <SettingRow
+                title={t('settings.recording.resolution')}
+                hint={t(`settings.recording.resolution.hint.${s.recording.resolution}`, {
+                  size: outputSize(screen, s.recording.resolution, s.recording.codec).join(' × '),
+                })}
+              >
                 <Segmented
                   label={t('settings.recording.resolution')}
                   value={s.recording.resolution}
