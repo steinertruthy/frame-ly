@@ -43,6 +43,20 @@ No macOS, `pnpm check:windows` verifica o código Windows pelo alvo GNU (mingw-w
 headers C necessários para compilar o SQLite embutido. O build real (MSVC) roda no CI e na VM
 Windows 11 ARM (Parallels), onde o app é executado e testado.
 
+### Build de teste do Windows a partir do macOS
+
+```bash
+brew install nsis llvm lld && cargo install --locked cargo-xwin
+LANG=en_US.UTF-8 XWIN_ACCEPT_LICENSE=1 PATH="/opt/homebrew/opt/llvm/bin:$PATH" pnpm build:windows
+```
+
+O `cargo-xwin` baixa os headers do Windows SDK/CRT da Microsoft (aceitando a licença deles) e gera
+`src-tauri/target/x86_64-pc-windows-msvc/release/framely.exe`; o NSIS empacota o instalador em
+`…/release/bundle/nsis/`. O instalador sai sem assinatura (SmartScreen avisa). O `.exe` sozinho também
+roda (não há recursos externos), útil como versão portátil — exige o WebView2 Runtime.
+`LANG` precisa estar definido: com o locale vazio o `makensis` 3.13 do Homebrew aborta com
+`std::bad_alloc` (bug do NSIS no macOS).
+
 ## Assinatura no macOS (sem Developer ID)
 
 O macOS vincula as permissões de Gravação de Tela e Microfone à assinatura do app. Para que elas
