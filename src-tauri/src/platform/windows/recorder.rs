@@ -17,6 +17,7 @@ use crate::{
         errors::{AppError, AppResult},
         image::PixelRect,
         media_timeline::{AudioMixer, PauseTimeline},
+        yuv,
     },
     platform::{AudioLevels, NativeEvent, NativeRecording, RecordingEvents, RecordingStats},
 };
@@ -94,6 +95,22 @@ struct Video {
     newer: bool,
     frames: u64,
     finished: bool,
+    /// The GPU video processor failed on this machine: convert on the CPU instead.
+    cpu: bool,
+    staging: Option<Source>,
+    stats: Diagnostics,
+}
+
+/// What happened to the frames, logged when the recording ends (and the first error of each
+/// path as soon as it happens), so a failure on a user's machine is visible in the log.
+#[derive(Default, Debug)]
+struct Diagnostics {
+    arrived: u64,
+    paused: u64,
+    capped: u64,
+    busy: u64,
+    errors: u64,
+    last_error: Option<String>,
 }
 
 struct Source {
@@ -127,6 +144,8 @@ struct Engine {
     thumbnail: PathBuf,
     events: RecordingEvents,
     stop_audio: AtomicBool,
+    /// Frames the capture handler could not even hand to `on_frame` processing.
+    frame_errors: std::sync::atomic::AtomicU64,
 }
 
 // SAFETY: every COM object is created in the MTA, the D3D device is multithread-protected, and
@@ -224,16 +243,6 @@ fn parse_window(id: &str) -> AppResult<HWND> {
     let raw = usize::from_str_radix(id.trim_start_matches("0x"), 16)
         .map_err(|_| AppError::Platform(format!("invalid window id {id:?}")))?;
     Ok(HWND(raw as *mut _))
-}
-
-/// Largest rectangle of aspect `src` centered in `out` (letterboxing when a window's shape
-/// changes during the recording).
-fn fit(src: (u32, u32), out: (u32, u32)) -> RECT {
-    let (sw, sh) = (src.0.max(1) as f64, src.1.max(1) as f64);
-    let scale = (out.0 as f64 / sw).min(out.1 as f64 / sh);
-    let (w, h) = (((sw * scale).round() as i32) & !1, ((sh * scale).round() as i32) & !1);
-    let (x, y) = (((out.0 as i32 - w) / 2) & !1, ((out.1 as i32 - h) / 2) & !1);
-    RECT { left: x, top: y, right: x + w, bottom: y + h }
 }
 
 impl Recorder {
@@ -373,6 +382,9 @@ impl Recorder {
                 newer: false,
                 frames: 0,
                 finished: false,
+                cpu: false,
+                staging: None,
+                stats: Diagnostics::default(),
             }),
             writer: Mutex::new(Some(writer)),
             timeline: Mutex::new(PauseTimeline::default()),
@@ -383,6 +395,7 @@ impl Recorder {
             thumbnail: PathBuf::from(&config.thumbnail_path),
             events,
             stop_audio: AtomicBool::new(false),
+            frame_errors: std::sync::atomic::AtomicU64::new(0),
         });
 
         let e = Arc::clone(&engine);
@@ -390,7 +403,9 @@ impl Recorder {
             if let Some(pool) = pool.as_ref() {
                 while let Ok(frame) = pool.TryGetNextFrame() {
                     if let Err(err) = e.on_frame(&frame) {
-                        tracing::debug!(error = %err, "frame dropped");
+                        if e.frame_errors.fetch_add(1, Ordering::Relaxed) == 0 {
+                            tracing::warn!(error = %err, "recording: captured frame could not be processed");
+                        }
                     }
                     let _ = frame.Close();
                 }
@@ -458,6 +473,13 @@ impl Recorder {
                 }
             }
             v.finished = true;
+            tracing::info!(
+                written = v.frames,
+                cpu = v.cpu,
+                stats = ?v.stats,
+                handler_errors = engine.frame_errors.load(Ordering::Relaxed),
+                "recording: frames"
+            );
             (v.frames, v.last_written.max(end))
         };
 
@@ -515,6 +537,7 @@ impl Engine {
         if v.finished {
             return Ok(());
         }
+        v.stats.arrived += 1;
         // Windows resized: grow/shrink the pool for the next frames.
         if content.Width > 0
             && content.Height > 0
@@ -528,7 +551,10 @@ impl Engine {
         v.copy_source(&texture)?;
         v.content = (content.Width.max(1) as u32, content.Height.max(1) as u32);
 
-        let Some(at) = self.timeline.lock().unwrap().adjusted(clock) else { return Ok(()) };
+        let Some(at) = self.timeline.lock().unwrap().adjusted(clock) else {
+            v.stats.paused += 1;
+            return Ok(());
+        };
         let mut first = false;
         let origin = *self.origin.get_or_init(|| {
             first = true;
@@ -536,9 +562,17 @@ impl Engine {
         });
         v.newer = true;
         if v.frames > 0 && at - v.last_written < self.interval * 9 / 10 {
+            v.stats.capped += 1;
             return Ok(()); // frame-rate cap
         }
-        self.render(&mut v, at - origin)?;
+        if let Err(e) = self.render(&mut v, at - origin) {
+            v.stats.errors += 1;
+            if v.stats.errors == 1 {
+                tracing::warn!(error = %e, cpu = v.cpu, "recording: frame not written");
+            }
+            v.stats.last_error = Some(e.to_string());
+            return Ok(());
+        }
         v.last_written = at;
         if first {
             self.audio.lock().unwrap().start(clock);
@@ -548,15 +582,86 @@ impl Engine {
         Ok(())
     }
 
-    /// Converts the current source into an NV12 sample and hands it to the encoder.
+    /// Converts the current source into NV12 and hands it to the encoder: on the GPU, or on
+    /// the CPU once the GPU path has failed on this machine.
     fn render(&self, v: &mut Video, time: i64) -> AppResult<()> {
+        if !v.cpu {
+            match self.render_gpu(v, time) {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    tracing::warn!(error = %e, "recording: GPU conversion unavailable; converting frames on the CPU");
+                    v.cpu = true;
+                }
+            }
+        }
+        self.render_cpu(v, time)
+    }
+
+    fn render_cpu(&self, v: &mut Video, time: i64) -> AppResult<()> {
+        let src = v.source.as_ref().ok_or_else(|| AppError::Platform("no frame yet".into()))?;
+        let (texture, size) = (src.texture.clone(), src.size);
+        // SAFETY: staging copy/map on the protected device; the mapped memory is read only
+        // between Map and Unmap, within RowPitch × height.
+        let nv12 = unsafe {
+            if !v.staging.as_ref().is_some_and(|s| s.size == size) {
+                let mut desc = D3D11_TEXTURE2D_DESC::default();
+                texture.GetDesc(&mut desc);
+                desc.Usage = D3D11_USAGE_STAGING;
+                desc.BindFlags = 0;
+                desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ.0 as u32;
+                desc.MiscFlags = 0;
+                let mut staging = None;
+                v.device
+                    .CreateTexture2D(&desc, None, Some(&mut staging))
+                    .map_err(|e| win_err("staging texture", e))?;
+                let texture = staging.ok_or_else(|| AppError::Platform("no staging texture".into()))?;
+                v.staging = Some(Source { texture, size });
+            }
+            let staging = &v.staging.as_ref().unwrap().texture;
+            v.context.CopyResource(staging, &texture);
+            let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
+            v.context.Map(staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped)).map_err(|e| win_err("Map", e))?;
+            let stride = mapped.RowPitch as usize;
+            let data = std::slice::from_raw_parts(mapped.pData as *const u8, stride * size.1 as usize);
+            let (cw, ch) = (v.content.0.min(size.0), v.content.1.min(size.1));
+            let crop = match v.crop {
+                Some(c) => {
+                    let x = c.left.clamp(0, cw as i32) as u32;
+                    let y = c.top.clamp(0, ch as i32) as u32;
+                    (
+                        x,
+                        y,
+                        (c.right.clamp(0, cw as i32) as u32).saturating_sub(x),
+                        (c.bottom.clamp(0, ch as i32) as u32).saturating_sub(y),
+                    )
+                }
+                None => (0, 0, cw, ch),
+            };
+            let nv12 =
+                yuv::bgra_to_nv12(&yuv::Bgra { data, stride, width: size.0, height: size.1 }, crop, v.out);
+            v.context.Unmap(staging, 0);
+            nv12
+        };
+        let writer = self.writer.lock().unwrap();
+        if let Some(w) = writer.as_ref() {
+            w.write_video_nv12(&nv12, time.max(0), self.interval)?;
+            v.frames += 1;
+            v.newer = false;
+        }
+        Ok(())
+    }
+
+    fn render_gpu(&self, v: &mut Video, time: i64) -> AppResult<()> {
         v.ensure_processor()?;
         // SAFETY: D3D11/MF calls on objects owned by `v`, serialized by the video mutex; the
         // stream descriptor's input view is dropped right after the blit.
         unsafe {
             let sample = match v.allocator.AllocateSample() {
                 Ok(s) => s,
-                Err(e) if e.code() == MF_E_SAMPLEALLOCATOR_EMPTY => return Ok(()), // encoder busy: drop
+                Err(e) if e.code() == MF_E_SAMPLEALLOCATOR_EMPTY => {
+                    v.stats.busy += 1; // encoder busy: drop
+                    return Ok(());
+                }
                 Err(e) => return Err(win_err("AllocateSample", e)),
             };
             let buffer = sample.GetBufferByIndex(0).map_err(|e| win_err("sample buffer", e))?;
@@ -593,7 +698,9 @@ impl Engine {
                 None => RECT { left: 0, top: 0, right: v.content.0 as i32, bottom: v.content.1 as i32 },
             };
             let src_size = ((src.right - src.left).max(1) as u32, (src.bottom - src.top).max(1) as u32);
-            let dest = fit(src_size, v.out);
+            let (dx, dy, dw, dh) = yuv::fit(src_size, v.out);
+            let dest =
+                RECT { left: dx as i32, top: dy as i32, right: (dx + dw) as i32, bottom: (dy + dh) as i32 };
             let vc = &v.video_context;
             vc.VideoProcessorSetStreamSourceRect(&p.processor, 0, true, Some(&src));
             vc.VideoProcessorSetStreamDestRect(&p.processor, 0, true, Some(&dest));
@@ -807,19 +914,5 @@ impl Video {
             self.processor = Some(Processor { enumerator, processor, input, input_size: src.size });
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::fit;
-
-    #[test]
-    fn fit_letterboxes_and_keeps_even_sizes() {
-        let r = fit((1000, 500), (1920, 1080));
-        assert_eq!((r.right - r.left, r.bottom - r.top), (1920, 960));
-        assert_eq!(r.top, 60);
-        let r = fit((1920, 1080), (1920, 1080));
-        assert_eq!((r.left, r.top, r.right, r.bottom), (0, 0, 1920, 1080));
     }
 }

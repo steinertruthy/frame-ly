@@ -14,3 +14,4 @@ pub mod settings;
 pub mod shortcuts;
 pub mod sounds;
 pub mod video;
+pub mod yuv;

@@ -187,6 +187,23 @@ impl Writer {
         }
     }
 
+    /// An NV12 frame in system memory (CPU conversion path), stride = width.
+    pub fn write_video_nv12(&self, nv12: &[u8], time: i64, duration: i64) -> AppResult<()> {
+        let bytes = nv12.len() as u32;
+        // SAFETY: the buffer is locked for exactly `bytes` and filled within bounds.
+        unsafe {
+            let buffer = MFCreateMemoryBuffer(bytes).map_err(|e| win_err("video buffer", e))?;
+            let mut data = std::ptr::null_mut();
+            buffer.Lock(&mut data, None, None).map_err(|e| win_err("lock video buffer", e))?;
+            std::ptr::copy_nonoverlapping(nv12.as_ptr(), data, nv12.len());
+            buffer.Unlock().map_err(|e| win_err("unlock video buffer", e))?;
+            buffer.SetCurrentLength(bytes).map_err(|e| win_err("video length", e))?;
+            let sample = MFCreateSample().map_err(|e| win_err("video sample", e))?;
+            sample.AddBuffer(&buffer).map_err(|e| win_err("video AddBuffer", e))?;
+            self.write_video(&sample, time, duration)
+        }
+    }
+
     /// Interleaved stereo f32 at 48 kHz, starting at `time` (100 ns from the start of the file).
     pub fn write_audio(&self, samples: &[f32], time: i64) -> AppResult<()> {
         let Some(stream) = self.audio else { return Ok(()) };
