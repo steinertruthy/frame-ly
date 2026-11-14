@@ -178,7 +178,7 @@
     {#if library.recentImages.length}<button class="link" onclick={() => seeAll('image')}>{t('home.seeAll')}<ArrowRight size={14} /></button>{/if}
   </header>
   {#if library.recentImages.length}
-    <div class="grid images">
+    <div class="grid">
       {#each library.recentImages as item (item.id)}
         <MediaTile
           {item}
@@ -210,7 +210,7 @@
       {#if library.recentVideos.length}<button class="link" onclick={() => seeAll('video')}>{t('home.seeAll')}<ArrowRight size={14} /></button>{/if}
     </header>
     {#if library.recentVideos.length}
-      <div class="grid videos">
+      <div class="grid">
         {#each library.recentVideos as item (item.id)}
           <MediaTile
             {item}
@@ -516,10 +516,8 @@
     display: grid;
     gap: 14px;
   }
-  .grid.images {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  }
-  .grid.videos {
+  /* Screenshots and recordings share one grid, so cards line up column for column. */
+  .grid {
     grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   }
   .empty {
