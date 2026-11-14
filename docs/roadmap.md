@@ -6,7 +6,7 @@
 | 1 | `CaptureBackend`, FrameLyKit (Swift), listagem de monitores/janelas/áudio, permissões | ✅ |
 | 2 | Screenshots ponta a ponta (tela, monitor, janela, região), clipboard, preview | ✅ |
 | 3 | Gravação de vídeo no macOS (SCK + AVAssetWriter), pausa, recuperação | ✅ |
-| 4 | Gravação de vídeo no Windows (WGC + Media Foundation) | ✅ (compila e passa no lint; falta validar em hardware Windows) |
+| 4 | Gravação de vídeo no Windows (WGC + Media Foundation) | ✅ (tela inteira validada em hardware Windows x64 pela GPU; janela, área, pausa e áudio ainda por conferir) |
 | 5 | Áudio: microfone, sistema, mix, sincronização (macOS e Windows) | ✅ |
 | 6 | Painel rápido da bandeja + atalhos globais | ✅ |
 | 7 | Biblioteca + Dashboard | ✅ |
