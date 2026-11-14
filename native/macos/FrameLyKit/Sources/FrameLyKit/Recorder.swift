@@ -163,6 +163,24 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
         return dict[kVTCompressionPropertyKey_Quality as String] != nil
     }
 
+    /// (system, microphone) silenced by the user; applied to the mixer on `audioQueue`.
+    private var muted = (system: false, microphone: false)
+
+    func setMuted(system: Bool, microphone: Bool) {
+        audioQueue.async {
+            self.muted = (system, microphone)
+            self.applyGains()
+        }
+    }
+
+    /// Mixer gains = configured gains, zeroed for muted sources. Runs on `audioQueue`.
+    private func applyGains() {
+        guard let mixer else { return }
+        let base = gains
+        if let s = systemSource { mixer.setGain(muted.system ? 0 : base[s], source: s) }
+        if let m = micSource { mixer.setGain(muted.microphone ? 0 : base[m], source: m) }
+    }
+
     private var gains: [Float] {
         var g: [Float] = []
         if systemSource != nil { g.append(config.audio?.systemGain ?? 1) }
@@ -253,7 +271,10 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
             if audioInput != nil {
                 // Audio shares the video timeline: frame 0 of the mix = first video frame.
                 let gains = gains
-                audioQueue.async { self.mixer = AudioMixer(origin: pts, gains: gains) }
+                audioQueue.async {
+                    self.mixer = AudioMixer(origin: pts, gains: gains)
+                    self.applyGains()
+                }
             }
             emit(#"{"kind":"started"}"#)
         }
@@ -459,6 +480,12 @@ public func fl_rec_pause() {
 public func fl_rec_resume() {
     lock.lock(); let r = current; lock.unlock()
     r?.resume()
+}
+
+@_cdecl("fl_rec_set_muted")
+public func fl_rec_set_muted(_ system: Bool, _ microphone: Bool) {
+    lock.lock(); let r = current; lock.unlock()
+    r?.setMuted(system: system, microphone: microphone)
 }
 
 @_cdecl("fl_rec_levels")

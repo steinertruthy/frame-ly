@@ -301,6 +301,9 @@
               </SettingRow>
             </Section>
             <Section title={t('settings.group.whileRecording')}>
+              <SettingRow title={t('settings.recording.controls')} hint={t('settings.recording.controls.hint')}>
+                <Toggle label={t('settings.recording.controls')} checked={s.recording.showControls} onchange={(v) => set((d) => (d.recording.showControls = v))} />
+              </SettingRow>
               <SettingRow title={t('settings.recording.countdown')} hint={t('settings.recording.countdown.hint')}>
                 <Segmented
                   label={t('settings.recording.countdown')}
@@ -318,9 +321,6 @@
               </SettingRow>
               <SettingRow title={t('settings.recording.preview')} hint={t('settings.recording.preview.hint')}>
                 <Toggle label={t('settings.recording.preview')} checked={s.recording.showPreview} onchange={(v) => set((d) => (d.recording.showPreview = v))} />
-              </SettingRow>
-              <SettingRow title={t('settings.recording.controls')} hint={t('settings.recording.controls.hint')}>
-                <Toggle label={t('settings.recording.controls')} checked={s.recording.showControls} onchange={(v) => set((d) => (d.recording.showControls = v))} />
               </SettingRow>
             </Section>
           {:else if category === 'audio'}

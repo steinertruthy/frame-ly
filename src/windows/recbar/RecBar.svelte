@@ -3,8 +3,8 @@
    * Floating recording controls: elapsed time, sound levels, pause/resume and stop.
    * Lives on the recorded display, can be dragged anywhere, and is never part of the video.
    */
-  import { Mic, Volume2, Pause, Play, Square, EyeOff } from '@lucide/svelte';
-  import LevelMeter from '$lib/components/LevelMeter.svelte';
+  import { Pause, Play, Square, EyeOff } from '@lucide/svelte';
+  import MuteMeter from '$lib/components/MuteMeter.svelte';
   import { t } from '$lib/i18n/index.svelte';
   import { commands } from '$lib/ipc/commands';
   import { logUi } from '$lib/ipc/log';
@@ -30,10 +30,10 @@
     <span class="sep" data-tauri-drag-region></span>
     <div class="meters" data-tauri-drag-region>
       {#if rec.audio.microphone}
-        <span title={t('audio.microphone')}><Mic size={12} /><LevelMeter level={rec.audio.levels.microphone} segments={8} label={t('audio.microphone')} /></span>
+        <MuteMeter source="microphone" level={rec.audio.levels.microphone} muted={rec.audio.microphoneMuted} />
       {/if}
       {#if rec.audio.system}
-        <span title={t('audio.system')}><Volume2 size={12} /><LevelMeter level={rec.audio.levels.system} segments={8} label={t('audio.system')} /></span>
+        <MuteMeter source="system" level={rec.audio.levels.system} muted={rec.audio.systemMuted} />
       {/if}
     </div>
   {/if}
@@ -139,11 +139,6 @@
     flex-direction: column;
     gap: 4px;
     color: #8b95a8;
-  }
-  .meters span {
-    display: flex;
-    align-items: center;
-    gap: 6px;
   }
   .btn {
     display: grid;

@@ -28,6 +28,11 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
 }
 
 #[tauri::command]
+pub fn set_recording_audio_muted(app: AppHandle, source: String, muted: bool) {
+    recording::set_audio_muted(&app, &source, muted);
+}
+
+#[tauri::command]
 pub fn set_recording_controls_visible(app: AppHandle, visible: bool) {
     recording::set_controls_visible(&app, visible);
 }

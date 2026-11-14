@@ -136,6 +136,8 @@ pub trait CaptureBackend: Send + Sync {
     fn discard_recording(&self);
     /// Current peak levels (0…1) of the sources in the active recording.
     fn recording_levels(&self) -> AudioLevels;
+    /// Silences (or restores) a source of the active recording; the timeline is unaffected.
+    fn set_audio_muted(&self, system: bool, microphone: bool);
 
     /// "Test microphone" meter, independent of recording.
     fn mic_monitor_start(&self, device_id: Option<&str>) -> AppResult<()>;

@@ -60,6 +60,8 @@ export const commands = {
   resumeRecording: () => invoke<void>('resume_recording'),
   stopRecording: () => invoke<void>('stop_recording'),
   cancelCountdown: () => invoke<void>('cancel_countdown'),
+  setRecordingAudioMuted: (source: 'system' | 'microphone', muted: boolean) =>
+    invoke<void>('set_recording_audio_muted', { source, muted }),
   setRecordingControlsVisible: (visible: boolean) => invoke<void>('set_recording_controls_visible', { visible }),
   recordingControlsHidden: () => invoke<boolean>('recording_controls_hidden'),
   recordingStatus: () => invoke<RecordingStatus>('recording_status'),

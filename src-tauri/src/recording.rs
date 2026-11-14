@@ -126,6 +126,8 @@ struct Active {
     kind: &'static str,
     /// (system audio, microphone) actually captured.
     audio: Option<(bool, bool)>,
+    /// (system audio, microphone) silenced by the user during the recording.
+    muted: (bool, bool),
     size: (u32, u32),
     started_at: chrono::DateTime<chrono::Local>,
     temp: PathBuf,
@@ -197,6 +199,8 @@ pub struct Status {
 pub struct AudioStatus {
     pub system: bool,
     pub microphone: bool,
+    pub system_muted: bool,
+    pub microphone_muted: bool,
     pub levels: crate::platform::AudioLevels,
 }
 
@@ -227,9 +231,12 @@ fn work_dir(app: &AppHandle) -> AppResult<PathBuf> {
 pub fn status(app: &AppHandle) -> Status {
     let st = state(app);
     let inner = st.recordings.inner.lock().unwrap();
+    let muted = inner.active.as_ref().map(|a| a.muted).unwrap_or_default();
     let audio = inner.active.as_ref().and_then(|a| a.audio).map(|(system, microphone)| AudioStatus {
         system,
         microphone,
+        system_muted: muted.0,
+        microphone_muted: muted.1,
         levels: if matches!(inner.recorder.phase(), Phase::Recording) {
             st.backend.recording_levels()
         } else {
@@ -436,6 +443,7 @@ async fn start_native(
         id,
         kind: target.kind(),
         audio: audio.map(|a| (a.system, a.microphone)),
+        muted: (false, false),
         size: (config.width, config.height),
         started_at,
         temp,
@@ -527,6 +535,24 @@ pub fn toggle_pause(app: &AppHandle) -> AppResult<()> {
         Phase::Paused => resume(app),
         _ => pause(app),
     }
+}
+
+/// Silences or restores one captured source ("system" | "microphone") during the recording.
+pub fn set_audio_muted(app: &AppHandle, source: &str, muted: bool) {
+    let st = state(app);
+    let flags = {
+        let mut inner = st.recordings.inner.lock().unwrap();
+        let Some(active) = inner.active.as_mut() else { return };
+        match source {
+            "system" => active.muted.0 = muted,
+            "microphone" => active.muted.1 = muted,
+            _ => return,
+        }
+        active.muted
+    };
+    st.backend.set_audio_muted(flags.0, flags.1);
+    tracing::info!(source, muted, "recording audio source muted");
+    publish(app);
 }
 
 /// Hides or shows the floating controls for the current recording (recording continues).

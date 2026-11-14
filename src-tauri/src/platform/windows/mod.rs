@@ -122,6 +122,10 @@ impl CaptureBackend for WinBackend {
         recorder::levels()
     }
 
+    fn set_audio_muted(&self, system: bool, microphone: bool) {
+        recorder::set_muted(system, microphone);
+    }
+
     fn mic_monitor_start(&self, device_id: Option<&str>) -> AppResult<()> {
         let mut current = MIC_TEST.lock().unwrap();
         *current = None; // stop the previous one before opening the device again

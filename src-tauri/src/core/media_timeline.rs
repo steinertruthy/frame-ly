@@ -272,6 +272,18 @@ mod tests {
     }
 
     #[test]
+    fn zero_gain_mutes_a_source_without_moving_the_timeline() {
+        let mut m = AudioMixer::new(0, TPS, &[1.0, 1.0]);
+        m.sources[1].gain = 0.0; // microphone muted
+        m.push(0, 0, &vec![0.0; 960]);
+        m.push(1, 0, &vec![0.5; 960]);
+        let (start, out) = m.pull(false).unwrap();
+        assert_eq!(start, 0);
+        assert!(out.iter().all(|&x| x == 0.0));
+        assert_eq!(m.sources[1].peak, 0.0, "meter shows silence");
+    }
+
+    #[test]
     fn soft_clip_never_exceeds_one() {
         assert_eq!(soft_clip(0.5), 0.5);
         assert!(soft_clip(3.0) <= 1.0 && soft_clip(3.0) > 0.8);

@@ -65,7 +65,7 @@ export interface RecordingStatus {
   phase: RecordPhase;
   elapsedMs: number;
   target: 'display' | 'window' | 'region' | null;
-  audio: { system: boolean; microphone: boolean; levels: AudioLevels } | null;
+  audio: { system: boolean; microphone: boolean; systemMuted: boolean; microphoneMuted: boolean; levels: AudioLevels } | null;
 }
 
 export type RecordingWarning = 'microphone_permission' | 'microphone_missing' | 'microphone_fallback';

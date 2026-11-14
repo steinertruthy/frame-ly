@@ -75,6 +75,13 @@ final class AudioMixer {
         }
     }
 
+    /// Changes a source's gain (0 = muted) for audio pushed from now on.
+    func setGain(_ gain: Float, source index: Int) {
+        guard sources.indices.contains(index) else { return }
+        sources[index].gain = gain
+        if gain == 0 { sources[index].peak = 0 }
+    }
+
     /// A source that stopped for good (device unplugged): never wait for it again.
     func deactivate(source index: Int) {
         guard sources.indices.contains(index) else { return }

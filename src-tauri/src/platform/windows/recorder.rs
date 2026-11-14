@@ -128,6 +128,8 @@ struct Processor {
 struct AudioState {
     mixer: Option<AudioMixer>,
     gains: Vec<f32>,
+    /// (system, microphone) silenced by the user during the recording.
+    muted: (bool, bool),
     system: Option<usize>,
     mic: Option<usize>,
 }
@@ -199,6 +201,15 @@ pub fn stop() -> AppResult<RecordingStats> {
 pub fn discard() {
     if let Some(r) = CURRENT.lock().unwrap().take() {
         let _ = r.finish();
+    }
+}
+
+/// Silences (or restores) system audio / microphone in the mix; recording continues.
+pub fn set_muted(system: bool, microphone: bool) {
+    if let Some(r) = CURRENT.lock().unwrap().as_ref() {
+        let mut a = r.engine.audio.lock().unwrap();
+        a.muted = (system, microphone);
+        a.apply_gains();
     }
 }
 
@@ -389,7 +400,13 @@ impl Recorder {
             }),
             writer: Mutex::new(Some(writer)),
             timeline: Mutex::new(PauseTimeline::default()),
-            audio: Mutex::new(AudioState { mixer: None, gains, system: system_index, mic: mic_index }),
+            audio: Mutex::new(AudioState {
+                mixer: None,
+                gains,
+                muted: (false, false),
+                system: system_index,
+                mic: mic_index,
+            }),
             origin: OnceLock::new(),
             interval: TICKS / config.fps.max(1) as i64,
             output: PathBuf::from(&config.output_path),
@@ -816,6 +833,17 @@ impl AudioState {
     fn start(&mut self, origin_clock: i64) {
         if self.mixer.is_none() && !self.gains.is_empty() {
             self.mixer = Some(AudioMixer::new(origin_clock, TICKS, &self.gains));
+            self.apply_gains();
+        }
+    }
+
+    /// Mixer gains = configured gains, zeroed for muted sources.
+    fn apply_gains(&mut self) {
+        let Some(m) = self.mixer.as_mut() else { return };
+        for (index, muted) in [(self.system, self.muted.0), (self.mic, self.muted.1)] {
+            if let Some(i) = index {
+                m.sources[i].gain = if muted { 0.0 } else { self.gains[i] };
+            }
         }
     }
 }

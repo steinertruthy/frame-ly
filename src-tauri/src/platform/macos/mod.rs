@@ -30,6 +30,7 @@ extern "C" {
     fn fl_rec_stop() -> *mut c_char;
     fn fl_rec_discard();
     fn fl_rec_levels() -> *mut c_char;
+    fn fl_rec_set_muted(system: bool, microphone: bool);
     fn fl_mic_monitor_start(device_id: *const c_char) -> *mut c_char;
     fn fl_mic_monitor_level() -> f32;
     fn fl_mic_monitor_stop();
@@ -235,6 +236,11 @@ impl CaptureBackend for MacBackend {
         // SAFETY: no arguments.
         unsafe { fl_rec_discard() };
         EVENTS.lock().unwrap().take();
+    }
+
+    fn set_audio_muted(&self, system: bool, microphone: bool) {
+        // SAFETY: plain values; the Swift side ignores the call when nothing is recording.
+        unsafe { fl_rec_set_muted(system, microphone) }
     }
 
     fn recording_levels(&self) -> super::AudioLevels {

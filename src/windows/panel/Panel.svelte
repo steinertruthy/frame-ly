@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
-  import { Settings, Images, Camera, ChevronDown, Mic, Volume2, Pause, Play, Square, Eye } from '@lucide/svelte';
+  import { Settings, Images, Camera, ChevronDown, Pause, Play, Square, Eye } from '@lucide/svelte';
   import Aurora from '$lib/components/Aurora.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
-  import LevelMeter from '$lib/components/LevelMeter.svelte';
+  import MuteMeter from '$lib/components/MuteMeter.svelte';
   import RecordSetup from '$lib/components/RecordSetup.svelte';
   import MediaTile from '$lib/components/library/MediaTile.svelte';
   import { itemActions } from '$lib/components/library/actions';
@@ -134,8 +134,12 @@
       <div class="clock">{formatDuration(rec.elapsedMs)}</div>
       {#if rec.audio}
         <div class="meters">
-          {#if rec.audio.microphone}<span><Mic size={13} /><LevelMeter level={rec.audio.levels.microphone} segments={16} /></span>{/if}
-          {#if rec.audio.system}<span><Volume2 size={13} /><LevelMeter level={rec.audio.levels.system} segments={16} /></span>{/if}
+          {#if rec.audio.microphone}
+            <MuteMeter source="microphone" level={rec.audio.levels.microphone} muted={rec.audio.microphoneMuted} segments={16} />
+          {/if}
+          {#if rec.audio.system}
+            <MuteMeter source="system" level={rec.audio.levels.system} muted={rec.audio.systemMuted} segments={16} />
+          {/if}
         </div>
       {/if}
       <div class="controls">
@@ -151,11 +155,6 @@
       {#if pillHidden}
         <button class="link show-pill" onclick={showPill}><Eye size={14} />{t('record.showControls')}</button>
       {/if}
-      <div class="hint">
-        {#each [['stopRecording', 'record.stop'], ['togglePause', 'shortcuts.action.togglePause']] as const as [a, label] (a)}
-          {#if keys(a).length}<span>{t(label)} {@render chip(keys(a))}</span>{/if}
-        {/each}
-      </div>
     </section>
   {:else}
     {#if system.permissions && !system.screenReady}
