@@ -88,8 +88,8 @@
   }
   .levels {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: center;
+    gap: 14px;
     color: var(--text-3);
   }
   .controls {

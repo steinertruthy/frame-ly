@@ -533,11 +533,6 @@
     gap: 6px;
     color: var(--text-3);
   }
-  .meters span {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
   .show-pill {
     display: inline-flex;
     align-items: center;

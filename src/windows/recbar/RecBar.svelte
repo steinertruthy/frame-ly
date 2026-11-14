@@ -30,10 +30,10 @@
     <span class="sep" data-tauri-drag-region></span>
     <div class="meters" data-tauri-drag-region>
       {#if rec.audio.microphone}
-        <MuteMeter source="microphone" level={rec.audio.levels.microphone} muted={rec.audio.microphoneMuted} />
+        <MuteMeter source="microphone" level={rec.audio.levels.microphone} muted={rec.audio.microphoneMuted} segments={6} size={12} compact />
       {/if}
       {#if rec.audio.system}
-        <MuteMeter source="system" level={rec.audio.levels.system} muted={rec.audio.systemMuted} />
+        <MuteMeter source="system" level={rec.audio.levels.system} muted={rec.audio.systemMuted} segments={6} size={12} compact />
       {/if}
     </div>
   {/if}
@@ -134,10 +134,11 @@
     height: 20px;
     background: rgb(255 255 255 / 0.1);
   }
+  /* Side by side: two stacked meters would not fit the 44 pt pill. */
   .meters {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: center;
+    gap: 10px;
     color: #8b95a8;
   }
   .btn {

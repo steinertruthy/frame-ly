@@ -15,7 +15,16 @@
     muted,
     segments = 8,
     size = 13,
-  }: { source: 'system' | 'microphone'; level: number; muted: boolean; segments?: number; size?: number } = $props();
+    compact = false,
+  }: {
+    source: 'system' | 'microphone';
+    level: number;
+    muted: boolean;
+    segments?: number;
+    size?: number;
+    /** Smaller button, for the floating pill. */
+    compact?: boolean;
+  } = $props();
 
   const name = $derived(t(source === 'microphone' ? 'audio.microphone' : 'audio.system'));
   const action = $derived(t(muted ? 'record.unmute' : 'record.mute', { source: name }));
@@ -25,7 +34,7 @@
   }
 </script>
 
-<span class="source" class:muted>
+<span class="source" class:muted class:compact>
   <button class="toggle" onclick={toggle} aria-pressed={muted} aria-label={action} title={action}>
     {#if source === 'microphone'}
       {#if muted}<MicOff {size} />{:else}<Mic {size} />{/if}
@@ -53,6 +62,14 @@
     transition:
       background var(--dur-fast),
       color var(--dur-fast);
+  }
+  .compact {
+    gap: 4px;
+  }
+  .compact .toggle {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
   }
   .toggle:hover {
     background: rgb(255 255 255 / 0.1);
