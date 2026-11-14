@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyAudioMode, audioMode, recordRequest, summaryKeys } from './recordSetup';
 
-const audio = (microphone: boolean, systemAudio: boolean) => ({ microphone, systemAudio, microphoneDevice: null, systemGain: 1, microphoneGain: 1 });
+const audio = (microphone: boolean, systemAudio: boolean) => ({ microphone, systemAudio, microphoneDevice: null, systemGain: 1, microphoneGain: 1, noiseSuppression: true });
 
 describe('record setup', () => {
   it('maps audio flags to a mode and back', () => {

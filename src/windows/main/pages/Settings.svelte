@@ -353,6 +353,9 @@
                 <MicTest deviceId={s.audio.microphoneDevice} />
                 <Slider label={t('audio.micVolume')} value={s.audio.microphoneGain} onchange={(v) => set((d) => (d.audio.microphoneGain = v))} />
               </SettingRow>
+              <SettingRow title={t('settings.audio.noise')} hint={t('settings.audio.noise.hint')}>
+                <Toggle label={t('settings.audio.noise')} checked={s.audio.noiseSuppression} onchange={(v) => set((d) => (d.audio.noiseSuppression = v))} />
+              </SettingRow>
             </Section>
             <Section title={t('settings.group.computerSound')}>
               <SettingRow title={t('settings.audio.systemSource')} hint={t('settings.audio.systemSource.hint')}>

@@ -129,6 +129,8 @@ export const de: Messages = {
   'audio.device.default': 'Systemstandard',
   'audio.systemVolume': 'Lautstärke des Computertons',
   'audio.micVolume': 'Mikrofonlautstärke',
+  'settings.audio.noise': 'Rauschunterdrückung',
+  'settings.audio.noise.hint': 'Entfernt gleichmäßige Hintergrundgeräusche vom Mikrofon – Lüfter, Klimaanlage, Rauschen, Verkehr – und behält deine Stimme. Für Musik oder andere Geräusche als Sprache ausschalten.',
   'audio.test': 'Testen',
   'audio.test.stop': 'Test beenden',
   'audio.test.hint': 'Sag etwas, um den Pegel zu prüfen.',

@@ -38,6 +38,12 @@ trash = "5"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 libc = "0.2"
 percent-encoding = "2"
+nnnoiseless = { version = "0.5", default-features = false }
+
+[features]
+# Windows test builds that also encode each recording at other quality levels (see
+# `platform::windows::recorder::calibration_writers`).
+calibration = []
 
 [target.'cfg(windows)'.dependencies]
 arboard = { version = "3.7", default-features = false, features = ["image-data"] }

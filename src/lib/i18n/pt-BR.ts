@@ -129,6 +129,8 @@ export const ptBR: Messages = {
   'audio.device.default': 'Padrão do sistema',
   'audio.systemVolume': 'Volume do som do computador',
   'audio.micVolume': 'Volume do microfone',
+  'settings.audio.noise': 'Redução de ruído',
+  'settings.audio.noise.hint': 'Tira do microfone barulhos de fundo constantes — ventilador, ar-condicionado, chiado, rua — e mantém a sua voz. Desligue se for gravar música ou sons que não sejam fala.',
   'audio.test': 'Testar',
   'audio.test.stop': 'Parar teste',
   'audio.test.hint': 'Fale algo para conferir o nível.',

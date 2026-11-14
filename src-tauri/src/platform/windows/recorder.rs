@@ -14,6 +14,7 @@
 use super::{capture, displays, media, wasapi::Capture, win_err};
 use crate::{
     core::{
+        denoise::Denoiser,
         errors::{AppError, AppResult},
         image::PixelRect,
         media_timeline::{AudioMixer, PauseTimeline},
@@ -137,6 +138,9 @@ struct AudioState {
 struct Engine {
     video: Mutex<Video>,
     writer: Mutex<Option<media::Writer>>,
+    /// Calibration builds only (`--features calibration`): the same frames and audio encoded
+    /// at other quality levels, to compare size and sharpness on identical content.
+    extra: Mutex<Vec<(PathBuf, media::Writer)>>,
     timeline: Mutex<PauseTimeline>,
     audio: Mutex<AudioState>,
     /// Clock time of the first written frame = time zero of the file.
@@ -318,7 +322,12 @@ impl Recorder {
             // A few frames in flight; when the encoder falls behind, allocation fails and the
             // frame is dropped instead of stalling capture.
             allocator
-                .InitializeSampleAllocatorEx(4, 12, &attrs, &nv12)
+                .InitializeSampleAllocatorEx(
+                    4,
+                    if cfg!(feature = "calibration") { 32 } else { 12 },
+                    &attrs,
+                    &nv12,
+                )
                 .map_err(|e| win_err("allocator init", e))?;
             (context, video_device, video_context, manager, allocator)
         };
@@ -336,6 +345,8 @@ impl Recorder {
             audio: wants_system || wants_mic,
             manager: &manager,
         })?;
+
+        let extra = calibration_writers(config, out, wants_system || wants_mic, &manager);
 
         // Audio devices open before capture starts, so their first packets are not late.
         let system = if wants_system {
@@ -399,6 +410,7 @@ impl Recorder {
                 stats: Diagnostics::default(),
             }),
             writer: Mutex::new(Some(writer)),
+            extra: Mutex::new(extra),
             timeline: Mutex::new(PauseTimeline::default()),
             audio: Mutex::new(AudioState {
                 mixer: None,
@@ -445,12 +457,13 @@ impl Recorder {
 
         session.StartCapture().map_err(|e| win_err("StartCapture", e))?;
 
+        let denoise = config.audio.as_ref().is_some_and(|a| a.noise_suppression);
         let audio_engine = Arc::clone(&engine);
         let audio_thread = (system.is_some() || mic.is_some())
             .then(|| {
                 std::thread::Builder::new()
                     .name("framely-audio".into())
-                    .spawn(move || audio_engine.run_audio(system, mic))
+                    .spawn(move || audio_engine.run_audio(system, mic, denoise))
                     .ok()
             })
             .flatten();
@@ -516,6 +529,11 @@ impl Recorder {
         if let Some(w) = writer {
             w.finalize()?;
         }
+        for (path, w) in std::mem::take(&mut *engine.extra.lock().unwrap()) {
+            let result = w.finalize();
+            let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+            tracing::info!(path = %path.display(), bytes, ok = result.is_ok(), "calibration file");
+        }
         let video = engine.video.lock().unwrap();
         Ok(RecordingStats {
             duration_ms: ((last_written - origin + engine.interval).max(0) / 10_000) as u64,
@@ -525,6 +543,49 @@ impl Recorder {
             audio,
         })
     }
+}
+
+/// Calibration builds: extra encoders at other quality levels, writing to
+/// `Videos\FrameLy\Calibração\<time> q45.mp4` etc. Empty in normal builds.
+fn calibration_writers(
+    config: &NativeRecording,
+    out: (u32, u32),
+    audio: bool,
+    manager: &windows::Win32::Media::MediaFoundation::IMFDXGIDeviceManager,
+) -> Vec<(PathBuf, media::Writer)> {
+    if !cfg!(feature = "calibration") {
+        return Vec::new();
+    }
+    let Ok(home) = std::env::var("USERPROFILE") else { return Vec::new() };
+    let dir = PathBuf::from(home).join("Videos").join("FrameLy").join("Calibração");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return Vec::new();
+    }
+    let stamp = chrono::Local::now().format("%H.%M.%S");
+    [0.45, 0.55, 0.65]
+        .into_iter()
+        .filter_map(|q: f64| {
+            let path = dir.join(format!("{stamp} q{}.mp4", (q * 100.0).round()));
+            let cfg = media::WriterConfig {
+                path: &path,
+                width: out.0,
+                height: out.1,
+                fps: config.fps,
+                bitrate: config.bitrate,
+                quality: q,
+                codec: config.codec,
+                audio,
+                manager,
+            };
+            match media::Writer::create(&cfg) {
+                Ok(w) => Some((path, w)),
+                Err(e) => {
+                    tracing::warn!(error = %e, quality = q, "calibration encoder unavailable");
+                    None
+                }
+            }
+        })
+        .collect()
 }
 
 /// The capture item went away (window closed, display unplugged): finalize and tell the app.
@@ -666,6 +727,9 @@ impl Engine {
             v.frames += 1;
             v.newer = false;
         }
+        for (_, w) in self.extra.lock().unwrap().iter() {
+            let _ = w.write_video_nv12(&nv12, time.max(0), self.interval);
+        }
         Ok(())
     }
 
@@ -747,6 +811,9 @@ impl Engine {
                 v.frames += 1;
                 v.newer = false;
             }
+            for (_, w) in self.extra.lock().unwrap().iter() {
+                let _ = w.write_video(&sample, time.max(0), self.interval);
+            }
         }
         Ok(())
     }
@@ -777,17 +844,30 @@ impl Engine {
     }
 
     /// Audio thread: polls both devices every ~10 ms, mixes on the video clock and writes AAC.
-    fn run_audio(self: Arc<Self>, mut system: Option<Capture>, mut mic: Option<Capture>) {
+    fn run_audio(self: Arc<Self>, mut system: Option<Capture>, mut mic: Option<Capture>, denoise: bool) {
         let _ = media::init();
+        // Microphone noise suppression; its fixed delay is taken off the timestamps.
+        let mut denoiser = (denoise && mic.is_some()).then(Denoiser::new);
+        let denoise_shift = crate::core::denoise::LATENCY_FRAMES as i64 * TICKS / 48_000;
         loop {
             let stopping = self.stop_audio.load(Ordering::SeqCst);
             let (sys_index, mic_index) = {
                 let a = self.audio.lock().unwrap();
                 (a.system, a.mic)
             };
-            for (capture, index) in [(&mut system, sys_index), (&mut mic, mic_index)] {
+            for (capture, index, is_mic) in [(&mut system, sys_index, false), (&mut mic, mic_index, true)] {
                 let (Some(c), Some(i)) = (capture.as_mut(), index) else { continue };
                 let result = c.read(|t, samples| {
+                    let denoised;
+                    let (t, samples) = match (is_mic, denoiser.as_mut()) {
+                        (true, Some(d)) => {
+                            let mut buf = samples.to_vec();
+                            d.process(&mut buf);
+                            denoised = buf;
+                            (t - denoise_shift, &denoised[..])
+                        }
+                        _ => (t, samples),
+                    };
                     if let Some(m) = self.audio.lock().unwrap().mixer.as_mut() {
                         m.push(i, t, samples);
                     }
@@ -823,6 +903,9 @@ impl Engine {
                 if let Err(e) = w.write_audio(&samples, at - origin) {
                     tracing::debug!(error = %e, "audio chunk dropped");
                 }
+            }
+            for (_, w) in self.extra.lock().unwrap().iter() {
+                let _ = w.write_audio(&samples, at - origin);
             }
         }
     }

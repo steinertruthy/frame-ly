@@ -51,6 +51,7 @@ export interface AudioSettings {
   microphoneDevice: string | null;
   systemGain: number;
   microphoneGain: number;
+  noiseSuppression: boolean;
 }
 
 export interface AudioLevels {

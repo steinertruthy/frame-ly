@@ -139,6 +139,8 @@ export const en = {
   'audio.device.default': 'System default',
   'audio.systemVolume': 'Computer sound volume',
   'audio.micVolume': 'Microphone volume',
+  'settings.audio.noise': 'Noise reduction',
+  'settings.audio.noise.hint': 'Removes steady background noise from the microphone — fans, air conditioning, hiss, traffic — and keeps your voice. Turn it off to record music or sounds other than speech.',
   'audio.test': 'Test',
   'audio.test.stop': 'Stop test',
   'audio.test.hint': 'Say something to check the level.',

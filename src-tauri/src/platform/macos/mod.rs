@@ -24,6 +24,7 @@ extern "C" {
     fn fl_free_buffer(ptr: *mut u8);
     fn fl_display_at_cursor() -> u32;
     fn fl_rec_set_callback(cb: Option<extern "C" fn(*const c_char)>);
+    fn fl_set_denoiser(cb: Option<extern "C" fn(*mut f32, usize)>);
     fn fl_rec_start(config_json: *const c_char) -> *mut c_char;
     fn fl_rec_pause();
     fn fl_rec_resume();
@@ -145,6 +146,21 @@ fn decode<T: DeserializeOwned>(json: &str) -> AppResult<T> {
     }
 }
 
+/// Microphone noise suppression for the active recording (see `core::denoise`); Swift calls
+/// `denoise_microphone` on its audio queue with interleaved stereo 48 kHz samples.
+static DENOISER: std::sync::Mutex<Option<crate::core::denoise::Denoiser>> = std::sync::Mutex::new(None);
+
+extern "C" fn denoise_microphone(samples: *mut f32, len: usize) {
+    if samples.is_null() || len == 0 {
+        return;
+    }
+    // SAFETY: Swift passes a buffer it owns, valid for `len` floats, for the duration of the call.
+    let buf = unsafe { std::slice::from_raw_parts_mut(samples, len) };
+    if let Some(d) = DENOISER.lock().unwrap().as_mut() {
+        d.process(buf);
+    }
+}
+
 pub struct MacBackend;
 
 impl CaptureBackend for MacBackend {
@@ -208,8 +224,17 @@ impl CaptureBackend for MacBackend {
         events: super::RecordingEvents,
     ) -> AppResult<()> {
         *EVENTS.lock().unwrap() = Some(events);
-        // SAFETY: registering a 'static extern "C" fn.
-        unsafe { fl_rec_set_callback(Some(on_recording_event)) };
+        // A fresh microphone denoiser per recording (it adapts to the room's noise).
+        *DENOISER.lock().unwrap() = config
+            .audio
+            .as_ref()
+            .filter(|a| a.noise_suppression)
+            .map(|_| crate::core::denoise::Denoiser::new());
+        // SAFETY: registering 'static extern "C" fns.
+        unsafe {
+            fl_rec_set_callback(Some(on_recording_event));
+            fl_set_denoiser(Some(denoise_microphone));
+        }
         let json = serde_json::to_string(config)?;
         call_with::<bool>(fl_rec_start, &json).map(|_| ()).inspect_err(|_| {
             EVENTS.lock().unwrap().take();

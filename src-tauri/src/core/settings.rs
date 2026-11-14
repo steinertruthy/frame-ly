@@ -195,6 +195,8 @@ pub struct Audio {
     /// Linear gains, 0.0–2.0.
     pub system_gain: f32,
     pub microphone_gain: f32,
+    /// Removes steady background noise (fans, hum, street) from the microphone. On by default.
+    pub noise_suppression: bool,
 }
 
 impl Default for Audio {
@@ -205,6 +207,7 @@ impl Default for Audio {
             microphone_device: None,
             system_gain: 1.0,
             microphone_gain: 1.0,
+            noise_suppression: true,
         }
     }
 }

@@ -491,6 +491,12 @@ async fn resolve_audio(app: &AppHandle) -> Option<NativeAudio> {
         microphone_id: device,
         system_gain: a.system_gain,
         microphone_gain: a.microphone_gain,
+        noise_suppression: microphone && a.noise_suppression,
+        denoise_latency_frames: if microphone && a.noise_suppression {
+            crate::core::denoise::LATENCY_FRAMES as u32
+        } else {
+            0
+        },
     })
 }
 

@@ -27,6 +27,10 @@ struct RecordingConfig: Decodable {
         let microphoneId: String?
         let systemGain: Float
         let microphoneGain: Float
+        /// Denoise the microphone through the host's callback (`fl_set_denoiser`).
+        let noiseSuppression: Bool?
+        /// The denoiser's fixed delay in 48 kHz frames, taken off the microphone timestamps.
+        let denoiseLatencyFrames: Int?
     }
     let target: Target
     let audio: Audio?
@@ -295,7 +299,12 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
 
     /// Runs on `audioQueue`: feed the mixer, then write whatever it releases.
     private func pushAudio(_ sb: CMSampleBuffer, pts: CMTime, source: Int) {
-        guard let mixer, !audioFinished, let samples = PCM.interleavedStereo(sb) else { return }
+        guard let mixer, !audioFinished, var samples = PCM.interleavedStereo(sb) else { return }
+        var pts = pts
+        if source == micSource, config.audio?.noiseSuppression == true, let denoise = currentDenoiser() {
+            samples.withUnsafeMutableBufferPointer { denoise($0.baseAddress!, $0.count) }
+            pts = pts - CMTime(value: CMTimeValue(config.audio?.denoiseLatencyFrames ?? 0), timescale: 48_000)
+        }
         mixer.push(source: source, pts: pts, samples: samples)
         drainMixer(flush: false)
     }
@@ -447,6 +456,21 @@ nonisolated(unsafe) private var callback: EventCallback?
 private func sendEvent(_ json: String) {
     guard let cb = callback else { return }
     json.withCString { cb($0) }
+}
+
+public typealias DenoiseCallback = @convention(c) (UnsafeMutablePointer<Float>, Int) -> Void
+nonisolated(unsafe) private var denoiser: DenoiseCallback?
+
+private func currentDenoiser() -> DenoiseCallback? {
+    lock.lock(); defer { lock.unlock() }
+    return denoiser
+}
+
+/// The host (Rust) provides microphone noise suppression; called with interleaved stereo.
+@_cdecl("fl_set_denoiser")
+public func fl_set_denoiser(_ cb: DenoiseCallback?) {
+    lock.lock(); defer { lock.unlock() }
+    denoiser = cb
 }
 
 @_cdecl("fl_rec_set_callback")

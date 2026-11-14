@@ -1,6 +1,7 @@
 //! Platform-independent application core: errors, settings, paths, logging and locale.
 //! Nothing in here calls OS capture APIs; those live in `platform/` (from Stage 1).
 
+pub mod denoise;
 pub mod errors;
 pub mod image;
 pub mod library;

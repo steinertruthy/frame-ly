@@ -165,6 +165,11 @@ pub struct NativeAudio {
     pub microphone_id: Option<String>,
     pub system_gain: f32,
     pub microphone_gain: f32,
+    /// Denoise the microphone (`core::denoise`); the engine shifts its timestamps by the
+    /// denoiser's latency.
+    pub noise_suppression: bool,
+    /// That latency, in 48 kHz frames (0 when off).
+    pub denoise_latency_frames: u32,
 }
 
 pub type RecordingEvents = std::sync::Arc<dyn Fn(NativeEvent) + Send + Sync>;

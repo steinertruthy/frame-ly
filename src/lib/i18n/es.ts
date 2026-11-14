@@ -129,6 +129,8 @@ export const es: Messages = {
   'audio.device.default': 'Predeterminado del sistema',
   'audio.systemVolume': 'Volumen del sonido del ordenador',
   'audio.micVolume': 'Volumen del micrófono',
+  'settings.audio.noise': 'Reducción de ruido',
+  'settings.audio.noise.hint': 'Quita del micrófono los ruidos de fondo constantes —ventilador, aire acondicionado, siseo, tráfico— y mantiene tu voz. Desactívala para grabar música u otros sonidos que no sean voz.',
   'audio.test': 'Probar',
   'audio.test.stop': 'Detener prueba',
   'audio.test.hint': 'Di algo para comprobar el nivel.',
