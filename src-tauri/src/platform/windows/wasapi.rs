@@ -92,8 +92,17 @@ pub struct Capture {
     stamp_on_arrival: bool,
     /// Expected time of the next packet when stamping on arrival.
     next_stamp: Option<i64>,
-    /// All-apps crash guard (see `all_apps`), cleared once audio flows or the capture closes.
-    marker: Option<std::path::PathBuf>,
+    /// Volume compensation actually applied (eases toward the target, see `read`).
+    applied_gain: f32,
+    /// Process loopback only: the activation objects, kept until the stream is closed (Microsoft's
+    /// sample releases them before Start; releasing them after Start closed the app on a test PC).
+    activation: Option<Activation>,
+}
+
+struct Activation {
+    _operation: IActivateAudioInterfaceAsyncOperation,
+    _handler: IActivateAudioInterfaceCompletionHandler,
+    _params: Box<AUDIOCLIENT_ACTIVATION_PARAMS>,
 }
 
 #[derive(Clone, Copy)]
@@ -120,7 +129,7 @@ impl AppAudioSetup {
         // Float 48 kHz with Windows conversion, 100 ms buffer.
         AppAudioSetup {
             name: "A",
-            marker: "framely-app-audio-p-a.attempt",
+            marker: "framely-app-audio-k-a.attempt",
             format: AppAudioFormat::Float48k { autoconvert: true },
             buffer_hns: BUFFER_HNS,
             service_first: false,
@@ -128,7 +137,7 @@ impl AppAudioSetup {
         // Microsoft's ApplicationLoopback sample: 16-bit 44.1 kHz, 20 ms buffer.
         AppAudioSetup {
             name: "B",
-            marker: "framely-app-audio-p-b.attempt",
+            marker: "framely-app-audio-k-b.attempt",
             format: AppAudioFormat::Pcm16At44k,
             buffer_hns: 200_000,
             service_first: true,
@@ -136,7 +145,7 @@ impl AppAudioSetup {
         // Float at 48 kHz without Windows conversion.
         AppAudioSetup {
             name: "C",
-            marker: "framely-app-audio-p-c.attempt",
+            marker: "framely-app-audio-k-c.attempt",
             format: AppAudioFormat::Float48k { autoconvert: false },
             buffer_hns: BUFFER_HNS,
             service_first: true,
@@ -173,7 +182,7 @@ impl Capture {
         // copies it), then standard WASAPI setup on the activated client.
         unsafe {
             let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-            let mut params = AUDIOCLIENT_ACTIVATION_PARAMS {
+            let mut params = Box::new(AUDIOCLIENT_ACTIVATION_PARAMS {
                 ActivationType: AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK,
                 Anonymous: AUDIOCLIENT_ACTIVATION_PARAMS_0 {
                     ProcessLoopbackParams: AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS {
@@ -181,7 +190,7 @@ impl Capture {
                         ProcessLoopbackMode: PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE,
                     },
                 },
-            };
+            });
             let variant = PROPVARIANT {
                 Anonymous: PROPVARIANT_0 {
                     Anonymous: std::mem::ManuallyDrop::new(PROPVARIANT_0_0 {
@@ -189,7 +198,7 @@ impl Capture {
                         Anonymous: PROPVARIANT_0_0_0 {
                             blob: BLOB {
                                 cbSize: std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>() as u32,
-                                pBlobData: &mut params as *mut _ as *mut u8,
+                                pBlobData: &mut *params as *mut AUDIOCLIENT_ACTIVATION_PARAMS as *mut u8,
                             },
                         },
                         ..Default::default()
@@ -282,7 +291,8 @@ impl Capture {
                 event: Some(event),
                 stamp_on_arrival: true,
                 next_stamp: None,
-                marker: None,
+                applied_gain: 1.0,
+                activation: Some(Activation { _operation: operation, _handler: handler, _params: params }),
             })
         }
     }
@@ -346,7 +356,8 @@ impl Capture {
                             event: None,
                             stamp_on_arrival: false,
                             next_stamp: None,
-                            marker: None,
+                            applied_gain: 1.0,
+                            activation: None,
                         });
                     }
                     Err(e) => {
@@ -392,7 +403,8 @@ impl Capture {
                 event: None,
                 stamp_on_arrival: false,
                 next_stamp: None,
-                marker: None,
+                applied_gain: 1.0,
+                activation: None,
             })
         }
     }
@@ -403,7 +415,7 @@ impl Capture {
         // SAFETY: GetBuffer/ReleaseBuffer are paired; the data pointer is read only for
         // `frames` frames of the negotiated format before ReleaseBuffer.
         unsafe {
-            let gain = self.volume.as_ref().map_or(1.0, |v| {
+            let target = self.volume.as_ref().map_or(1.0, |v| {
                 let db = v.GetMasterVolumeLevel().unwrap_or(0.0).min(0.0);
                 10f32.powf(-db / 20.0).min(MAX_VOLUME_COMPENSATION)
             });
@@ -436,14 +448,21 @@ impl Capture {
                 } else {
                     qpc
                 };
-                if gain != 1.0 {
-                    samples.iter_mut().for_each(|s| *s *= gain);
+                if self.volume.is_some() {
+                    // Packets already queued were rendered at the old volume: compensation drops
+                    // at once when the volume goes up, but rises over ~0.5 s when it goes down,
+                    // and the result never exceeds full scale.
+                    let gain = if target <= self.applied_gain {
+                        target
+                    } else {
+                        let step = (frames as f32 / (SAMPLE_RATE as f32 * 0.5)).min(1.0);
+                        self.applied_gain + (target - self.applied_gain) * step
+                    };
+                    self.applied_gain = gain;
+                    samples.iter_mut().for_each(|s| *s = (*s * gain).clamp(-1.0, 1.0));
                 }
                 if frames > 0 {
                     on_data(qpc as i64, &samples);
-                    if let Some(m) = self.marker.take() {
-                        let _ = std::fs::remove_file(m);
-                    }
                 }
             }
         }
@@ -470,9 +489,8 @@ impl Drop for Capture {
     fn drop(&mut self) {
         // SAFETY: stopping a started client.
         let _ = unsafe { self.client.Stop() };
-        if let Some(m) = self.marker.take() {
-            let _ = std::fs::remove_file(m);
-        }
+        // Activation objects go only after the stream is stopped.
+        drop(self.activation.take());
         if let Some(event) = self.event.take() {
             // SAFETY: our own event handle, closed once.
             let _ = unsafe { CloseHandle(event) };
