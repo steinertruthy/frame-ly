@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Cpu, Globe, KeyRound, Check, Trash2, PlugZap } from '@lucide/svelte';
+  import { Cpu, Globe, KeyRound, Check, Trash2, PlugZap, ShieldCheck, Cloud } from '@lucide/svelte';
   import Button from '$lib/components/Button.svelte';
   import Section from '$lib/components/Section.svelte';
   import Segmented from '$lib/components/Segmented.svelte';
@@ -9,7 +9,7 @@
   import Toggle from '$lib/components/Toggle.svelte';
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import { t, type MessageKey } from '$lib/i18n/index.svelte';
-  import { ai, type AiProfile, type Detail, type Precision, type ProviderId } from '$lib/ipc/ai';
+  import { ai, type AiProfile, type Detail, type Precision, type ProviderId, type ProviderInfo } from '$lib/ipc/ai';
   import { isAppError } from '$lib/ipc/commands';
   import type { Settings } from '$lib/ipc/types';
   import { formatBytes } from '$lib/stores/format';
@@ -96,10 +96,65 @@
     await save((d) => void (d.intelligence.consents.includes(p) || d.intelligence.consents.push(p)));
   }
 
+  /** Toggles that change where content may go: save, then say plainly what changed. */
+  async function toggle(key: 'localOnly' | 'appleEnabled' | 'externalEnabled', v: boolean) {
+    await save((d) => (d.intelligence[key] = v));
+    const name = key === 'localOnly' ? 'localOnly' : key === 'appleEnabled' ? 'apple' : 'external';
+    toast('info', t(`ai.toast.${name}.${v ? 'on' : 'off'}` as MessageKey), 4000);
+    if (key === 'localOnly') void aiStore.checkCloud(true);
+  }
+
+  /** One line per provider for the overview: where it runs and whether it's ready. */
+  function statusOf(p: ProviderInfo): { tone: 'ok' | 'wait' | 'off' | 'warn'; text: string } {
+    if (p.id === 'cloud' && !s.localOnly) {
+      const c = aiStore.cloud;
+      if (c && c.state !== 'available') return { tone: c.state === 'not_configured' ? 'off' : 'warn', text: t(`ai.cloud.state.${c.state}` as MessageKey) };
+    }
+    switch (p.reason ?? null) {
+      case null:
+        return { tone: 'ok', text: t('ai.status.ready') };
+      case 'no_consent':
+        return { tone: 'wait', text: t('ai.status.consent') };
+      case 'local_only':
+        return { tone: 'off', text: t('ai.status.localOnly') };
+      case 'disabled':
+      case 'external_disabled':
+        return { tone: 'off', text: t('ai.status.off') };
+      case 'no_key':
+        return { tone: 'wait', text: t('ai.status.needsKey') };
+      case 'no_model':
+        return { tone: 'wait', text: t('ai.status.needsModel') };
+      case 'model_missing':
+        return { tone: 'wait', text: t('ai.status.needsDownload') };
+      default:
+        return { tone: 'warn', text: t(`ai.reason.${p.reason}` as MessageKey) };
+    }
+  }
+  const where = (p: ProviderInfo) => t(p.local ? 'ai.where.local' : p.paid ? 'ai.where.paid' : 'ai.where.cloud');
+
   const profileName = (p: Exclude<AiProfile, 'auto'>) => t(`ai.profile.${p}` as MessageKey);
 </script>
 
 {#if o}
+  <Section title={t('ai.set.overview')}>
+    <div class="overview">
+      <p class="lead" class:local={s.localOnly}>
+        {#if s.localOnly}<ShieldCheck size={16} />{:else}<Cloud size={16} />{/if}
+        <span>{s.localOnly ? t('ai.set.overview.local') : t('ai.set.overview.mixed')}</span>
+      </p>
+      <ul class="providers">
+        {#each o.providers.filter((p) => mac || p.id !== 'apple') as p (p.id)}
+          {@const st = statusOf(p)}
+          <li>
+            <span class="pname">{providerName(p.id)}</span>
+            <span class="where">{where(p)}</span>
+            <span class="status {st.tone}"><i></i>{st.text}</span>
+          </li>
+        {/each}
+      </ul>
+    </div>
+  </Section>
+
   <Section title={t('ai.set.framely')}>
     <SettingRow title={t('ai.set.profile')} hint={t('ai.set.profile.hint', { profile: profileName(o.hardware.recommended) })} stacked>
       <Segmented
@@ -196,19 +251,21 @@
     <Section title={t('ai.set.apple')}>
       <SettingRow
         title={t('ai.set.apple.enabled')}
-        hint={apple?.available ? t('ai.set.apple.available') : apple?.reason ? t(`ai.reason.${apple.reason}` as MessageKey) : undefined}
+        hint={s.appleEnabled
+          ? `${t('ai.set.apple.on')}${apple?.reason && apple.reason !== 'disabled' ? ` ${t(`ai.reason.${apple.reason}` as MessageKey)}` : ''}`
+          : t('ai.set.apple.off')}
       >
-        <Toggle checked={s.appleEnabled} label={t('ai.set.apple.enabled')} onchange={(v) => save((d) => (d.intelligence.appleEnabled = v))} />
+        <Toggle checked={s.appleEnabled} label={t('ai.set.apple.enabled')} onchange={(v) => toggle('appleEnabled', v)} />
       </SettingRow>
     </Section>
   {/if}
 
   <Section title={t('ai.set.privacy')}>
-    <SettingRow title={t('ai.set.localOnly')} hint={t('ai.set.localOnly.hint')}>
-      <Toggle checked={s.localOnly} label={t('ai.set.localOnly')} onchange={(v) => save((d) => (d.intelligence.localOnly = v))} />
+    <SettingRow title={t('ai.set.localOnly')} hint={s.localOnly ? t('ai.set.localOnly.on') : t('ai.set.localOnly.off')}>
+      <Toggle checked={s.localOnly} label={t('ai.set.localOnly')} onchange={(v) => toggle('localOnly', v)} />
     </SettingRow>
-    <SettingRow title={t('ai.set.external.enabled')} hint={t('ai.set.external.hint')}>
-      <Toggle checked={s.externalEnabled} label={t('ai.set.external.enabled')} onchange={(v) => save((d) => (d.intelligence.externalEnabled = v))} />
+    <SettingRow title={t('ai.set.external.enabled')} hint={`${s.externalEnabled ? t('ai.set.external.on') : t('ai.set.external.off')} ${t('ai.set.external.hint')}`}>
+      <Toggle checked={s.externalEnabled} label={t('ai.set.external.enabled')} onchange={(v) => toggle('externalEnabled', v)} />
     </SettingRow>
   </Section>
 
@@ -268,6 +325,76 @@
 {/if}
 
 <style>
+  .overview {
+    display: grid;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+  .lead {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0;
+    color: var(--text-2);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+  }
+  .lead :global(svg) {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: var(--icon-accent);
+  }
+  .lead.local :global(svg) {
+    color: var(--ok-500);
+  }
+  .providers {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .providers li {
+    display: grid;
+    grid-template-columns: minmax(150px, auto) 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 0;
+    border-top: 1px solid var(--border);
+    font-size: var(--text-sm);
+  }
+  .pname {
+    font-weight: 600;
+  }
+  .where {
+    color: var(--text-3);
+  }
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-2);
+    text-align: right;
+  }
+  .status i {
+    width: 7px;
+    height: 7px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--text-3);
+  }
+  .status.ok i {
+    background: var(--ok-500);
+  }
+  .status.wait i {
+    background: var(--accent);
+  }
+  .status.warn {
+    color: var(--warn-500);
+  }
+  .status.warn i {
+    background: var(--warn-500);
+  }
   .value {
     color: var(--text-2);
     font-weight: 600;
