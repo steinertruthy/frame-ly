@@ -58,6 +58,19 @@
     if (c && categories.some((x) => x.id === c)) category = c as Category;
     nav.settingsCategory = null;
   });
+  // …and a section in it (`framely --show settings:intelligence:models`), once it has rendered.
+  $effect(() => {
+    const anchor = nav.settingsAnchor;
+    if (!anchor) return;
+    nav.settingsAnchor = null;
+    let tries = 0;
+    const find = () => {
+      const el = document.querySelector(`[data-anchor="${CSS.escape(anchor)}"]`);
+      if (el) el.scrollIntoView({ block: 'start' });
+      else if (++tries < 20) setTimeout(find, 100);
+    };
+    setTimeout(find, 50);
+  });
 
   // ── Saving with feedback ───────────────────────────────────────────────
   let savedFlash = $state(0);

@@ -45,7 +45,8 @@ enum CliAction {
     Transcribe(std::path::PathBuf),
 }
 
-/// `framely --panel`, `framely --show home|library|transcripts|settings`, `framely --edit <image>`,
+/// `framely --panel`, `framely --show home|library|transcripts|settings[:<category>[:<section>]]|transcript:<id>[:summary|topics]`,
+/// `framely --edit <image>`,
 /// `framely --transcribe <video or audio>`,
 /// `framely --capture region|window|screen|cancel` and
 /// `framely --record region|window|screen|stop|pause` (forwarded to the running instance) —

@@ -11,10 +11,11 @@
   import { t } from '$lib/i18n/index.svelte';
   import { ai } from '$lib/ipc/ai';
   import { aiStore } from '$lib/stores/ai.svelte';
-  import { nav } from '$lib/stores/nav.svelte';
+  import { nav, type TranscriptTab } from '$lib/stores/nav.svelte';
   import { languageModelId, setupPlan, speechModelId } from '$lib/ai';
 
   let detailId = $state<number | null>(null);
+  let detailTab = $state<TranscriptTab>('transcript');
   let newPath = $state<string | null>(null);
   let picking = $state(false);
   let setupDismissed = $state(false);
@@ -30,11 +31,22 @@
     nav.transcribePath = null;
     void openFor(p);
   });
+  // `framely --show transcript:<id>[:summary|topics]`.
+  $effect(() => {
+    const target = nav.transcriptTarget;
+    if (!target) return;
+    nav.transcriptTarget = null;
+    detailTab = target.tab;
+    detailId = target.id;
+  });
 
   /** A file that already has a finished transcript opens it; otherwise the new-transcription sheet. */
   async function openFor(path: string) {
     const existing = await ai.find(path).catch(() => null);
-    if (existing && existing.status === 'done') detailId = existing.id;
+    if (existing && existing.status === 'done') {
+      detailTab = 'transcript';
+      detailId = existing.id;
+    }
     else newPath = path;
   }
 
@@ -59,8 +71,8 @@
 </script>
 
 {#if detailId != null}
-  {#key detailId}
-    <TranscriptView id={detailId} onback={() => (detailId = null)} />
+  {#key `${detailId}:${detailTab}`}
+    <TranscriptView id={detailId} initialTab={detailTab} onback={() => { detailId = null; detailTab = 'transcript'; }} />
   {/key}
 {:else}
   <div class="page-root">

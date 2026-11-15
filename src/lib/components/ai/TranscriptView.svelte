@@ -22,12 +22,14 @@
 
   interface Props {
     id: number;
+    initialTab?: Tab;
     onback: () => void;
   }
-  let { id, onback }: Props = $props();
+  let { id, initialTab = 'transcript', onback }: Props = $props();
 
   type Tab = 'transcript' | 'summary' | 'topics';
-  let tab = $state<Tab>('transcript');
+  // svelte-ignore state_referenced_locally
+  let tab = $state<Tab>(initialTab);
   let detail = $state<Detailed | null>(null);
   let currentMs = $state(0);
   let player: HTMLMediaElement | undefined = $state();

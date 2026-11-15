@@ -2,12 +2,14 @@
   import type { Snippet } from 'svelte';
   interface Props {
     title?: string;
+    /** Target for `framely --show settings:<category>:<anchor>`. */
+    anchor?: string;
     children: Snippet;
   }
-  let { title, children }: Props = $props();
+  let { title, anchor, children }: Props = $props();
 </script>
 
-<section>
+<section data-anchor={anchor}>
   {#if title}<h3 class="eyebrow">{title}</h3>{/if}
   <div class="card">{@render children()}</div>
 </section>

@@ -36,9 +36,7 @@
 
   // The quick panel and tray can open a specific page.
   $effect(() => {
-    const un = events.onNavigate((p) => {
-      if (p === 'home' || p === 'library' || p === 'transcripts' || p === 'settings') navigation.go(p);
-    });
+    const un = events.onNavigate((p) => navigation.show(p));
     // `framely --transcribe <file>` (launchers, Shortcuts…).
     const un2 = events.onTranscribe((path) => navigation.transcribe(path));
     return () => {

@@ -185,7 +185,7 @@
     </SettingRow>
   </Section>
 
-  <Section title={t('ai.set.models')}>
+  <Section title={t('ai.set.models')} anchor="models">
     {#each o.models as m (m.id)}<ModelRow model={m} />{/each}
   </Section>
 
