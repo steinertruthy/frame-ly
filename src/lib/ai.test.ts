@@ -67,6 +67,8 @@ describe('privacy and estimates', () => {
     expect(needsConsent('apple', s)).toBe(false);
     expect(needsConsent('anthropic', s)).toBe(false);
     expect(needsConsent('openai', s)).toBe(true);
+    expect(needsConsent('cloud', s)).toBe(true);
+    expect(needsConsent('cloud', { ...s, consents: ['cloud'] })).toBe(false);
   });
   it('rounds durations for display', () => {
     expect(roughDuration(4_200)).toEqual({ unit: 'sec', n: 5 });

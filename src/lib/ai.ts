@@ -68,7 +68,8 @@ export const LOW_CONFIDENCE = 0.45;
 
 /** Whether generating with `provider` needs the user's consent first. */
 export function needsConsent(provider: ProviderId, s: Settings['intelligence']): boolean {
-  return (provider === 'anthropic' || provider === 'openai') && !s.consents.includes(provider);
+  // Everything that leaves the computer (FrameLy Cloud included) needs consent first.
+  return provider !== 'framely' && provider !== 'apple' && !s.consents.includes(provider);
 }
 
 /** Compact "about 3 min" style duration for estimates (rounded up, never "0"). */
