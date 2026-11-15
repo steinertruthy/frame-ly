@@ -162,8 +162,27 @@ impl Writer {
             }
             let video = sink.AddStream(&out).map_err(|e| win_err("video stream", e))?;
             let input = video_type(&MFVideoFormat_NV12, cfg.width, cfg.height, cfg.fps)?;
-            sink.SetInputMediaType(video, &input, None).map_err(|e| win_err("video encoder input", e))?;
+            // Rate control goes in as encoder creation parameters: many hardware encoders only
+            // honor it when set before they are configured (set afterwards, it was accepted but
+            // ignored — every quality produced the same constant-bitrate file).
+            let params = attributes(2)?;
+            params
+                .SetUINT32(&CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_Quality.0 as u32)
+                .map_err(|e| win_err("rate control param", e))?;
+            params
+                .SetUINT32(&CODECAPI_AVEncCommonQuality, (cfg.quality.clamp(0.0, 1.0) * 100.0).round() as u32)
+                .map_err(|e| win_err("quality param", e))?;
+            if let Err(e) = sink.SetInputMediaType(video, &input, &params) {
+                tracing::warn!(error = %e, "encoder refused quality parameters at creation");
+                sink.SetInputMediaType(video, &input, None).map_err(|e| win_err("video encoder input", e))?;
+            }
             let mode = configure_rate_control(&sink, video, cfg.quality, cfg.bitrate);
+            let (effective_mode, effective_quality) = read_rate_control(&sink, video);
+            tracing::info!(
+                ?effective_mode,
+                ?effective_quality,
+                "recording: encoder reports (mode 0 = CBR, 1 = peak VBR, 2 = VBR, 3 = quality)"
+            );
             tracing::info!(
                 mode,
                 quality = cfg.quality,
@@ -297,6 +316,26 @@ fn configure_rate_control(sink: &IMFSinkWriter, stream: u32, quality: f64, bitra
             return "peak-constrained VBR";
         }
         "default"
+    }
+}
+
+/// What the encoder says it is doing: (rate control mode, quality), when it answers.
+fn read_rate_control(sink: &IMFSinkWriter, stream: u32) -> (Option<u32>, Option<u32>) {
+    // SAFETY: read-only ICodecAPI queries; UI4 VARIANTs need no cleanup.
+    unsafe {
+        let mut raw = std::ptr::null_mut();
+        if sink
+            .GetServiceForStream(stream, &windows::core::GUID::zeroed(), &ICodecAPI::IID, &mut raw)
+            .is_err()
+            || raw.is_null()
+        {
+            return (None, None);
+        }
+        let api = ICodecAPI::from_raw(raw);
+        let get = |guid: &windows::core::GUID| {
+            api.GetValue(guid).ok().map(|v| v.Anonymous.Anonymous.Anonymous.ulVal)
+        };
+        (get(&CODECAPI_AVEncCommonRateControlMode), get(&CODECAPI_AVEncCommonQuality))
     }
 }
 

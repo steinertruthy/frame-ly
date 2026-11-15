@@ -77,6 +77,9 @@ pub struct MixSource {
     active: bool,
     /// Peak of the most recent buffer, after gain (0…1+).
     pub peak: f32,
+    /// Diagnostics: frames received, and frames that arrived too late to be mixed.
+    pub pushed_frames: i64,
+    pub late_frames: i64,
 }
 
 /// Mixes timestamped PCM from several sources (system audio, microphone) into one continuous
@@ -105,7 +108,14 @@ impl AudioMixer {
         Self {
             sources: gains
                 .iter()
-                .map(|&gain| MixSource { gain, written_until: None, active: true, peak: 0.0 })
+                .map(|&gain| MixSource {
+                    gain,
+                    written_until: None,
+                    active: true,
+                    peak: 0.0,
+                    pushed_frames: 0,
+                    late_frames: 0,
+                })
                 .collect(),
             buffer: Vec::new(),
             read_index: 0,
@@ -145,6 +155,8 @@ impl AudioMixer {
         src.written_until = Some(src.written_until.unwrap_or(0).max(start + frames));
 
         let skip = if start < self.read_index { (self.read_index - start).min(frames) } else { 0 };
+        src.pushed_frames += frames;
+        src.late_frames += skip;
         if skip >= frames {
             return;
         }

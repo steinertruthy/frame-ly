@@ -56,6 +56,8 @@ pub struct Capture {
     client: IAudioClient,
     capture: IAudioCaptureClient,
     conversion: Option<Conversion>,
+    /// Endpoint id of the device being captured.
+    pub device_id: String,
 }
 
 // SAFETY: WASAPI clients are free-threaded in the MTA; each `Capture` is used by one thread
@@ -103,6 +105,7 @@ impl Capture {
                     .GetDefaultAudioEndpoint(eCapture, eConsole)
                     .map_err(|e| win_err("default input", e))?,
             };
+            let device_id = endpoint_id(&device);
             let client: IAudioClient =
                 device.Activate(CLSCTX_ALL, None).map_err(|e| win_err("IAudioClient", e))?;
             let base = if loopback { AUDCLNT_STREAMFLAGS_LOOPBACK } else { 0 };
@@ -148,13 +151,13 @@ impl Capture {
                     let capture: IAudioCaptureClient =
                         client2.GetService().map_err(|e| win_err("IAudioCaptureClient", e))?;
                     client2.Start().map_err(|e| win_err("audio Start", e))?;
-                    return Ok(Capture { client: client2, capture, conversion: Some(conversion) });
+                    return Ok(Capture { client: client2, capture, conversion: Some(conversion), device_id });
                 }
             };
             let capture: IAudioCaptureClient =
                 client.GetService().map_err(|e| win_err("IAudioCaptureClient", e))?;
             client.Start().map_err(|e| win_err("audio Start", e))?;
-            Ok(Capture { client, capture, conversion })
+            Ok(Capture { client, capture, conversion, device_id })
         }
     }
 
@@ -197,6 +200,31 @@ impl Drop for Capture {
     fn drop(&mut self) {
         // SAFETY: stopping a started client.
         let _ = unsafe { self.client.Stop() };
+    }
+}
+
+unsafe fn endpoint_id(device: &windows::Win32::Media::Audio::IMMDevice) -> String {
+    // SAFETY: GetId returns a CoTaskMem string we own and free.
+    unsafe {
+        match device.GetId() {
+            Ok(p) => {
+                let s = p.to_string().unwrap_or_default();
+                CoTaskMemFree(Some(p.0 as *const _));
+                s
+            }
+            Err(_) => String::new(),
+        }
+    }
+}
+
+/// Endpoint id of the current default output device (what system audio plays through).
+pub fn default_output_id() -> Option<String> {
+    // SAFETY: COM calls with valid arguments on this thread.
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()?;
+        let device = enumerator.GetDefaultAudioEndpoint(eRender, eConsole).ok()?;
+        Some(endpoint_id(&device))
     }
 }
 

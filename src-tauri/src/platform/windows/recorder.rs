@@ -11,7 +11,7 @@
 //! - The OS ending the capture (window closed, display gone) finalizes the file and sends
 //!   `NativeEvent::Stopped`.
 
-use super::{capture, displays, media, wasapi::Capture, win_err};
+use super::{capture, displays, media, wasapi, wasapi::Capture, win_err};
 use crate::{
     core::{
         denoise::Denoiser,
@@ -849,6 +849,9 @@ impl Engine {
         // Microphone noise suppression; its fixed delay is taken off the timestamps.
         let mut denoiser = (denoise && mic.is_some()).then(Denoiser::new);
         let denoise_shift = crate::core::denoise::LATENCY_FRAMES as i64 * TICKS / 48_000;
+        let wants_system = system.is_some();
+        let mut last_check = std::time::Instant::now();
+        let mut system_reopens = 0u32;
         loop {
             let stopping = self.stop_audio.load(Ordering::SeqCst);
             let (sys_index, mic_index) = {
@@ -873,11 +876,33 @@ impl Engine {
                     }
                 });
                 if let Err(e) = result {
-                    tracing::warn!(error = %e, "audio device stopped; continuing without it");
-                    if let Some(m) = self.audio.lock().unwrap().mixer.as_mut() {
-                        m.deactivate(i);
+                    if is_mic {
+                        tracing::warn!(error = %e, "microphone stopped; continuing without it");
+                        if let Some(m) = self.audio.lock().unwrap().mixer.as_mut() {
+                            m.deactivate(i);
+                        }
+                    } else {
+                        // System audio follows the output device (reopened below).
+                        tracing::warn!(error = %e, "system audio device stopped; will follow the new output");
                     }
                     *capture = None;
+                }
+            }
+            // The default output can change mid-recording — notably when opening a Bluetooth
+            // headset's microphone switches it to its "hands-free" device. Loopback is tied to
+            // one device, so follow whatever Windows now plays through.
+            if wants_system && last_check.elapsed() >= Duration::from_secs(1) {
+                last_check = std::time::Instant::now();
+                let current = wasapi::default_output_id();
+                if current.is_some() && current.as_deref() != system.as_ref().map(|c| c.device_id.as_str()) {
+                    match Capture::loopback() {
+                        Ok(c) => {
+                            tracing::info!(device = %c.device_id, "recording: system audio now follows the new output device");
+                            system = Some(c);
+                            system_reopens += 1;
+                        }
+                        Err(e) => tracing::debug!(error = %e, "system audio not reopened yet"),
+                    }
                 }
             }
             self.drain(stopping);
@@ -886,6 +911,17 @@ impl Engine {
             }
             std::thread::sleep(Duration::from_millis(10));
         }
+        // What happened to each source, so a missing track is explainable from the log.
+        let a = self.audio.lock().unwrap();
+        let src = |i: Option<usize>| {
+            i.and_then(|i| a.mixer.as_ref().map(|m| (m.sources[i].pushed_frames, m.sources[i].late_frames)))
+        };
+        tracing::info!(
+            system = ?src(a.system),
+            microphone = ?src(a.mic),
+            system_reopens,
+            "recording: audio (frames received, frames too late)"
+        );
     }
 
     fn drain(&self, flush: bool) {
