@@ -365,23 +365,24 @@ impl Recorder {
             system: Vec::new(),
             mic: None,
         };
-        // System audio = what every output device plays (speakers, monitor, headphones…), so
-        // it is recorded whichever one the sound goes to. Microphones are never included.
+        // System audio = what the apps play (never microphones). Preferred: the apps' own
+        // streams (independent of the output in use and of its volume or mute in Windows).
+        // Fallback on older Windows: every output device, with software volume undone.
         let mut systems: Vec<(usize, Capture)> = Vec::new();
+        let mut per_output = false;
         if wants_system {
-            for output in wasapi::active_outputs() {
-                match Capture::loopback_of(&output.id) {
-                    Ok(c) => {
-                        tracing::info!(device = %c.name, format = %c.format, "recording: system audio output");
-                        let index = audio_state.add(system_gain, c.name.clone());
-                        audio_state.system.push(index);
-                        systems.push((index, c));
-                    }
-                    Err(e) => tracing::warn!(error = %e, output = %output.name, "output not captured"),
+            match Capture::all_apps() {
+                Ok(c) => {
+                    tracing::info!(format = %c.format, "recording: system audio from every app");
+                    let index = audio_state.add(system_gain, c.name.clone());
+                    audio_state.system.push(index);
+                    systems.push((index, c));
                 }
-            }
-            if systems.is_empty() {
-                tracing::warn!("system audio unavailable: no output could be captured");
+                Err(e) => {
+                    tracing::warn!(error = %e, "app audio capture unavailable; capturing every output instead");
+                    per_output = true;
+                    systems = open_outputs(&mut audio_state, system_gain);
+                }
             }
         }
         let mic_id = config.audio.as_ref().and_then(|a| a.microphone_id.clone());
@@ -487,7 +488,7 @@ impl Recorder {
             .then(|| {
                 std::thread::Builder::new()
                     .name("framely-audio".into())
-                    .spawn(move || audio_engine.run_audio(systems, mic, denoise, wants_system, system_gain))
+                    .spawn(move || audio_engine.run_audio(systems, mic, denoise, per_output, system_gain))
                     .ok()
             })
             .flatten();
@@ -873,7 +874,7 @@ impl Engine {
         mut systems: Vec<(usize, Capture)>,
         mut mic: Option<(usize, Capture)>,
         denoise: bool,
-        wants_system: bool,
+        mut per_output: bool,
         system_gain: f32,
     ) {
         let _ = media::init();
@@ -889,9 +890,11 @@ impl Engine {
         loop {
             let stopping = self.stop_audio.load(Ordering::SeqCst);
             // System audio: every output being captured.
+            let mut apps_failed = false;
             systems.retain_mut(|(i, c)| match c.read(|t, samples| push(*i, t, samples)) {
                 Ok(()) => true,
                 Err(e) => {
+                    apps_failed |= c.device_id == wasapi::ALL_APPS;
                     tracing::info!(error = %e, device = %c.name, "output stopped; reopened if it comes back");
                     if let Some(m) = self.audio.lock().unwrap().mixer.as_mut() {
                         m.deactivate(*i);
@@ -918,8 +921,12 @@ impl Engine {
                     mic = None;
                 }
             }
+            if apps_failed {
+                tracing::warn!("app audio capture stopped; capturing every output instead");
+                per_output = true;
+            }
             // Outputs that appear (or come back after a format change) mid-recording join in.
-            if wants_system && last_scan.elapsed() >= Duration::from_secs(1) {
+            if per_output && last_scan.elapsed() >= Duration::from_secs(1) {
                 last_scan = std::time::Instant::now();
                 for output in wasapi::active_outputs() {
                     if systems.iter().any(|(_, c)| c.device_id == output.id) {
@@ -989,6 +996,26 @@ impl Engine {
             }
         }
     }
+}
+
+/// Fallback system audio: a loopback of every active output.
+fn open_outputs(audio_state: &mut AudioState, gain: f32) -> Vec<(usize, Capture)> {
+    let mut systems = Vec::new();
+    for output in wasapi::active_outputs() {
+        match Capture::loopback_of(&output.id) {
+            Ok(c) => {
+                tracing::info!(device = %c.name, format = %c.format, "recording: system audio output");
+                let index = audio_state.add(gain, c.name.clone());
+                audio_state.system.push(index);
+                systems.push((index, c));
+            }
+            Err(e) => tracing::warn!(error = %e, output = %output.name, "output not captured"),
+        }
+    }
+    if systems.is_empty() {
+        tracing::warn!("system audio unavailable: no output could be captured");
+    }
+    systems
 }
 
 impl AudioState {

@@ -20,19 +20,31 @@ use std::{
     time::Duration,
 };
 use windows::{
-    core::HSTRING,
+    core::{implement, Interface, HSTRING},
     Win32::{
         Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
+        Foundation::{CloseHandle, HANDLE},
         Media::Audio::{
-            eCapture, eConsole, eRender, Endpoints::IAudioEndpointVolume, IAudioCaptureClient, IAudioClient,
+            eCapture, eConsole, eRender, ActivateAudioInterfaceAsync, Endpoints::IAudioEndpointVolume,
+            IActivateAudioInterfaceAsyncOperation, IActivateAudioInterfaceCompletionHandler,
+            IActivateAudioInterfaceCompletionHandler_Impl, IAudioCaptureClient, IAudioClient,
             IMMDeviceEnumerator, MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
-            AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM, AUDCLNT_STREAMFLAGS_LOOPBACK,
-            AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY, DEVICE_STATE_ACTIVE, ENDPOINT_HARDWARE_SUPPORT_VOLUME,
+            AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM, AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+            AUDCLNT_STREAMFLAGS_LOOPBACK, AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
+            AUDIOCLIENT_ACTIVATION_PARAMS, AUDIOCLIENT_ACTIVATION_PARAMS_0,
+            AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK, AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS,
+            DEVICE_STATE_ACTIVE, ENDPOINT_HARDWARE_SUPPORT_VOLUME,
+            PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE, VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
             WAVEFORMATEX,
         },
         System::Com::{
-            CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ,
+            CoCreateInstance, CoInitializeEx, CoTaskMemFree,
+            StructuredStorage::{PROPVARIANT, PROPVARIANT_0, PROPVARIANT_0_0, PROPVARIANT_0_0_0},
+            BLOB, CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ,
         },
+        System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency},
+        System::Threading::CreateEventW,
+        System::Variant::VT_BLOB,
     },
 };
 
@@ -74,7 +86,16 @@ pub struct Capture {
     /// tap, so a low slider (with the speakers turned up instead) gives a near-silent capture.
     /// Its level is read on every packet and undone.
     volume: Option<IAudioEndpointVolume>,
+    /// Process loopback only: the stream is event-driven by contract (we still poll), and its
+    /// packet timestamps are not reliable, so packets are stamped on arrival.
+    event: Option<HANDLE>,
+    stamp_on_arrival: bool,
+    /// Expected time of the next packet when stamping on arrival.
+    next_stamp: Option<i64>,
 }
+
+/// `device_id` of the all-apps capture.
+pub const ALL_APPS: &str = "process-loopback";
 
 /// Most a software volume is undone by (60 dB): beyond that the slider is effectively at zero.
 const MAX_VOLUME_COMPENSATION: f32 = 1000.0;
@@ -96,6 +117,94 @@ fn target_format() -> WAVEFORMATEX {
 }
 
 impl Capture {
+    /// What every app plays, except FrameLy itself, taken from the apps' own streams before
+    /// they reach an output (Windows 10 2004+ process loopback): independent of which output is
+    /// in use and of that output's volume or mute in Windows.
+    pub fn all_apps() -> AppResult<Capture> {
+        // SAFETY: COM activation with a parameter block that outlives the call (the operation
+        // copies it), then standard WASAPI setup on the activated client.
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let mut params = AUDIOCLIENT_ACTIVATION_PARAMS {
+                ActivationType: AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK,
+                Anonymous: AUDIOCLIENT_ACTIVATION_PARAMS_0 {
+                    ProcessLoopbackParams: AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS {
+                        TargetProcessId: std::process::id(),
+                        ProcessLoopbackMode: PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE,
+                    },
+                },
+            };
+            let variant = PROPVARIANT {
+                Anonymous: PROPVARIANT_0 {
+                    Anonymous: std::mem::ManuallyDrop::new(PROPVARIANT_0_0 {
+                        vt: VT_BLOB,
+                        Anonymous: PROPVARIANT_0_0_0 {
+                            blob: BLOB {
+                                cbSize: std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>() as u32,
+                                pBlobData: &mut params as *mut _ as *mut u8,
+                            },
+                        },
+                        ..Default::default()
+                    }),
+                },
+            };
+            let (tx, rx) = std::sync::mpsc::channel();
+            let handler: IActivateAudioInterfaceCompletionHandler = Activated(tx).into();
+            let operation = ActivateAudioInterfaceAsync(
+                VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
+                &IAudioClient::IID,
+                Some(&variant),
+                &handler,
+            )
+            .map_err(|e| win_err("process loopback activation", e))?;
+            rx.recv_timeout(Duration::from_secs(3))
+                .map_err(|_| AppError::Platform("process loopback activation timed out".into()))?;
+            let (mut hr, mut unknown) = (windows::core::HRESULT(0), None);
+            operation
+                .GetActivateResult(&mut hr, &mut unknown)
+                .map_err(|e| win_err("activation result", e))?;
+            hr.ok().map_err(|e| win_err("process loopback", e))?;
+            let client: IAudioClient = unknown
+                .ok_or_else(|| AppError::Platform("process loopback: no client".into()))?
+                .cast()
+                .map_err(|e| win_err("IAudioClient", e))?;
+            // No mix format exists for this virtual device: we choose ours.
+            let wanted = target_format();
+            client
+                .Initialize(
+                    AUDCLNT_SHAREMODE_SHARED,
+                    AUDCLNT_STREAMFLAGS_LOOPBACK
+                        | AUDCLNT_STREAMFLAGS_EVENTCALLBACK
+                        | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
+                    BUFFER_HNS,
+                    0,
+                    &wanted,
+                    None,
+                )
+                .map_err(|e| win_err("process loopback Initialize", e))?;
+            let event = CreateEventW(None, false, false, None).map_err(|e| win_err("CreateEvent", e))?;
+            if let Err(e) = client.SetEventHandle(event) {
+                let _ = CloseHandle(event);
+                return Err(win_err("SetEventHandle", e));
+            }
+            let capture: IAudioCaptureClient =
+                client.GetService().map_err(|e| win_err("IAudioCaptureClient", e))?;
+            client.Start().map_err(|e| win_err("audio Start", e))?;
+            Ok(Capture {
+                client,
+                capture,
+                conversion: None,
+                device_id: ALL_APPS.into(),
+                name: "all apps".into(),
+                format: "48000 Hz, 2 ch, float 32-bit (every app except FrameLy)".into(),
+                volume: None,
+                event: Some(event),
+                stamp_on_arrival: true,
+                next_stamp: None,
+            })
+        }
+    }
+
     /// Everything one specific output device plays.
     pub fn loopback_of(output_id: &str) -> AppResult<Capture> {
         Self::open(Some(output_id), true)
@@ -152,6 +261,9 @@ impl Capture {
                             name,
                             format: "48000 Hz, 2 ch, float 32-bit (converted by Windows)".into(),
                             volume: None,
+                            event: None,
+                            stamp_on_arrival: false,
+                            next_stamp: None,
                         });
                     }
                     Err(e) => {
@@ -186,7 +298,18 @@ impl Capture {
                 None if loopback => format!("{format}; hardware volume"),
                 None => format,
             };
-            Ok(Capture { client, capture, conversion: Some(conversion), device_id, name, format, volume })
+            Ok(Capture {
+                client,
+                capture,
+                conversion: Some(conversion),
+                device_id,
+                name,
+                format,
+                volume,
+                event: None,
+                stamp_on_arrival: false,
+                next_stamp: None,
+            })
         }
     }
 
@@ -221,6 +344,11 @@ impl Capture {
                     Some(c) => convert(data, frames as usize, c, silent),
                 };
                 self.capture.ReleaseBuffer(frames).map_err(|e| win_err("ReleaseBuffer", e))?;
+                let qpc = if self.stamp_on_arrival || qpc == 0 {
+                    self.continuous_stamp(frames) as u64
+                } else {
+                    qpc
+                };
                 if gain != 1.0 {
                     samples.iter_mut().for_each(|s| *s *= gain);
                 }
@@ -232,11 +360,56 @@ impl Capture {
     }
 }
 
+impl Capture {
+    /// Time of a packet without a usable device timestamp: packets follow each other without
+    /// gaps or overlaps (several can be drained at once), nudged slowly toward their arrival
+    /// time so clock drift never accumulates; a jump (silence, a stall) restarts from arrival.
+    fn continuous_stamp(&mut self, frames: u32) -> i64 {
+        let duration = frames as i64 * 10_000_000 / SAMPLE_RATE as i64;
+        let arrival = qpc_now() - duration;
+        let stamp = match self.next_stamp {
+            Some(next) if (arrival - next).abs() < 500_000 => next + (arrival - next) / 64,
+            _ => arrival,
+        };
+        self.next_stamp = Some(stamp + duration);
+        stamp
+    }
+}
+
 impl Drop for Capture {
     fn drop(&mut self) {
         // SAFETY: stopping a started client.
         let _ = unsafe { self.client.Stop() };
+        if let Some(event) = self.event.take() {
+            // SAFETY: our own event handle, closed once.
+            let _ = unsafe { CloseHandle(event) };
+        }
     }
+}
+
+/// Signals the activation thread when `ActivateAudioInterfaceAsync` completes.
+#[implement(IActivateAudioInterfaceCompletionHandler)]
+struct Activated(std::sync::mpsc::Sender<()>);
+
+impl IActivateAudioInterfaceCompletionHandler_Impl for Activated_Impl {
+    fn ActivateCompleted(
+        &self,
+        _operation: windows::core::Ref<IActivateAudioInterfaceAsyncOperation>,
+    ) -> windows::core::Result<()> {
+        let _ = self.0.send(());
+        Ok(())
+    }
+}
+
+/// The QPC clock in 100 ns units (the clock packet timestamps and video frames use).
+fn qpc_now() -> i64 {
+    let (mut c, mut f) = (0i64, 0i64);
+    // SAFETY: plain out-parameter reads.
+    unsafe {
+        let _ = QueryPerformanceCounter(&mut c);
+        let _ = QueryPerformanceFrequency(&mut f);
+    }
+    (c as i128 * 10_000_000 / f.max(1) as i128) as i64
 }
 
 unsafe fn endpoint_id(device: &windows::Win32::Media::Audio::IMMDevice) -> String {

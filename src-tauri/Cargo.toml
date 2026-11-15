@@ -46,6 +46,8 @@ nnnoiseless = { version = "0.5", default-features = false }
 calibration = []
 
 [target.'cfg(windows)'.dependencies]
+# `#[implement]` (COM callbacks) expands to `windows_core` paths.
+windows-core = "0.62"
 arboard = { version = "3.7", default-features = false, features = ["image-data"] }
 windows = { version = "0.62", features = [
   "Win32_Foundation",
@@ -63,6 +65,7 @@ windows = { version = "0.62", features = [
   "Win32_System_Variant",
   "Win32_System_Ole",
   "Win32_System_Threading",
+  "Win32_Security",
   "Win32_System_Registry",
   "Win32_UI_Shell_PropertiesSystem",
   "Win32_Devices_FunctionDiscovery",
