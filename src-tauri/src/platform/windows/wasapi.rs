@@ -21,13 +21,16 @@ use std::{
 use windows::{
     core::HSTRING,
     Win32::{
+        Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
         Media::Audio::{
             eCapture, eConsole, eRender, IAudioCaptureClient, IAudioClient, IMMDeviceEnumerator,
             MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
             AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM, AUDCLNT_STREAMFLAGS_LOOPBACK,
-            AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY, WAVEFORMATEX,
+            AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY, DEVICE_STATE_ACTIVE, WAVEFORMATEX,
         },
-        System::Com::{CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED},
+        System::Com::{
+            CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ,
+        },
     },
 };
 
@@ -77,12 +80,11 @@ fn target_format() -> WAVEFORMATEX {
 }
 
 impl Capture {
-    /// Everything the default output device plays (system audio).
-    pub fn loopback() -> AppResult<Capture> {
-        Self::open(None, true)
+    /// Everything one specific output device plays.
+    pub fn loopback_of(output_id: &str) -> AppResult<Capture> {
+        Self::open(Some(output_id), true)
     }
 
-    /// A microphone by endpoint id, or the system default input.
     pub fn microphone(id: Option<&str>) -> AppResult<Capture> {
         Self::open(id, false)
     }
@@ -95,10 +97,10 @@ impl Capture {
             let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
                 .map_err(|e| win_err("MMDeviceEnumerator", e))?;
             let device = match (id, loopback) {
-                (Some(id), false) => {
+                (Some(id), _) => {
                     enumerator.GetDevice(&HSTRING::from(id)).map_err(|e| win_err("GetDevice", e))?
                 }
-                (_, true) => enumerator
+                (None, true) => enumerator
                     .GetDefaultAudioEndpoint(eRender, eConsole)
                     .map_err(|e| win_err("default output", e))?,
                 (None, false) => enumerator
@@ -217,14 +219,41 @@ unsafe fn endpoint_id(device: &windows::Win32::Media::Audio::IMMDevice) -> Strin
     }
 }
 
-/// Endpoint id of the current default output device (what system audio plays through).
-pub fn default_output_id() -> Option<String> {
-    // SAFETY: COM calls with valid arguments on this thread.
+/// An active output device (speakers, headphones, a headset's stereo or hands-free side…).
+pub struct Output {
+    pub id: String,
+    pub name: String,
+}
+
+/// Every active output. System audio is captured from all of them: a headset can move
+/// playback between its "stereo" and "hands-free" outputs when its microphone opens, and
+/// apps can play to a non-default device.
+pub fn active_outputs() -> Vec<Output> {
+    // SAFETY: COM enumeration with valid arguments; strings and property values are owned here.
     unsafe {
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()?;
-        let device = enumerator.GetDefaultAudioEndpoint(eRender, eConsole).ok()?;
-        Some(endpoint_id(&device))
+        let Ok(enumerator) =
+            CoCreateInstance::<_, IMMDeviceEnumerator>(&MMDeviceEnumerator, None, CLSCTX_ALL)
+        else {
+            return Vec::new();
+        };
+        let Ok(collection) = enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE) else {
+            return Vec::new();
+        };
+        let count = collection.GetCount().unwrap_or(0);
+        (0..count)
+            .filter_map(|i| collection.Item(i).ok())
+            .map(|d| {
+                let name = d
+                    .OpenPropertyStore(STGM_READ)
+                    .ok()
+                    .and_then(|store| store.GetValue(&PKEY_Device_FriendlyName).ok())
+                    .map(|v| v.to_string())
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| "output".into());
+                Output { id: endpoint_id(&d), name }
+            })
+            .collect()
     }
 }
 

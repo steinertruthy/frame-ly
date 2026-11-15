@@ -80,6 +80,8 @@ pub struct MixSource {
     /// Diagnostics: frames received, and frames that arrived too late to be mixed.
     pub pushed_frames: i64,
     pub late_frames: i64,
+    /// Highest peak seen (after gain): tells a silent source from a working one.
+    pub max_peak: f32,
 }
 
 /// Mixes timestamped PCM from several sources (system audio, microphone) into one continuous
@@ -115,6 +117,7 @@ impl AudioMixer {
                     peak: 0.0,
                     pushed_frames: 0,
                     late_frames: 0,
+                    max_peak: 0.0,
                 })
                 .collect(),
             buffer: Vec::new(),
@@ -152,6 +155,7 @@ impl AudioMixer {
         let gain = src.gain;
         let src = &mut self.sources[index];
         src.peak = samples.iter().fold(0.0f32, |m, s| m.max(s.abs())) * gain;
+        src.max_peak = src.max_peak.max(src.peak);
         src.written_until = Some(src.written_until.unwrap_or(0).max(start + frames));
 
         let skip = if start < self.read_index { (self.read_index - start).min(frames) } else { 0 };
@@ -169,6 +173,20 @@ impl AudioMixer {
         for i in 0..count {
             self.buffer[offset + i] += samples[from + i] * gain;
         }
+    }
+
+    /// Adds a source mid-recording (a device that appeared); returns its index.
+    pub fn add_source(&mut self, gain: f32) -> usize {
+        self.sources.push(MixSource {
+            gain,
+            written_until: None,
+            active: true,
+            peak: 0.0,
+            pushed_frames: 0,
+            late_frames: 0,
+            max_peak: 0.0,
+        });
+        self.sources.len() - 1
     }
 
     /// A source that stopped for good (device unplugged): never wait for it again.
@@ -293,6 +311,18 @@ mod tests {
         assert_eq!(start, 0);
         assert!(out.iter().all(|&x| x == 0.0));
         assert_eq!(m.sources[1].peak, 0.0, "meter shows silence");
+    }
+
+    #[test]
+    fn sources_added_later_mix_in_and_report_their_peak() {
+        let mut m = AudioMixer::new(0, TPS, &[1.0]);
+        m.push(0, 0, &vec![0.0; 960]);
+        let late = m.add_source(1.0);
+        m.push(late, 0, &vec![0.25; 960]);
+        let (_, out) = m.pull(true).unwrap();
+        assert!((out[0] - 0.25).abs() < 1e-6);
+        assert_eq!(m.sources[0].max_peak, 0.0, "silent output stays at zero");
+        assert!((m.sources[late].max_peak - 0.25).abs() < 1e-6);
     }
 
     #[test]

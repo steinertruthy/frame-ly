@@ -128,10 +128,13 @@ struct Processor {
 
 struct AudioState {
     mixer: Option<AudioMixer>,
+    /// Per mixer source: configured gain and a name for the log.
     gains: Vec<f32>,
+    names: Vec<String>,
     /// (system, microphone) silenced by the user during the recording.
     muted: (bool, bool),
-    system: Option<usize>,
+    /// System audio: one mixer source per output device being captured.
+    system: Vec<usize>,
     mic: Option<usize>,
 }
 
@@ -221,9 +224,11 @@ pub fn levels() -> AudioLevels {
     let current = CURRENT.lock().unwrap();
     let Some(r) = current.as_ref() else { return AudioLevels::default() };
     let audio = r.engine.audio.lock().unwrap();
-    let peak =
-        |i: Option<usize>| i.and_then(|i| audio.mixer.as_ref().map(|m| m.sources[i].peak)).unwrap_or(0.0);
-    AudioLevels { system: peak(audio.system), microphone: peak(audio.mic) }
+    let peak = |i: usize| audio.mixer.as_ref().map_or(0.0, |m| m.sources[i].peak);
+    AudioLevels {
+        system: audio.system.iter().map(|&i| peak(i)).fold(0.0, f32::max),
+        microphone: audio.mic.map_or(0.0, peak),
+    }
 }
 
 fn create_device() -> AppResult<ID3D11Device> {
@@ -349,28 +354,48 @@ impl Recorder {
         let extra = calibration_writers(config, out, wants_system || wants_mic, &manager);
 
         // Audio devices open before capture starts, so their first packets are not late.
-        let system = if wants_system {
-            Capture::loopback().map_err(|e| tracing::warn!(error = %e, "system audio unavailable")).ok()
-        } else {
-            None
+        let system_gain = config.audio.as_ref().map_or(1.0, |a| a.system_gain);
+        let mic_gain = config.audio.as_ref().map_or(1.0, |a| a.microphone_gain);
+        let mut audio_state = AudioState {
+            mixer: None,
+            gains: Vec::new(),
+            names: Vec::new(),
+            muted: (false, false),
+            system: Vec::new(),
+            mic: None,
         };
+        let mut systems: Vec<(usize, Capture)> = Vec::new();
+        if wants_system {
+            for output in wasapi::active_outputs() {
+                match Capture::loopback_of(&output.id) {
+                    Ok(c) => {
+                        let index = audio_state.add(system_gain, output.name.clone());
+                        audio_state.system.push(index);
+                        systems.push((index, c));
+                    }
+                    Err(e) => tracing::warn!(error = %e, output = %output.name, "output not captured"),
+                }
+            }
+            if systems.is_empty() {
+                tracing::warn!("system audio unavailable: no output could be captured");
+            }
+        }
         let mic_id = config.audio.as_ref().and_then(|a| a.microphone_id.clone());
         let mic = if wants_mic {
-            Capture::microphone(mic_id.as_deref())
-                .map_err(|e| tracing::warn!(error = %e, "microphone unavailable"))
-                .ok()
+            match Capture::microphone(mic_id.as_deref()) {
+                Ok(c) => {
+                    let index = audio_state.add(mic_gain, "microphone".into());
+                    audio_state.mic = Some(index);
+                    Some((index, c))
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "microphone unavailable");
+                    None
+                }
+            }
         } else {
             None
         };
-        let mut gains = Vec::new();
-        let system_index = system.as_ref().map(|_| {
-            gains.push(config.audio.as_ref().map_or(1.0, |a| a.system_gain));
-            gains.len() - 1
-        });
-        let mic_index = mic.as_ref().map(|_| {
-            gains.push(config.audio.as_ref().map_or(1.0, |a| a.microphone_gain));
-            gains.len() - 1
-        });
 
         let size = item.Size().map_err(|e| win_err("capture size", e))?;
         let pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
@@ -412,13 +437,7 @@ impl Recorder {
             writer: Mutex::new(Some(writer)),
             extra: Mutex::new(extra),
             timeline: Mutex::new(PauseTimeline::default()),
-            audio: Mutex::new(AudioState {
-                mixer: None,
-                gains,
-                muted: (false, false),
-                system: system_index,
-                mic: mic_index,
-            }),
+            audio: Mutex::new(audio_state),
             origin: OnceLock::new(),
             interval: TICKS / config.fps.max(1) as i64,
             output: PathBuf::from(&config.output_path),
@@ -459,11 +478,11 @@ impl Recorder {
 
         let denoise = config.audio.as_ref().is_some_and(|a| a.noise_suppression);
         let audio_engine = Arc::clone(&engine);
-        let audio_thread = (system.is_some() || mic.is_some())
+        let audio_thread = (wants_system || mic.is_some())
             .then(|| {
                 std::thread::Builder::new()
                     .name("framely-audio".into())
-                    .spawn(move || audio_engine.run_audio(system, mic, denoise))
+                    .spawn(move || audio_engine.run_audio(systems, mic, denoise, wants_system, system_gain))
                     .ok()
             })
             .flatten();
@@ -844,64 +863,74 @@ impl Engine {
     }
 
     /// Audio thread: polls both devices every ~10 ms, mixes on the video clock and writes AAC.
-    fn run_audio(self: Arc<Self>, mut system: Option<Capture>, mut mic: Option<Capture>, denoise: bool) {
+    fn run_audio(
+        self: Arc<Self>,
+        mut systems: Vec<(usize, Capture)>,
+        mut mic: Option<(usize, Capture)>,
+        denoise: bool,
+        wants_system: bool,
+        system_gain: f32,
+    ) {
         let _ = media::init();
         // Microphone noise suppression; its fixed delay is taken off the timestamps.
         let mut denoiser = (denoise && mic.is_some()).then(Denoiser::new);
         let denoise_shift = crate::core::denoise::LATENCY_FRAMES as i64 * TICKS / 48_000;
-        let wants_system = system.is_some();
-        let mut last_check = std::time::Instant::now();
-        let mut system_reopens = 0u32;
+        let mut last_scan = std::time::Instant::now();
+        let push = |i: usize, t: i64, samples: &[f32]| {
+            if let Some(m) = self.audio.lock().unwrap().mixer.as_mut() {
+                m.push(i, t, samples);
+            }
+        };
         loop {
             let stopping = self.stop_audio.load(Ordering::SeqCst);
-            let (sys_index, mic_index) = {
-                let a = self.audio.lock().unwrap();
-                (a.system, a.mic)
-            };
-            for (capture, index, is_mic) in [(&mut system, sys_index, false), (&mut mic, mic_index, true)] {
-                let (Some(c), Some(i)) = (capture.as_mut(), index) else { continue };
-                let result = c.read(|t, samples| {
-                    let denoised;
-                    let (t, samples) = match (is_mic, denoiser.as_mut()) {
-                        (true, Some(d)) => {
-                            let mut buf = samples.to_vec();
-                            d.process(&mut buf);
-                            denoised = buf;
-                            (t - denoise_shift, &denoised[..])
-                        }
-                        _ => (t, samples),
-                    };
+            // System audio: every output being captured.
+            systems.retain_mut(|(i, c)| match c.read(|t, samples| push(*i, t, samples)) {
+                Ok(()) => true,
+                Err(e) => {
+                    tracing::warn!(error = %e, "an output stopped; the others keep recording");
                     if let Some(m) = self.audio.lock().unwrap().mixer.as_mut() {
-                        m.push(i, t, samples);
+                        m.deactivate(*i);
                     }
+                    false
+                }
+            });
+            // Microphone (denoised).
+            if let Some((i, c)) = mic.as_mut() {
+                let i = *i;
+                let result = c.read(|t, samples| match denoiser.as_mut() {
+                    Some(d) => {
+                        let mut buf = samples.to_vec();
+                        d.process(&mut buf);
+                        push(i, t - denoise_shift, &buf);
+                    }
+                    None => push(i, t, samples),
                 });
                 if let Err(e) = result {
-                    if is_mic {
-                        tracing::warn!(error = %e, "microphone stopped; continuing without it");
-                        if let Some(m) = self.audio.lock().unwrap().mixer.as_mut() {
-                            m.deactivate(i);
-                        }
-                    } else {
-                        // System audio follows the output device (reopened below).
-                        tracing::warn!(error = %e, "system audio device stopped; will follow the new output");
+                    tracing::warn!(error = %e, "microphone stopped; continuing without it");
+                    if let Some(m) = self.audio.lock().unwrap().mixer.as_mut() {
+                        m.deactivate(i);
                     }
-                    *capture = None;
+                    mic = None;
                 }
             }
-            // The default output can change mid-recording — notably when opening a Bluetooth
-            // headset's microphone switches it to its "hands-free" device. Loopback is tied to
-            // one device, so follow whatever Windows now plays through.
-            if wants_system && last_check.elapsed() >= Duration::from_secs(1) {
-                last_check = std::time::Instant::now();
-                let current = wasapi::default_output_id();
-                if current.is_some() && current.as_deref() != system.as_ref().map(|c| c.device_id.as_str()) {
-                    match Capture::loopback() {
-                        Ok(c) => {
-                            tracing::info!(device = %c.device_id, "recording: system audio now follows the new output device");
-                            system = Some(c);
-                            system_reopens += 1;
-                        }
-                        Err(e) => tracing::debug!(error = %e, "system audio not reopened yet"),
+            // Outputs that appeared mid-recording (a headset's "hands-free" side when its
+            // microphone opens, a newly connected device) join the system audio.
+            if wants_system && last_scan.elapsed() >= Duration::from_secs(2) {
+                last_scan = std::time::Instant::now();
+                for output in wasapi::active_outputs() {
+                    if systems.iter().any(|(_, c)| c.device_id == output.id) {
+                        continue;
+                    }
+                    if let Ok(c) = Capture::loopback_of(&output.id) {
+                        let index = {
+                            let mut a = self.audio.lock().unwrap();
+                            let index = a.add(system_gain, output.name.clone());
+                            a.system.push(index);
+                            a.apply_gains();
+                            index
+                        };
+                        tracing::info!(output = %output.name, "recording: system audio now also captured from this output");
+                        systems.push((index, c));
                     }
                 }
             }
@@ -911,17 +940,21 @@ impl Engine {
             }
             std::thread::sleep(Duration::from_millis(10));
         }
-        // What happened to each source, so a missing track is explainable from the log.
+        // What happened to each source, so a missing track is explainable from the log:
+        // name, frames received, frames too late to mix, highest level (0 = silence).
         let a = self.audio.lock().unwrap();
-        let src = |i: Option<usize>| {
-            i.and_then(|i| a.mixer.as_ref().map(|m| (m.sources[i].pushed_frames, m.sources[i].late_frames)))
-        };
-        tracing::info!(
-            system = ?src(a.system),
-            microphone = ?src(a.mic),
-            system_reopens,
-            "recording: audio (frames received, frames too late)"
-        );
+        if let Some(m) = a.mixer.as_ref() {
+            for (i, name) in a.names.iter().enumerate() {
+                let s = &m.sources[i];
+                tracing::info!(
+                    source = %name,
+                    frames = s.pushed_frames,
+                    late = s.late_frames,
+                    max_peak = format!("{:.3}", s.max_peak),
+                    "recording: audio source"
+                );
+            }
+        }
     }
 
     fn drain(&self, flush: bool) {
@@ -959,11 +992,21 @@ impl AudioState {
     /// Mixer gains = configured gains, zeroed for muted sources.
     fn apply_gains(&mut self) {
         let Some(m) = self.mixer.as_mut() else { return };
-        for (index, muted) in [(self.system, self.muted.0), (self.mic, self.muted.1)] {
-            if let Some(i) = index {
-                m.sources[i].gain = if muted { 0.0 } else { self.gains[i] };
-            }
+        let sources =
+            self.system.iter().map(|&i| (i, self.muted.0)).chain(self.mic.map(|i| (i, self.muted.1)));
+        for (i, muted) in sources {
+            m.sources[i].gain = if muted { 0.0 } else { self.gains[i] };
         }
+    }
+
+    /// Registers a source (before or during the recording); returns its mixer index.
+    fn add(&mut self, gain: f32, name: String) -> usize {
+        self.gains.push(gain);
+        self.names.push(name);
+        if let Some(m) = self.mixer.as_mut() {
+            m.add_source(gain);
+        }
+        self.gains.len() - 1
     }
 }
 
