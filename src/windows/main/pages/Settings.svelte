@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { open as openDialog } from '@tauri-apps/plugin-dialog';
-  import { Settings2, Scan, Video, AudioLines, Keyboard, Palette, HardDrive, Info, Check, FolderOpen, Sparkles } from '@lucide/svelte';
+  import { Settings2, Scan, Video, AudioLines, Keyboard, Palette, HardDrive, Info, Check, FolderOpen, Sparkles, RotateCcw } from '@lucide/svelte';
   import IntelligenceSettings from '$lib/components/ai/IntelligenceSettings.svelte';
   import { nav } from '$lib/stores/nav.svelte';
   import type { Component } from 'svelte';
@@ -13,6 +13,8 @@
   import Select from '$lib/components/Select.svelte';
   import Slider from '$lib/components/Slider.svelte';
   import Badge from '$lib/components/Badge.svelte';
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import { aiStore } from '$lib/stores/ai.svelte';
   import MicTest from '$lib/components/MicTest.svelte';
   import PermissionRow from '$lib/components/PermissionRow.svelte';
   import ShortcutRecorder from '$lib/components/ShortcutRecorder.svelte';
@@ -120,6 +122,23 @@
       await refreshCache();
     } catch {
       toast('error', t('error.io'));
+    }
+  }
+
+  // ── Restore defaults (one category or everything) ────────────────────
+  let resetting = $state<Category | 'all' | null>(null);
+  async function resetNow() {
+    const scope = resetting!;
+    resetting = null;
+    try {
+      settings.adopt(await commands.resetSettings(scope));
+      if (scope === 'intelligence' || scope === 'all') {
+        await aiStore.loadOverview();
+        void aiStore.checkCloud(true);
+      }
+      toast('success', t('settings.reset.done'));
+    } catch {
+      toast('error', t('error.generic'));
     }
   }
 
@@ -393,7 +412,6 @@
             </Section>
             <div class="foot-row">
               <span class="muted">{t('shortcuts.recordingHint')}</span>
-              <Button size="sm" variant="ghost" onclick={() => commands.resetShortcuts()}>{t('shortcuts.reset')}</Button>
             </div>
           {:else if category === 'appearance'}
             <Section>
@@ -444,6 +462,18 @@
                 <Button size="sm" onclick={cleanup}>{t('settings.storage.clean')}</Button>
               </SettingRow>
             </Section>
+          {/if}
+          {#if category === 'general'}
+            <Section title={t('settings.reset.group')}>
+              <SettingRow title={t('settings.reset.all')} hint={t('settings.reset.all.hint')}>
+                <Button size="sm" variant="danger" onclick={() => (resetting = 'all')}><RotateCcw size={13} />{t('settings.reset.confirm')}</Button>
+              </SettingRow>
+            </Section>
+          {/if}
+          {#if category !== 'about'}
+            <div class="reset-row">
+              <Button size="sm" variant="ghost" onclick={() => (resetting = category)}><RotateCcw size={13} />{t('settings.reset.section')}</Button>
+            </div>
           {:else}
             <div class="about">
               <LogoMark size={64} />
@@ -467,6 +497,18 @@
     </div>
   {/if}
 </div>
+
+{#if resetting}
+  <ConfirmDialog
+    title={resetting === 'all' ? t('settings.reset.allTitle') : t('settings.reset.sectionTitle', { section: t(categories.find((c) => c.id === resetting)?.label ?? 'settings.cat.general') })}
+    body={resetting === 'all' ? t('settings.reset.allBody') : t('settings.reset.sectionBody')}
+    confirm={t('settings.reset.confirm')}
+    cancel={t('settings.reset.cancel')}
+    danger={resetting === 'all'}
+    onconfirm={resetNow}
+    oncancel={() => (resetting = null)}
+  />
+{/if}
 
 <style>
   .settings {
@@ -560,6 +602,11 @@
   }
   .lead {
     margin: -4px 0 var(--space-4) 4px;
+  }
+  .reset-row {
+    display: flex;
+    justify-content: flex-end;
+    margin: 4px 0 0;
   }
   .foot-row {
     display: flex;

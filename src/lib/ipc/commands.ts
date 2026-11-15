@@ -28,6 +28,8 @@ export const commands = {
   getSettings: () => invoke<Settings>('get_settings'),
   updateSettings: (settings: Settings) => invoke<Settings>('update_settings', { settings }),
   resetShortcuts: () => invoke<Settings>('reset_shortcuts'),
+  /** Restores the defaults of one Settings category, or of everything with "all". */
+  resetSettings: (scope: string) => invoke<Settings>('reset_settings', { scope }),
   appInfo: () => invoke<AppInfo>('app_info'),
   openFolder: (folder: Folder) => invoke<void>('open_folder', { folder }),
   listDisplays: () => invoke<Display[]>('list_displays'),

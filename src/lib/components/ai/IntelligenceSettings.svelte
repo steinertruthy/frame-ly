@@ -146,9 +146,12 @@
         {#each o.providers.filter((p) => mac || p.id !== 'apple') as p (p.id)}
           {@const st = statusOf(p)}
           <li>
-            <span class="pname">{providerName(p.id)}</span>
-            <span class="where">{where(p)}</span>
-            <span class="status {st.tone}"><i></i>{st.text}</span>
+            <span class="picon">{#if p.local}<Cpu size={15} />{:else}<Globe size={15} />{/if}</span>
+            <span class="pmeta">
+              <span class="pname">{providerName(p.id)}</span>
+              <span class="where">{where(p)}</span>
+            </span>
+            <span class="badge tone-{st.tone}"><i></i>{st.text}</span>
           </li>
         {/each}
       </ul>
@@ -356,43 +359,68 @@
   }
   .providers li {
     display: grid;
-    grid-template-columns: minmax(150px, auto) 1fr auto;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
     align-items: center;
     gap: 12px;
-    padding: 7px 0;
+    padding: 9px 0;
     border-top: 1px solid var(--border);
-    font-size: var(--text-sm);
+  }
+  .picon {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--icon-tile);
+    color: var(--icon-accent);
+  }
+  .pmeta {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
   }
   .pname {
     font-weight: 600;
   }
   .where {
     color: var(--text-3);
+    font-size: var(--text-xs);
   }
-  .status {
+  .badge {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    padding: 3px 10px;
+    border-radius: 99px;
+    background: var(--surface-2);
     color: var(--text-2);
-    text-align: right;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    white-space: nowrap;
   }
-  .status i {
-    width: 7px;
-    height: 7px;
+  .badge i {
+    width: 6px;
+    height: 6px;
     flex-shrink: 0;
     border-radius: 50%;
     background: var(--text-3);
   }
-  .status.ok i {
+  .tone-ok {
+    color: var(--ok-500);
+  }
+  .tone-ok i {
     background: var(--ok-500);
   }
-  .status.wait i {
+  .tone-wait {
+    color: var(--link);
+  }
+  .tone-wait i {
     background: var(--accent);
   }
-  .status.warn {
+  .tone-warn {
     color: var(--warn-500);
   }
-  .status.warn i {
+  .tone-warn i {
     background: var(--warn-500);
   }
   .value {

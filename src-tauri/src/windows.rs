@@ -14,11 +14,27 @@ fn to_tauri_theme(t: Theme) -> Option<tauri::Theme> {
     }
 }
 
+/// Main window size for a screen work area (logical points): most of the screen, so the library
+/// and transcripts have room, but never smaller than the classic size when the screen allows it.
+pub fn main_size(work_w: f64, work_h: f64) -> (f64, f64) {
+    let fit = |share: f64, base: f64, max: f64, avail: f64| (avail * share).max(base.min(avail)).min(max).min(avail);
+    (fit(0.86, 1120.0, 1760.0, work_w), fit(0.88, 760.0, 1100.0, work_h))
+}
+
 /// Builds the main window hidden; the UI calls `show()` after its first paint to avoid a blank flash.
 pub fn create_main(app: &AppHandle, theme: Theme) -> AppResult<WebviewWindow> {
+    let (w, h) = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| {
+            let area = m.work_area().size.to_logical::<f64>(m.scale_factor());
+            main_size(area.width, area.height)
+        })
+        .unwrap_or((1120.0, 760.0));
     let builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("main.html".into()))
         .title("FrameLy")
-        .inner_size(1120.0, 760.0)
+        .inner_size(w, h)
         .min_inner_size(640.0, 520.0);
     let window = app_window(builder, theme)?;
     // Debug aid: `FRAMELY_DEVTOOLS=1 pnpm tauri dev` shows the window immediately and opens
@@ -73,5 +89,24 @@ pub fn apply_theme(app: &AppHandle, theme: Theme) {
         if let Err(e) = w.set_theme(to_tauri_theme(theme)) {
             tracing::warn!(window = w.label(), error = %e, "failed to apply theme");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::main_size;
+
+    #[test]
+    fn main_window_follows_the_screen() {
+        // MacBook Air 13" (1470×919 work area): most of the screen.
+        let (w, h) = main_size(1470.0, 919.0);
+        assert!((1260.0..=1270.0).contains(&w) && (800.0..=815.0).contains(&h), "{w}×{h}");
+        // Large monitor: capped so it doesn't become a wall of empty space.
+        assert_eq!(main_size(3000.0, 1600.0), (1760.0, 1100.0));
+        // Small screen: never larger than the available area.
+        assert_eq!(main_size(1024.0, 700.0), (1024.0, 700.0));
+        // 1920×1040: generous but not full screen.
+        let (w, h) = main_size(1920.0, 1040.0);
+        assert!(w < 1920.0 && h < 1040.0 && w > 1600.0 && h > 900.0, "{w}×{h}");
     }
 }
