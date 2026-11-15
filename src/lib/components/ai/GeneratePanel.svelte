@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Cpu, Globe, Clock, Sparkles, RefreshCw } from '@lucide/svelte';
+  import { CircleDollarSign, Clock, Cpu, Globe, RefreshCw, Sparkles, TriangleAlert } from '@lucide/svelte';
   import Button from '$lib/components/Button.svelte';
   import Segmented from '$lib/components/Segmented.svelte';
   import Select from '$lib/components/Select.svelte';
@@ -79,49 +79,83 @@
   }
 </script>
 
-<div class="panel" class:compact={!!regenerate}>
-  <div class="controls">
-    <Segmented
-      label={t('ai.gen.detail')}
-      size="sm"
-      value={detail}
-      options={(['brief', 'balanced', 'detailed'] as const).map((d) => ({ value: d, label: t(`ai.detail.${d}` as MessageKey) }))}
-      onchange={(v) => (detail = v)}
-    />
-    <Select
-      label={t('ai.gen.provider')}
-      prefix={t('ai.gen.provider')}
-      icon={info?.local ? Cpu : Globe}
-      value={provider}
-      options={providers.map((p) => ({ value: p.id, label: providerName(p.id) }))}
-      onchange={(v) => (provider = v)}
-    />
-    <Button variant="primary" busy={busy} disabled={!!blocked || cloudDown} onclick={go}>
-      {#if regenerate}<RefreshCw size={14} />{t('ai.gen.regenerate')}{:else}<Sparkles size={14} />{t('ai.gen.generate')}{/if}
-    </Button>
-  </div>
+{#snippet detailField()}
+  <Segmented
+    label={t('ai.gen.detail')}
+    size="sm"
+    stretch={!regenerate}
+    value={detail}
+    options={(['brief', 'balanced', 'detailed'] as const).map((d) => ({ value: d, label: t(`ai.detail.${d}` as MessageKey) }))}
+    onchange={(v) => (detail = v)}
+  />
+{/snippet}
+{#snippet providerField()}
+  <Select
+    label={t('ai.gen.provider')}
+    prefix={regenerate ? t('ai.gen.provider') : undefined}
+    icon={info?.local ? Cpu : Globe}
+    value={provider}
+    options={providers.map((p) => ({ value: p.id, label: providerName(p.id) }))}
+    onchange={(v) => (provider = v)}
+  />
+{/snippet}
+{#snippet action()}
+  <Button variant="primary" busy={busy} disabled={!!blocked || cloudDown} onclick={go}>
+    {#if regenerate}<RefreshCw size={14} />{t('ai.gen.regenerate')}{:else}<Sparkles size={14} />{t('ai.gen.generate')}{/if}
+  </Button>
+{/snippet}
 
-  <div class="facts">
+<div class="panel" class:compact={!!regenerate}>
+  {#if regenerate}
+    <div class="controls">
+      {@render detailField()}
+      {@render providerField()}
+      {@render action()}
+    </div>
+  {:else}
+    <div class="fields">
+      <div class="opt">
+        <span class="lbl">{t('ai.gen.detail')}</span>
+        {@render detailField()}
+      </div>
+      <div class="opt">
+        <span class="lbl">{t('ai.gen.provider')}</span>
+        {@render providerField()}
+      </div>
+    </div>
+  {/if}
+
+  <ul class="facts">
     {#if blocked}
-      <span class="warn">{t(`ai.reason.${blocked}` as MessageKey)}</span>
-      {#if blocked === 'model_missing' || blocked === 'no_key' || blocked === 'no_model' || blocked === 'external_disabled'}
-        <button class="link" onclick={() => nav.openSettings('intelligence')}>{t('ai.gen.settings')}</button>
-      {/if}
+      <li class="warn">
+        <TriangleAlert size={14} />
+        <span>
+          {t(`ai.reason.${blocked}` as MessageKey)}
+          {#if blocked === 'model_missing' || blocked === 'no_key' || blocked === 'no_model' || blocked === 'external_disabled'}
+            <button class="link" onclick={() => nav.openSettings('intelligence')}>{t('ai.gen.settings')}</button>
+          {/if}
+        </span>
+      </li>
     {:else if info?.local}
-      <span><Cpu size={13} />{t('ai.gen.privacy.local')}</span>
+      <li><Cpu size={14} /><span>{t('ai.gen.privacy.local')}</span></li>
     {:else if provider === 'cloud'}
-      <CloudState />
-      <span><Globe size={13} />{t('ai.cloud.privacy', { tokens: (estimate?.inputTokens ?? 0).toLocaleString(locale()) })}</span>
+      <li class="state"><CloudState /></li>
+      <li><Globe size={14} /><span>{t('ai.cloud.privacy', { tokens: (estimate?.inputTokens ?? 0).toLocaleString(locale()) })}</span></li>
     {:else if info}
-      <span><Globe size={13} />{t('ai.gen.privacy.external', { tokens: (estimate?.inputTokens ?? 0).toLocaleString(locale()), provider: providerName(provider) })}</span>
-      <span>
-        {#if estimate?.costUsd}{t('ai.gen.cost', { min: money(estimate.costUsd[0]), max: money(estimate.costUsd[1]) })}{:else}{t('ai.gen.costUnknown')}{/if}
-      </span>
+      <li><Globe size={14} /><span>{t('ai.gen.privacy.external', { tokens: (estimate?.inputTokens ?? 0).toLocaleString(locale()), provider: providerName(provider) })}</span></li>
+      <li>
+        <CircleDollarSign size={14} />
+        <span>{#if estimate?.costUsd}{t('ai.gen.cost', { min: money(estimate.costUsd[0]), max: money(estimate.costUsd[1]) })}{:else}{t('ai.gen.costUnknown')}{/if}</span>
+      </li>
     {/if}
     {#if estimate?.time && !blocked}
-      <span><Clock size={13} />{t('ai.gen.estimate', { time: roughTime(estimate.time.ms) })}{#if estimate.time.approximate} · {t('ai.approx')}{/if}</span>
+      <li><Clock size={14} /><span>{t('ai.gen.estimate', { time: roughTime(estimate.time.ms) })}{#if estimate.time.approximate} · {t('ai.approx')}{/if}</span></li>
     {/if}
-  </div>
+  </ul>
+
+  {#if !regenerate}
+    <div class="go">{@render action()}</div>
+  {/if}
 </div>
 
 {#if asking}
@@ -139,7 +173,35 @@
   .panel {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 14px;
+    width: 100%;
+    text-align: left;
+  }
+  /* First generation: a tidy card with labelled options, details and the action at the bottom. */
+  .panel:not(.compact) {
+    max-width: 520px;
+    padding: 18px;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .fields {
+    display: grid;
+    gap: 12px;
+  }
+  .opt {
+    display: grid;
+    gap: 6px;
+  }
+  .lbl {
+    color: var(--text-3);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .opt :global(.seg) {
+    width: 100%;
   }
   .controls {
     display: flex;
@@ -151,24 +213,50 @@
     min-width: 0;
   }
   .facts {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--text-2);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+  }
+  .panel:not(.compact) .facts {
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .compact .facts {
     display: flex;
     flex-wrap: wrap;
     gap: 6px 16px;
-    color: var(--text-2);
-    font-size: var(--text-sm);
   }
-  .facts span {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+  .facts li {
+    display: grid;
+    grid-template-columns: 14px 1fr;
+    align-items: start;
+    gap: 8px;
   }
-  .facts :global(svg) {
+  .facts li.state {
+    display: flex;
+  }
+  .facts li > :global(svg) {
+    margin-top: 2px;
     color: var(--text-3);
   }
-  .warn {
-    color: var(--warn-500);
+  .warn,
+  .warn > :global(svg) {
+    color: var(--warn-500) !important;
+  }
+  .go {
+    display: flex;
+  }
+  .go :global(.btn) {
+    flex: 1;
+    justify-content: center;
   }
   .link {
+    margin-left: 4px;
     padding: 0;
     border: 0;
     background: none;

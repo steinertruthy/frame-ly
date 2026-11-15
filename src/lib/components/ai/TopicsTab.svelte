@@ -200,13 +200,6 @@
     color: var(--text-2);
     max-width: 440px;
   }
-  .empty :global(.panel) {
-    align-items: center;
-  }
-  .empty :global(.facts),
-  .empty :global(.controls) {
-    justify-content: center;
-  }
   .head {
     display: flex;
     align-items: center;

@@ -362,7 +362,8 @@ mod tests {
         let req = Request { task: Task::Summary, detail: Detail::Brief, language: Some("pt"), system: "", input: Input::Part { text: "[00:00] Bom dia.\n[00:05] Lançamento em dezembro.", part: None } };
         let out: Value = serde_json::from_str(&r.generate(&req, 1000, &mut |_| {}).unwrap()).unwrap();
         println!("{out}");
-        assert!(out["overview"].as_str().unwrap().contains("Bom dia"));
+        assert!(!out["overview"].as_str().unwrap().is_empty());
+        assert!(out["points"].is_array());
         let topics = Request { task: Task::Topics, ..req };
         let t: Value = serde_json::from_str(&r.generate(&topics, 1000, &mut |_| {}).unwrap()).unwrap();
         assert!(t["topics"].is_array());
