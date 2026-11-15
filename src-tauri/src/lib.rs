@@ -140,12 +140,14 @@ pub fn run() {
             let handle = app.handle().clone();
             let log_dir = app.path().app_log_dir()?;
             let log_guard = core::logging::init(&log_dir);
+            core::logging::install_panic_hook(&log_dir);
             tracing::info!(
                 version = %app.package_info().version,
                 os = std::env::consts::OS,
                 arch = std::env::consts::ARCH,
                 "FrameLy starting"
             );
+            core::logging::report_previous_crash(&log_dir);
 
             let settings_path = app.path().app_config_dir()?.join("settings.json");
             let settings = SettingsStore::load(settings_path, &DefaultDirs::from_os())?;

@@ -92,7 +92,13 @@ pub struct Capture {
     stamp_on_arrival: bool,
     /// Expected time of the next packet when stamping on arrival.
     next_stamp: Option<i64>,
+    /// All-apps crash guard (see `all_apps`), cleared once audio flows or the capture closes.
+    marker: Option<std::path::PathBuf>,
 }
+
+/// Bump when the all-apps capture changes, so a crash marker of an older build does not
+/// disable a fixed one.
+const APP_AUDIO_MARKER: &str = "framely-app-audio-2.attempt";
 
 /// `device_id` of the all-apps capture.
 pub const ALL_APPS: &str = "process-loopback";
@@ -120,7 +126,46 @@ impl Capture {
     /// What every app plays, except FrameLy itself, taken from the apps' own streams before
     /// they reach an output (Windows 10 2004+ process loopback): independent of which output is
     /// in use and of that output's volume or mute in Windows.
+    ///
+    /// Crash guard: each step is written to a marker file, removed once the stream delivers
+    /// audio or closes normally. A marker left behind means an earlier attempt took the app
+    /// down; this capture is then skipped (the caller falls back to output loopback) and the
+    /// step it died at is reported.
     pub fn all_apps() -> AppResult<Capture> {
+        let marker = std::env::temp_dir().join(APP_AUDIO_MARKER);
+        if let Ok(step) = std::fs::read_to_string(&marker) {
+            return Err(AppError::Platform(format!(
+                "app audio capture closed FrameLy in an earlier recording (step: {step}); not used again"
+            )));
+        }
+        let trail = marker.clone();
+        // Its own thread: guaranteed multithreaded COM apartment, whatever the caller's.
+        let result = std::thread::Builder::new()
+            .name("framely-app-audio".into())
+            .spawn(move || {
+                let step = |s: &str| {
+                    let _ = std::fs::write(&trail, s);
+                };
+                Self::open_all_apps(&step)
+            })
+            .map_err(|e| AppError::Runtime(format!("app audio thread: {e}")))?
+            .join()
+            .map_err(|_| AppError::Runtime("app audio thread failed".into()))?;
+        match result {
+            Ok(mut c) => {
+                let _ = std::fs::write(&marker, "first packets");
+                c.marker = Some(marker);
+                Ok(c)
+            }
+            Err(e) => {
+                let _ = std::fs::remove_file(&marker);
+                Err(e)
+            }
+        }
+    }
+
+    fn open_all_apps(step: &dyn Fn(&str)) -> AppResult<Capture> {
+        step("COM init");
         // SAFETY: COM activation with a parameter block that outlives the call (the operation
         // copies it), then standard WASAPI setup on the activated client.
         unsafe {
@@ -149,6 +194,7 @@ impl Capture {
                 },
             };
             let (tx, rx) = std::sync::mpsc::channel();
+            step("ActivateAudioInterfaceAsync");
             let handler: IActivateAudioInterfaceCompletionHandler = Activated(tx).into();
             let operation = ActivateAudioInterfaceAsync(
                 VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
@@ -157,8 +203,10 @@ impl Capture {
                 &handler,
             )
             .map_err(|e| win_err("process loopback activation", e))?;
+            step("waiting for activation");
             rx.recv_timeout(Duration::from_secs(3))
                 .map_err(|_| AppError::Platform("process loopback activation timed out".into()))?;
+            step("GetActivateResult");
             let (mut hr, mut unknown) = (windows::core::HRESULT(0), None);
             operation
                 .GetActivateResult(&mut hr, &mut unknown)
@@ -168,6 +216,7 @@ impl Capture {
                 .ok_or_else(|| AppError::Platform("process loopback: no client".into()))?
                 .cast()
                 .map_err(|e| win_err("IAudioClient", e))?;
+            step("Initialize");
             // No mix format exists for this virtual device: we choose ours.
             let wanted = target_format();
             client
@@ -182,6 +231,7 @@ impl Capture {
                     None,
                 )
                 .map_err(|e| win_err("process loopback Initialize", e))?;
+            step("event handle");
             let event = CreateEventW(None, false, false, None).map_err(|e| win_err("CreateEvent", e))?;
             if let Err(e) = client.SetEventHandle(event) {
                 let _ = CloseHandle(event);
@@ -189,6 +239,7 @@ impl Capture {
             }
             let capture: IAudioCaptureClient =
                 client.GetService().map_err(|e| win_err("IAudioCaptureClient", e))?;
+            step("Start");
             client.Start().map_err(|e| win_err("audio Start", e))?;
             Ok(Capture {
                 client,
@@ -201,6 +252,7 @@ impl Capture {
                 event: Some(event),
                 stamp_on_arrival: true,
                 next_stamp: None,
+                marker: None,
             })
         }
     }
@@ -264,6 +316,7 @@ impl Capture {
                             event: None,
                             stamp_on_arrival: false,
                             next_stamp: None,
+                            marker: None,
                         });
                     }
                     Err(e) => {
@@ -309,6 +362,7 @@ impl Capture {
                 event: None,
                 stamp_on_arrival: false,
                 next_stamp: None,
+                marker: None,
             })
         }
     }
@@ -354,6 +408,9 @@ impl Capture {
                 }
                 if frames > 0 {
                     on_data(qpc as i64, &samples);
+                    if let Some(m) = self.marker.take() {
+                        let _ = std::fs::remove_file(m);
+                    }
                 }
             }
         }
@@ -380,6 +437,9 @@ impl Drop for Capture {
     fn drop(&mut self) {
         // SAFETY: stopping a started client.
         let _ = unsafe { self.client.Stop() };
+        if let Some(m) = self.marker.take() {
+            let _ = std::fs::remove_file(m);
+        }
         if let Some(event) = self.event.take() {
             // SAFETY: our own event handle, closed once.
             let _ = unsafe { CloseHandle(event) };

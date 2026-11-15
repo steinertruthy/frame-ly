@@ -31,3 +31,25 @@ pub fn init(log_dir: &Path) -> Option<WorkerGuard> {
     let _ = tracing_subscriber::registry().with(file_layer).with(stderr_layer).try_init();
     guard
 }
+
+const CRASH_FILE: &str = "last-crash.txt";
+
+/// Release builds abort on panic and the log writer is asynchronous, so a panic would vanish
+/// without a trace: it is written synchronously to a file, reported on the next start.
+pub fn install_panic_hook(log_dir: &Path) {
+    let path = log_dir.join(CRASH_FILE);
+    std::panic::set_hook(Box::new(move |info| {
+        let thread = std::thread::current().name().unwrap_or("unnamed").to_owned();
+        let _ = std::fs::write(&path, format!("thread '{thread}': {info}"));
+        tracing::error!(%thread, panic = %info, "panic");
+    }));
+}
+
+/// Logs (and clears) the panic that ended the previous session, if any.
+pub fn report_previous_crash(log_dir: &Path) {
+    let path = log_dir.join(CRASH_FILE);
+    if let Ok(details) = std::fs::read_to_string(&path) {
+        tracing::error!(%details, "the previous session ended with a crash");
+        let _ = std::fs::remove_file(&path);
+    }
+}
