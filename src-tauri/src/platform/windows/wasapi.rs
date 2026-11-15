@@ -108,7 +108,7 @@ struct Activation {
 #[derive(Clone, Copy)]
 enum AppAudioFormat {
     Float48k { autoconvert: bool },
-    Pcm16At44k,
+    Pcm16At48k,
 }
 
 /// Ways of setting up the all-apps stream, tried in order. Each has its own crash marker: a
@@ -124,7 +124,7 @@ struct AppAudioSetup {
 }
 
 impl AppAudioSetup {
-    const ALL: [AppAudioSetup; 3] = [Self::SETUPS[1], Self::SETUPS[2], Self::SETUPS[0]];
+    const ALL: [AppAudioSetup; 3] = [Self::SETUPS[2], Self::SETUPS[1], Self::SETUPS[0]];
     const SETUPS: [AppAudioSetup; 3] = [
         // Float 48 kHz with Windows conversion, 100 ms buffer.
         AppAudioSetup {
@@ -134,11 +134,12 @@ impl AppAudioSetup {
             buffer_hns: BUFFER_HNS,
             service_first: false,
         },
-        // Microsoft's ApplicationLoopback sample: 16-bit 44.1 kHz, 20 ms buffer.
+        // Microsoft's ApplicationLoopback sample (16-bit, 20 ms buffer), at 48 kHz so nothing
+        // is resampled here.
         AppAudioSetup {
             name: "B",
             marker: "framely-app-audio-s-b.attempt",
-            format: AppAudioFormat::Pcm16At44k,
+            format: AppAudioFormat::Pcm16At48k,
             buffer_hns: 200_000,
             service_first: true,
         },
@@ -232,17 +233,17 @@ impl Capture {
             // No mix format exists for this virtual device: we choose ours.
             let (format, conversion, autoconvert) = match setup.format {
                 AppAudioFormat::Float48k { autoconvert } => (target_format(), None, autoconvert),
-                AppAudioFormat::Pcm16At44k => (
+                AppAudioFormat::Pcm16At48k => (
                     WAVEFORMATEX {
                         wFormatTag: WAVE_FORMAT_PCM,
                         nChannels: 2,
-                        nSamplesPerSec: 44_100,
-                        nAvgBytesPerSec: 44_100 * 4,
+                        nSamplesPerSec: SAMPLE_RATE,
+                        nAvgBytesPerSec: SAMPLE_RATE * 4,
                         nBlockAlign: 4,
                         wBitsPerSample: 16,
                         cbSize: 0,
                     },
-                    Some(Conversion { channels: 2, rate: 44_100, sample: Sample::I16 }),
+                    Some(Conversion { channels: 2, rate: SAMPLE_RATE, sample: Sample::I16 }),
                     true,
                 ),
             };
@@ -470,14 +471,16 @@ impl Capture {
 }
 
 impl Capture {
-    /// Time of a packet without a usable device timestamp: packets follow each other without
-    /// gaps or overlaps (several can be drained at once), nudged slowly toward their arrival
-    /// time so clock drift never accumulates; a jump (silence, a stall) restarts from arrival.
+    /// Time of a packet without a usable device timestamp. Packets follow each other exactly
+    /// (each starts where the previous ended; several can be drained at once, so arrival times
+    /// jitter): the arrival time is used only to start, or to restart after a real break
+    /// (silence without packets, a stall) of more than 200 ms.
     fn continuous_stamp(&mut self, frames: u32) -> i64 {
-        let duration = frames as i64 * 10_000_000 / SAMPLE_RATE as i64;
+        let rate = self.conversion.map_or(SAMPLE_RATE, |c| c.rate) as i64;
+        let duration = frames as i64 * 10_000_000 / rate.max(1);
         let arrival = qpc_now() - duration;
         let stamp = match self.next_stamp {
-            Some(next) if (arrival - next).abs() < 500_000 => next + (arrival - next) / 64,
+            Some(next) if (arrival - next).abs() < 2_000_000 => next,
             _ => arrival,
         };
         self.next_stamp = Some(stamp + duration);
