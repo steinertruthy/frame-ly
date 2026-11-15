@@ -256,6 +256,15 @@ mídia (gravação, vídeo ou áudio importado)
 - **Apple Intelligence** (`Intelligence.swift`): Foundation Models com geração guiada (`@Generable`) no
   mesmo formato dos outros provedores; contexto de 4096 tokens → partes menores. `FoundationModels` é
   weak-linked, então o app segue abrindo no macOS 14/15. Não aparece no Windows.
+- **FrameLy Cloud** (`intelligence/cloud.rs` + serviço em `cloud/`): provedor na nuvem do próprio
+  FrameLy, sem chave nem modelo para o usuário. O app envia a requisição estruturada (texto da
+  transcrição, idioma, detalhe, parte) — nunca prompts nem mídia — assinada com uma identidade
+  Ed25519 anônima guardada no Keychain/Gerenciador de Credenciais (registro com prova de trabalho).
+  O serviço monta os prompts, chama o Gemini, valida e devolve o mesmo JSON dos outros provedores.
+  É externo para fins de privacidade: consentimento antes do primeiro envio (com o processador e a
+  política de dados informados pelo próprio serviço) e bloqueio no modo exclusivamente local. A URL
+  vem do build (`FRAMELY_CLOUD_URL`); sem ela o provedor aparece como indisponível. Detalhes:
+  `cloud/README.md`.
 - **Diarização**: não há separação de falantes local (whisper.cpp só tem `tinydiarize`, inglês) e as
   gravações do FrameLy têm uma faixa mixada; o ajuste aparece indisponível, com explicação.
 

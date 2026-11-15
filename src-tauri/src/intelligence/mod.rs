@@ -8,6 +8,7 @@
 //! of interrupted transcriptions.
 
 pub mod catalog;
+pub mod cloud;
 pub mod estimate;
 pub mod generation;
 pub mod hardware;
@@ -562,6 +563,7 @@ pub fn provider_ready<R: Runtime>(app: &AppHandle<R>, provider: ProviderId) -> R
             models(app).ready_path(spec).map(|_| ()).ok_or("model_missing")
         }
         ProviderId::Apple => apple_reason(None, &p).map_or(Ok(()), Err),
+        ProviderId::Cloud => providers::cloud_reason(&p, cloud::base_url().is_some()).map_or(Ok(()), Err),
         ext => {
             let key = crate::platform::keystore::get(providers::key_account(ext)).ok().flatten().is_some();
             providers::external_reason(&p, ext, key).map_or(Ok(()), Err)
@@ -606,6 +608,7 @@ pub fn start_generation<R: Runtime>(app: &AppHandle<R>, transcript_id: i64, task
             "local_only" => AppError::LocalOnly,
             "no_consent" => AppError::ConsentRequired(provider.as_str().into()),
             "no_key" => AppError::MissingKey,
+            "cloud_region" => AppError::CloudRegion,
             other => AppError::Unsupported(other.into()),
         });
     }
@@ -628,6 +631,16 @@ fn open_runner<R: Runtime>(app: &AppHandle<R>, job: &Job, provider: ProviderId) 
         ProviderId::Apple => Ok((Box::new(providers::AppleRunner), None)),
         #[cfg(not(target_os = "macos"))]
         ProviderId::Apple => Err(AppError::Unsupported("apple".into())),
+        ProviderId::Cloud => {
+            if let Some(reason) = providers::cloud_reason(&p, cloud::base_url().is_some()) {
+                return Err(match reason {
+                    "local_only" => AppError::LocalOnly,
+                    "no_consent" => AppError::ConsentRequired("cloud".into()),
+                    other => AppError::Unsupported(other.into()),
+                });
+            }
+            Ok((Box::new(cloud::CloudRunner::open(p.local_only, job.cancel.clone())?), None))
+        }
         ext => {
             let key = crate::platform::keystore::get(providers::key_account(ext))?.ok_or(AppError::MissingKey)?;
             if let Some(reason) = providers::external_reason(&p, ext, true) {
@@ -669,7 +682,7 @@ fn run_generation<R: Runtime>(app: &AppHandle<R>, job: &Job, task: Task, provide
         .max(600);
 
     let content = loop {
-        match generate_parts(app, job, runner.as_mut(), task, detail, &system, &lines, budget, max_out, &segments, t.media.duration_ms, &full_text) {
+        match generate_parts(app, job, runner.as_mut(), task, detail, language.as_deref(), &system, &lines, budget, max_out, &segments, t.media.duration_ms, &full_text) {
             // The estimate was optimistic for this model's tokenizer: smaller parts.
             Err(AppError::Provider(m)) if m == "context_overflow" && budget > 800 => budget = budget * 2 / 3,
             other => break other?,
@@ -700,6 +713,7 @@ fn generate_parts<R: Runtime>(
     runner: &mut dyn providers::Runner,
     task: Task,
     detail: Detail,
+    language: Option<&str>,
     system: &str,
     lines: &[(u64, String)],
     budget: usize,
@@ -719,7 +733,13 @@ fn generate_parts<R: Runtime>(
             return Err(AppError::Cancelled);
         }
         let part_detail = if n > 1 && task == Task::Summary { Detail::Balanced } else { detail };
-        let user = generation::user_prompt(task, part_detail, part, (n > 1).then_some((i, n)));
+        let req = providers::Request {
+            task,
+            detail: part_detail,
+            language,
+            system,
+            input: providers::Input::Part { text: part, part: (n > 1).then_some((i, n)) },
+        };
         let mut report = |f: f64| {
             let p = (i as f64 + f) / total_steps;
             emit_status(
@@ -728,7 +748,7 @@ fn generate_parts<R: Runtime>(
             );
         };
         report(0.0);
-        let raw = generation::parse_json(&runner.run(task, system, &user, max_out, &mut report)?)?;
+        let raw = generation::parse_json(&runner.generate(&req, max_out, &mut report)?)?;
         results.push(match task {
             Task::Summary => generation::normalize_summary(&raw, segments, duration_ms),
             Task::Topics => generation::normalize_topics(&raw, segments, duration_ms, full_text),
@@ -751,8 +771,8 @@ fn generate_parts<R: Runtime>(
                 next.push(group.remove(0));
                 return Ok(());
             }
-            let prompt = generation::reduce_prompt(detail, group);
-            let raw = generation::parse_json(&runner.run(task, system, &prompt, max_out, &mut |_| {})?)?;
+            let req = providers::Request { task, detail, language, system, input: providers::Input::Combine { partials: group } };
+            let raw = generation::parse_json(&runner.generate(&req, max_out, &mut |_| {})?)?;
             next.push(generation::normalize_summary(&raw, segments, duration_ms));
             group.clear();
             Ok(())
@@ -842,6 +862,53 @@ mod tests {
             }
             matches!(s.state, "done" | "failed" | "cancelled").then_some(s)
         })
+    }
+
+    /// FrameLy Cloud through the app's own job pipeline against a running service
+    /// (`cd cloud && pnpm dev:mock`): consent, structured requests, normalization, storage.
+    ///   FRAMELY_CLOUD_URL=http://127.0.0.1:8787 FRAMELY_TEST_MEDIA=<already transcribed file>
+    #[test]
+    #[ignore = "needs a running FrameLy Cloud and an existing transcript"]
+    fn cloud_generation_end_to_end() {
+        let media = std::env::var("FRAMELY_TEST_MEDIA").expect("FRAMELY_TEST_MEDIA");
+        let mut ctx = tauri::test::mock_context(tauri::test::noop_assets());
+        ctx.config_mut().identifier = "app.framely.desktop".into();
+        let app = tauri::test::mock_builder().build(ctx).expect("mock app");
+        let handle = app.handle().clone();
+        let tmp = tempfile::tempdir().unwrap();
+        let dirs = crate::core::settings::DefaultDirs { videos: tmp.path().join("v"), pictures: tmp.path().join("p") };
+        let settings = crate::core::settings::SettingsStore::load(tmp.path().join("settings.json"), &dirs).unwrap();
+        handle.manage(AppState {
+            settings,
+            backend: Arc::from(crate::platform::backend()),
+            screenshots: Default::default(),
+            recordings: Default::default(),
+            library: Default::default(),
+            intelligence: Default::default(),
+            log_dir: tmp.path().to_path_buf(),
+            start_hidden: AtomicBool::new(true),
+            _log_guard: None,
+        });
+        init(&handle).unwrap();
+        let t = with_db(&handle, |db| db.find_by_path(&media)).unwrap().expect("transcribe the file first");
+        // No consent yet: refused, nothing sent.
+        assert_eq!(start_generation(&handle, t.id, Task::Summary, ProviderId::Cloud, Detail::Brief).unwrap_err().code(), "consent_required");
+        let state = handle.state::<AppState>();
+        let mut s = state.settings.get();
+        s.intelligence.consents.push(ProviderId::Cloud);
+        state.settings.replace(s.clone()).unwrap();
+        for task in [Task::Summary, Task::Topics] {
+            let job = start_generation(&handle, t.id, task, ProviderId::Cloud, Detail::Balanced).unwrap();
+            let st = wait_job(&handle, job);
+            assert_eq!(st.state, "done", "{:?}", st.error);
+            let g = with_db(&handle, |db| db.generated(t.id, task.as_str())).unwrap().unwrap();
+            assert_eq!(g.provider, "cloud");
+            println!("cloud {}: {}", task.as_str(), g.content);
+        }
+        // Local-only mode blocks FrameLy Cloud.
+        s.intelligence.local_only = true;
+        state.settings.replace(s).unwrap();
+        assert_eq!(start_generation(&handle, t.id, Task::Summary, ProviderId::Cloud, Detail::Brief).unwrap_err().code(), "local_only");
     }
 
     /// The whole FrameLy AI pipeline against the real services and runtimes: model downloads

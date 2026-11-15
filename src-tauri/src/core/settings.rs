@@ -254,6 +254,9 @@ pub enum ProviderId {
     Apple,
     Anthropic,
     Openai,
+    /// FrameLy Cloud: FrameLy's own service (no key or model to set up; the text leaves the
+    /// computer, so it needs consent like any external provider).
+    Cloud,
 }
 
 impl ProviderId {
@@ -263,9 +266,15 @@ impl ProviderId {
             ProviderId::Apple => "apple",
             ProviderId::Anthropic => "anthropic",
             ProviderId::Openai => "openai",
+            ProviderId::Cloud => "cloud",
         }
     }
+    /// The transcript leaves the computer (consent required, blocked in local-only mode).
     pub fn is_external(self) -> bool {
+        matches!(self, ProviderId::Anthropic | ProviderId::Openai | ProviderId::Cloud)
+    }
+    /// Configured with the user's own API key.
+    pub fn needs_key(self) -> bool {
         matches!(self, ProviderId::Anthropic | ProviderId::Openai)
     }
 }

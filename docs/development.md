@@ -32,6 +32,10 @@
 | `<app>/Contents/MacOS/framely --edit <imagem>` | Abre uma imagem das pastas do FrameLy no editor. |
 | `<app>/Contents/MacOS/framely --transcribe <arquivo>` | Abre a transcrição do arquivo (ou a tela de nova transcrição). |
 | `cargo test -- --ignored --nocapture end_to_end_with_real_models` | FrameLy AI de ponta a ponta com modelos reais: `FRAMELY_TEST_MEDIA=<áudio>` e `FRAMELY_LLM_WORKER=src-tauri/binaries/framely-llm-<alvo>` (baixa ~3,5 GB na pasta de dados do FrameLy). |
+| `cd cloud && pnpm test` | Testes do FrameLy Cloud API (Worker; Gemini simulado). |
+| `cd cloud && pnpm dev:mock` | FrameLy Cloud local em `http://127.0.0.1:8787` com provedor simulado. |
+| `FRAMELY_CLOUD_URL=http://127.0.0.1:8787 cargo test -- --ignored cloud_round_trip` | Registro do aparelho e pedidos assinados contra o serviço local. |
+| `FRAMELY_CLOUD_URL=… FRAMELY_TEST_MEDIA=<arquivo já transcrito> cargo test -- --ignored cloud_generation_end_to_end` | Resumo e tópicos pelo FrameLy Cloud através da fila de jobs do app. |
 | `cargo test -- --ignored round_trip` | Grava e apaga uma chave de teste no Keychain/Gerenciador de Credenciais. |
 
 ## Logs e depuração

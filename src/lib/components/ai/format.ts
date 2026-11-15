@@ -1,6 +1,6 @@
 import { t, locale, type MessageKey } from '$lib/i18n/index.svelte';
 import { roughDuration } from '$lib/ai';
-import type { ModelStatus, ProviderId } from '$lib/ipc/ai';
+import type { CloudStatus, ModelStatus, ProviderId } from '$lib/ipc/ai';
 
 /** "3 min", "45 s", "1,5 h" in the interface language. */
 export function roughTime(ms: number): string {
@@ -33,4 +33,18 @@ export const PROVIDER_HOSTS: Record<ProviderId, string> = {
   apple: '',
   anthropic: 'api.anthropic.com',
   openai: 'api.openai.com',
+  cloud: '',
 };
+
+/** Providers offered for summaries/topics: local ones, FrameLy Cloud, and third parties when enabled. */
+export function offeredProvider(p: { id: ProviderId; local: boolean }, externalEnabled: boolean | undefined): boolean {
+  return p.local || p.id === 'cloud' || !!externalEnabled;
+}
+
+/** Consent text: what is sent, to whom, and how the processor may use it. */
+export function consentBody(provider: ProviderId, cloud: CloudStatus | null): string {
+  if (provider !== 'cloud') return t('ai.consent.body', { provider: providerName(provider), host: PROVIDER_HOSTS[provider] });
+  const processor = cloud?.processor ?? t('ai.cloud.processorUnknown');
+  const use = cloud?.dataUse === 'no_training' ? t('ai.cloud.noTraining', { processor }) : t('ai.cloud.mayTrain', { processor });
+  return `${t('ai.cloud.consentBody', { processor })} ${use}`;
+}

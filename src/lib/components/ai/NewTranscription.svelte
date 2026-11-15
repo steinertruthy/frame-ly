@@ -15,7 +15,8 @@
   import { toast } from '$lib/stores/toasts.svelte';
   import { isReady, needsConsent, TRANSCRIPTION_LANGUAGES } from '$lib/ai';
   import Sheet from './Sheet.svelte';
-  import { languageName, modelName, pct, PROVIDER_HOSTS, providerName, roughTime } from './format';
+  import { consentBody, languageName, modelName, offeredProvider, pct, providerName, roughTime } from './format';
+  import CloudState from './CloudState.svelte';
 
   interface Props {
     path: string;
@@ -66,13 +67,14 @@
   const speechReady = $derived(isReady(model ?? undefined));
   const unsupported = $derived(aiStore.overview ? !aiStore.overview.hardware.supported : false);
   const s = $derived(settings.value?.intelligence);
-  const providers = $derived((aiStore.overview?.providers ?? []).filter((p) => p.local || s?.externalEnabled));
+  const providers = $derived((aiStore.overview?.providers ?? []).filter((p) => offeredProvider(p, s?.externalEnabled)));
   const info = (id: ProviderId) => aiStore.overview?.providers.find((p) => p.id === id);
   /** Why a step can't run as configured ("no_consent" is resolved by asking at start). */
   function blocker(task: Task): string | null {
     const st = steps[task];
     if (!st.on) return null;
     const i = info(st.provider);
+    if (st.provider === 'cloud' && aiStore.cloud && aiStore.cloud.state !== 'available') return `cloud_${aiStore.cloud.state}`;
     return i && !i.available && i.reason !== 'no_consent' ? i.reason : null;
   }
   const reused = $derived(
@@ -96,6 +98,9 @@
   });
   const external = $derived((['summary', 'topics'] as const).filter((k) => steps[k].on && !info(steps[k].provider)?.local).map((k) => steps[k].provider));
   const money = (n: number) => n.toLocaleString(locale(), { minimumFractionDigits: n < 0.1 ? 3 : 2, maximumFractionDigits: n < 0.1 ? 3 : 2 });
+  $effect(() => {
+    if (steps.summary.provider === 'cloud' || steps.topics.provider === 'cloud') void aiStore.checkCloud();
+  });
   const anyBlocked = $derived(!!blocker('summary') || !!blocker('topics'));
   const willGenerate = $derived(steps.summary.on || steps.topics.on);
 
@@ -249,6 +254,14 @@
             </div>
             {#if block}
               <p class="warn"><AlertTriangle size={13} />{t(`ai.reason.${block}` as MessageKey)}</p>
+            {:else if st.provider === 'cloud'}
+              <p class="hint">
+                <Globe size={13} />
+                <span>
+                  {t('ai.cloud.privacy', { tokens: estimate.inputTokens.toLocaleString(locale()), processor: aiStore.cloud?.processor ?? t('ai.cloud.processorUnknown') })}
+                  {#if !aiStore.cloud}<CloudState />{/if}
+                </span>
+              </p>
             {:else if pi?.local}
               <p class="hint"><Cpu size={13} />{t('ai.gen.privacy.local')}</p>
             {:else if pi}
@@ -297,7 +310,7 @@
 {#if consentFor}
   <ConfirmDialog
     title={t('ai.consent.title', { provider: providerName(consentFor) })}
-    body={t('ai.consent.body', { provider: providerName(consentFor), host: PROVIDER_HOSTS[consentFor] })}
+    body={consentBody(consentFor, aiStore.cloud)}
     confirm={t('ai.consent.allow')}
     cancel={t('ai.consent.cancel')}
     onconfirm={allow}

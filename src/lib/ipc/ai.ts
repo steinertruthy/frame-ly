@@ -5,7 +5,7 @@ import type { Settings } from './types';
 export type AiProfile = 'auto' | 'basic' | 'balanced' | 'advanced';
 export type Precision = 'auto' | 'fast' | 'balanced' | 'max';
 export type Detail = 'brief' | 'balanced' | 'detailed';
-export type ProviderId = 'framely' | 'apple' | 'anthropic' | 'openai';
+export type ProviderId = 'framely' | 'apple' | 'anthropic' | 'openai' | 'cloud';
 export type Task = 'summary' | 'topics';
 
 export interface Hardware {
@@ -180,6 +180,18 @@ export interface Estimate {
   anthropicCostUsd: [number, number] | null;
 }
 
+export type CloudState = 'available' | 'offline' | 'unavailable' | 'region_blocked' | 'not_configured' | 'local_only';
+
+export interface CloudStatus {
+  state: CloudState;
+  /** Who processes the text behind FrameLy Cloud (e.g. "Google Gemini"). */
+  processor: string | null;
+  /** "may_train": the processor may use content to improve its products. */
+  dataUse: 'may_train' | 'no_training' | null;
+  maxInputChars: number | null;
+  requestsPerDay: number | null;
+}
+
 export interface Followups {
   summary: boolean;
   topics: boolean;
@@ -250,6 +262,7 @@ export const ai = {
   consent: (provider: ProviderId, granted: boolean) => invoke<Settings>('ai_consent', { provider, granted }),
   clearTemp: () => invoke<number>('ai_clear_temp'),
   probe: (path: string) => invoke<MediaRef>('media_probe', { path }),
+  cloudStatus: () => invoke<CloudStatus>('cloud_status'),
 };
 
 export const aiEvents = {

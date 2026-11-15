@@ -13,6 +13,7 @@
 | 8 | Editor de screenshots | ✅ |
 | 8.5 | Redesign: identidade escura, edição inline na seleção, ajustes por categoria, 5 idiomas, iniciar com o sistema, notificações | ✅ |
 | 8.6 | FrameLy AI: transcrição, resumo e tópicos locais; Apple Intelligence e provedores externos opcionais | ✅ (Windows: compila e empacota; validar em hardware real) |
+| 8.7 | FrameLy Cloud: provedor na nuvem (Cloudflare Worker + Gemini), registro anônimo de aparelho, limites | ✅ (local; publicar exige a conta Cloudflare e a chave Gemini) |
 | 9 | Ajustes completos, polimento, instaladores, assinatura | ⏳ |
 
 ## Limitações conhecidas (v1)

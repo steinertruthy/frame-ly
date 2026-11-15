@@ -1,0 +1,26 @@
+{
+  "name": "framely-cloud",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "FrameLy Cloud API: summaries and topics for the FrameLy desktop app (Cloudflare Worker)",
+  "scripts": {
+    "dev": "wrangler dev",
+    "dev:mock": "wrangler dev --var PROVIDER:mock",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251101.0",
+    "typescript": "~5.9.3",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.45.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
+  }
+}

@@ -1,4 +1,4 @@
-import { ai, aiEvents, type JobStatus, type ModelStatus, type Overview, type Task, type Transcript } from '$lib/ipc/ai';
+import { ai, aiEvents, type CloudStatus, type JobStatus, type ModelStatus, type Overview, type Task, type Transcript } from '$lib/ipc/ai';
 import { isReady, languageModelId, speechModelId } from '$lib/ai';
 import { t, type MessageKey } from '$lib/i18n/index.svelte';
 import { toast } from './toasts.svelte';
@@ -12,6 +12,10 @@ class AiStore {
   /** Bumped when a transcript changes (new block, edit, generated content). */
   changed = $state<{ id: number; n: number }>({ id: 0, n: 0 });
   private started = false;
+  /** FrameLy Cloud connection (null while checking). */
+  cloud = $state<CloudStatus | null>(null);
+  cloudChecking = $state(false);
+  private cloudCheckedAt = 0;
 
   async init(): Promise<void> {
     if (this.started) {
@@ -94,6 +98,20 @@ class AiStore {
     return Object.values(this.jobs)
       .filter((j) => j.transcriptId === transcriptId && j.kind === kind && (j.state === 'queued' || j.state === 'running'))
       .sort((a, b) => b.id - a.id)[0];
+  }
+
+  /** Checks FrameLy Cloud (no content sent); results are reused for a minute. */
+  async checkCloud(force = false): Promise<void> {
+    if (this.cloudChecking || (!force && Date.now() - this.cloudCheckedAt < 60_000 && this.cloud)) return;
+    this.cloudChecking = true;
+    try {
+      this.cloud = await ai.cloudStatus();
+      this.cloudCheckedAt = Date.now();
+    } catch {
+      this.cloud = { state: 'offline', processor: null, dataUse: null, maxInputChars: null, requestsPerDay: null };
+    } finally {
+      this.cloudChecking = false;
+    }
   }
 
   /** What is happening to a transcript right now: the running job, else the next queued one. */

@@ -17,7 +17,8 @@
   import { toast } from '$lib/stores/toasts.svelte';
   import { TRANSCRIPTION_LANGUAGES } from '$lib/ai';
   import ModelRow from './ModelRow.svelte';
-  import { languageName, providerName } from './format';
+  import { languageName, offeredProvider, providerName } from './format';
+  import CloudState from './CloudState.svelte';
 
   interface Props {
     platform: string;
@@ -40,7 +41,7 @@
   const detailOptions = $derived((['brief', 'balanced', 'detailed'] as const).map((d) => ({ value: d, label: t(`ai.detail.${d}` as MessageKey) })));
   const providerOptions = $derived(
     (o?.providers ?? [])
-      .filter((p) => p.local || s.externalEnabled)
+      .filter((p) => offeredProvider(p, s.externalEnabled))
       .map((p) => ({ value: p.id, label: providerName(p.id) })),
   );
 
@@ -156,6 +157,29 @@
     </Section>
   {/each}
 
+  {@const cloud = aiStore.cloud}
+  <Section title={t('ai.provider.cloud')}>
+    <SettingRow title={t('ai.provider.cloud')} hint={t('ai.cloud.description')}>
+      <CloudState />
+    </SettingRow>
+    {#if cloud?.processor}
+      <SettingRow
+        title={t('ai.cloud.processedBy')}
+        hint={cloud.dataUse === 'no_training' ? t('ai.cloud.noTraining', { processor: cloud.processor }) : t('ai.cloud.mayTrain', { processor: cloud.processor })}
+      >
+        <span class="value">{cloud.processor}</span>
+      </SettingRow>
+    {/if}
+    <SettingRow
+      title={t('ai.set.consent')}
+      hint={s.consents.includes('cloud') ? t('ai.set.consent.on', { provider: t('ai.provider.cloud') }) : t('ai.set.consent.off')}
+    >
+      {#if s.consents.includes('cloud')}
+        <Button size="sm" variant="ghost" onclick={() => save((d) => (d.intelligence.consents = d.intelligence.consents.filter((c) => c !== 'cloud')))}>{t('ai.set.revoke')}</Button>
+      {/if}
+    </SettingRow>
+  </Section>
+
   {#if mac}
     {@const apple = info('apple')}
     <Section title={t('ai.set.apple')}>
@@ -220,6 +244,10 @@
 {/if}
 
 <style>
+  .value {
+    color: var(--text-2);
+    font-weight: 600;
+  }
   .ok {
     display: grid;
     place-items: center;

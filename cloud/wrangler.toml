@@ -1,0 +1,41 @@
+# FrameLy Cloud API. Every setting lives here (or in `wrangler secret` for credentials);
+# see README.md. Changing the model or limits needs no desktop app update.
+name = "framely-cloud"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[observability]
+enabled = true
+
+[[durable_objects.bindings]]
+name = "LIMITER"
+class_name = "Limiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Limiter"]
+
+[vars]
+# Active AI provider: "gemini" (production) or "mock" (local development and tests).
+PROVIDER = "gemini"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
+# How the processor uses data, shown to people before they agree: "may_train" (Gemini free tier)
+# or "no_training" (paid tier). Must match the plan of the key in use.
+DATA_USE = "may_train"
+PROVIDER_TIMEOUT_MS = "60000"
+MAX_INPUT_CHARS = "120000"
+MAX_OUTPUT_TOKENS = "6000"
+# Anti-abuse: proof-of-work difficulty (leading zero bits) to register a device.
+REGISTRATION_POW_BITS = "20"
+DEVICE_REQUESTS_PER_MINUTE = "6"
+DEVICE_REQUESTS_PER_DAY = "60"
+IP_REGISTRATIONS_PER_DAY = "5"
+# Global ceilings: keep them below the provider's free quota so it is never exceeded.
+GLOBAL_REQUESTS_PER_MINUTE = "12"
+GLOBAL_REQUESTS_PER_DAY = "900"
+GLOBAL_TOKENS_PER_MINUTE = "200000"
+# The Gemini free tier may not be offered to users in the EEA, Switzerland or the UK.
+BLOCKED_COUNTRIES = "AT,BE,BG,HR,CY,CZ,DK,EE,FI,FR,DE,GR,HU,IE,IT,LV,LT,LU,MT,NL,PL,PT,RO,SK,SI,ES,SE,IS,LI,NO,CH,GB"
+
+# Secrets (never in this file): GEMINI_API_KEY, TOKEN_SECRET — `wrangler secret put <NAME>`.

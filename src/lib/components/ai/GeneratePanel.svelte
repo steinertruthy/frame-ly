@@ -12,7 +12,8 @@
   import { nav } from '$lib/stores/nav.svelte';
   import { toast } from '$lib/stores/toasts.svelte';
   import { needsConsent } from '$lib/ai';
-  import { PROVIDER_HOSTS, providerName, roughTime } from './format';
+  import { consentBody, offeredProvider, providerName, roughTime } from './format';
+  import CloudState from './CloudState.svelte';
 
   interface Props {
     transcriptId: number;
@@ -33,9 +34,10 @@
     provider = regenerate?.provider ?? (task === 'summary' ? s.summaryProvider : s.topicsProvider);
   });
 
-  const providers = $derived((aiStore.overview?.providers ?? []).filter((p) => !p.needsKey || s?.externalEnabled || p.id === provider));
+  const providers = $derived((aiStore.overview?.providers ?? []).filter((p) => offeredProvider(p, s?.externalEnabled) || p.id === provider));
   const info = $derived(aiStore.overview?.providers.find((p) => p.id === provider));
   // "no_consent" is resolved by asking here, so it doesn't block.
+  const cloudDown = $derived(provider === 'cloud' && !!aiStore.cloud && aiStore.cloud.state !== 'available');
   const blocked = $derived(info && !info.available && info.reason !== 'no_consent' ? info.reason : null);
 
   let estimate = $state<GenerationEstimate | null>(null);
@@ -94,7 +96,7 @@
       options={providers.map((p) => ({ value: p.id, label: providerName(p.id) }))}
       onchange={(v) => (provider = v)}
     />
-    <Button variant="primary" busy={busy} disabled={!!blocked} onclick={go}>
+    <Button variant="primary" busy={busy} disabled={!!blocked || cloudDown} onclick={go}>
       {#if regenerate}<RefreshCw size={14} />{t('ai.gen.regenerate')}{:else}<Sparkles size={14} />{t('ai.gen.generate')}{/if}
     </Button>
   </div>
@@ -107,6 +109,9 @@
       {/if}
     {:else if info?.local}
       <span><Cpu size={13} />{t('ai.gen.privacy.local')}</span>
+    {:else if provider === 'cloud'}
+      <CloudState />
+      <span><Globe size={13} />{t('ai.cloud.privacy', { tokens: (estimate?.inputTokens ?? 0).toLocaleString(locale()), processor: aiStore.cloud?.processor ?? t('ai.cloud.processorUnknown') })}</span>
     {:else if info}
       <span><Globe size={13} />{t('ai.gen.privacy.external', { tokens: (estimate?.inputTokens ?? 0).toLocaleString(locale()), provider: providerName(provider) })}</span>
       <span>
@@ -122,7 +127,7 @@
 {#if asking}
   <ConfirmDialog
     title={t('ai.consent.title', { provider: providerName(provider) })}
-    body={t('ai.consent.body', { provider: providerName(provider), host: PROVIDER_HOSTS[provider] })}
+    body={consentBody(provider, aiStore.cloud)}
     confirm={t('ai.consent.allow')}
     cancel={t('ai.consent.cancel')}
     onconfirm={allowAndRun}

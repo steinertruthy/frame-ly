@@ -73,12 +73,53 @@ pub fn external_reason(s: &Intelligence, id: ProviderId, has_key: bool) -> Optio
     }
 }
 
-/// Something that turns a prompt into JSON.
+/// What to generate, before it becomes a prompt.
+pub enum Input<'a> {
+    /// Transcript lines ("[mm:ss] text"), optionally one part of a longer transcript.
+    Part { text: &'a str, part: Option<(usize, usize)> },
+    /// Partial summaries (normalized) of consecutive parts, to combine.
+    Combine { partials: &'a [Value] },
+}
+
+pub struct Request<'a> {
+    pub task: Task,
+    pub detail: crate::core::settings::Detail,
+    pub language: Option<&'a str>,
+    pub system: &'a str,
+    pub input: Input<'a>,
+}
+
+/// Availability of FrameLy Cloud given the settings (pure; tested). No key, no model and not
+/// behind the "external providers" switch — but the text leaves the computer, so local-only
+/// mode blocks it and the first use asks for consent.
+pub fn cloud_reason(s: &Intelligence, configured: bool) -> Option<&'static str> {
+    if s.local_only {
+        Some("local_only")
+    } else if !configured {
+        Some("cloud_not_configured")
+    } else if !s.consents.contains(&ProviderId::Cloud) {
+        Some("no_consent")
+    } else {
+        None
+    }
+}
+
+/// Something that turns a request into JSON (`generation::schema`).
 pub trait Runner {
     /// Context window (tokens) available for prompt + answer.
     fn context_tokens(&self) -> u32;
     fn model_name(&self) -> String;
     fn run(&mut self, task: Task, system: &str, user: &str, max_tokens: u32, progress: &mut dyn FnMut(f64)) -> AppResult<String>;
+
+    /// Builds the prompt and runs it. Services that build their own prompts (FrameLy Cloud)
+    /// override this and send the structured request instead.
+    fn generate(&mut self, req: &Request<'_>, max_tokens: u32, progress: &mut dyn FnMut(f64)) -> AppResult<String> {
+        let user = match req.input {
+            Input::Part { text, part } => super::generation::user_prompt(req.task, req.detail, text, part),
+            Input::Combine { partials } => super::generation::reduce_prompt(req.detail, partials),
+        };
+        self.run(req.task, req.system, &user, max_tokens, progress)
+    }
 }
 
 pub struct FramelyRunner {
@@ -318,6 +359,20 @@ mod tests {
         s.local_only = true;
         assert_eq!(external_reason(&s, ProviderId::Anthropic, true), Some("local_only"), "local-only wins over everything");
         assert!(anthropic_price(ANTHROPIC_MODELS[0]).is_some());
+    }
+
+    #[test]
+    fn cloud_needs_no_key_or_switch_but_consent_and_network() {
+        let mut s = Intelligence::default();
+        assert!(!s.external_enabled);
+        assert_eq!(cloud_reason(&s, false), Some("cloud_not_configured"));
+        assert_eq!(cloud_reason(&s, true), Some("no_consent"));
+        s.consents.push(ProviderId::Cloud);
+        assert_eq!(cloud_reason(&s, true), None, "works without the external-providers switch");
+        s.local_only = true;
+        assert_eq!(cloud_reason(&s, true), Some("local_only"));
+        assert!(ProviderId::Cloud.is_external() && !ProviderId::Cloud.needs_key());
+        assert_eq!(serde_json::to_value(ProviderId::Cloud).unwrap(), "cloud");
     }
 
     #[test]

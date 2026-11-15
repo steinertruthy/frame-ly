@@ -83,6 +83,22 @@ fn provider_infos(app: &AppHandle) -> Vec<ProviderInfo> {
             consented: true,
         });
     }
+    {
+        let reason = providers::cloud_reason(&p, ai::cloud::base_url().is_some());
+        out.push(ProviderInfo {
+            id: ProviderId::Cloud,
+            local: false,
+            needs_internet: true,
+            needs_key: false,
+            key_configured: false,
+            available: reason.is_none(),
+            reason: reason.map(str::to_string),
+            context_tokens: 40_000,
+            paid: false,
+            model: "framely-cloud".into(),
+            consented: p.consents.contains(&ProviderId::Cloud),
+        });
+    }
     for (id, model) in [(ProviderId::Anthropic, p.anthropic_model.clone()), (ProviderId::Openai, p.openai_model.clone())] {
         let key = crate::platform::keystore::get(providers::key_account(id)).ok().flatten().is_some();
         let reason = providers::external_reason(&p, id, key);
@@ -436,7 +452,7 @@ pub async fn transcript_export(app: AppHandle, request: ExportRequest) -> AppRes
 #[tauri::command]
 pub async fn provider_key_set(app: AppHandle, provider: ProviderId, key: String) -> AppResult<()> {
     blocking(move || {
-        if !provider.is_external() {
+        if !provider.needs_key() {
             return Err(AppError::NotFound);
         }
         let key = key.trim();
@@ -454,7 +470,7 @@ pub async fn provider_key_set(app: AppHandle, provider: ProviderId, key: String)
 #[tauri::command]
 pub async fn provider_remove(app: AppHandle, provider: ProviderId) -> AppResult<crate::core::settings::Settings> {
     blocking(move || {
-        if !provider.is_external() {
+        if !provider.needs_key() {
             return Err(AppError::NotFound);
         }
         crate::platform::keystore::delete(providers::key_account(provider))?;
@@ -503,6 +519,12 @@ pub async fn ai_consent(app: AppHandle, provider: ProviderId, granted: bool) -> 
         state.settings.replace(s)
     })
     .await
+}
+
+/// FrameLy Cloud connection check (no content sent).
+#[tauri::command]
+pub async fn cloud_status(app: AppHandle) -> AppResult<ai::cloud::Status> {
+    blocking(move || Ok(ai::cloud::status(ai::prefs(&app).local_only))).await
 }
 
 #[tauri::command]

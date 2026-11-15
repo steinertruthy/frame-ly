@@ -44,6 +44,12 @@ pub enum AppError {
     Integrity(String),
     #[error("Missing API key")]
     MissingKey,
+    #[error("FrameLy Cloud usage limit reached")]
+    CloudLimit { retry_after: Option<u64> },
+    #[error("FrameLy Cloud is temporarily unavailable")]
+    CloudUnavailable,
+    #[error("FrameLy Cloud isn't available in this region")]
+    CloudRegion,
 }
 
 impl AppError {
@@ -69,6 +75,9 @@ impl AppError {
             AppError::DiskFull => "disk_full",
             AppError::Integrity(_) => "integrity",
             AppError::MissingKey => "missing_key",
+            AppError::CloudLimit { .. } => "cloud_limit",
+            AppError::CloudUnavailable => "cloud_unavailable",
+            AppError::CloudRegion => "cloud_region",
         }
     }
 }

@@ -302,6 +302,7 @@ pub fn run() {
             commands::intelligence::provider_test,
             commands::intelligence::ai_consent,
             commands::intelligence::ai_clear_temp,
+            commands::intelligence::cloud_status,
             commands::intelligence::media_probe,
         ])
         .build(tauri::generate_context!())
