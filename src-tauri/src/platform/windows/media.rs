@@ -284,6 +284,21 @@ fn uint_variant(v: u32) -> VARIANT {
     }
 }
 
+/// App quality level (the scale VideoToolbox uses on macOS: Leve 0.5, Boa 0.65, Ótima 0.75,
+/// Máxima 0.85) → Media Foundation's H.264/HEVC quality, whose scale runs higher: calibration
+/// on screen recordings showed 0.45 visibly soft and 0.55–0.65 indistinguishable from 0.75.
+pub fn encoder_quality(level: f64) -> f64 {
+    const MAP: [(f64, f64); 4] = [(0.5, 0.45), (0.65, 0.52), (0.75, 0.60), (0.85, 0.75)];
+    let level = level.clamp(MAP[0].0, MAP[3].0);
+    MAP.windows(2)
+        .find(|w| level <= w[1].0)
+        .map(|w| {
+            let (a, b) = (w[0], w[1]);
+            a.1 + (level - a.0) / (b.0 - a.0) * (b.1 - a.1)
+        })
+        .unwrap_or(MAP[3].1)
+}
+
 /// Rate control of the video encoder, best first:
 /// 1. constant quality: bits only where the picture changes (screen content compresses ~2×
 ///    smaller than a constant bitrate at equal fidelity);
