@@ -216,8 +216,9 @@ export const ai = {
   estimate: (path: string, precision: Precision) => invoke<Estimate>('ai_estimate', { path, precision }),
   generationEstimate: (id: number, task: Task, provider: ProviderId) =>
     invoke<GenerationEstimate>('ai_generation_estimate', { id, task, provider }),
-  transcribe: (path: string, precision: Precision, language: string) =>
-    invoke<{ transcript: Transcript; jobId: number | null }>('transcription_start', { path, precision, language }),
+  /** `then`: also generate these right after (same run); omitted = the automatic-generation settings. */
+  transcribe: (path: string, precision: Precision, language: string, then?: { summary: boolean; topics: boolean }) =>
+    invoke<{ transcript: Transcript; jobId: number | null }>('transcription_start', { path, precision, language, then: then ?? null }),
   list: () => invoke<Transcript[]>('transcripts_list'),
   get: (id: number) => invoke<Detailed>('transcript_get', { id }),
   find: (path: string) => invoke<Transcript | null>('transcript_find', { path }),

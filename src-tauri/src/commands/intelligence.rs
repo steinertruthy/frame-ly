@@ -226,9 +226,15 @@ pub struct Started {
 }
 
 #[tauri::command]
-pub async fn transcription_start(app: AppHandle, path: PathBuf, precision: Option<String>, language: Option<String>) -> AppResult<Started> {
+pub async fn transcription_start(
+    app: AppHandle,
+    path: PathBuf,
+    precision: Option<String>,
+    language: Option<String>,
+    then: Option<ai::Followups>,
+) -> AppResult<Started> {
     blocking(move || {
-        let (transcript, job_id) = ai::start_transcription(&app, &path, precision, language)?;
+        let (transcript, job_id) = ai::start_transcription(&app, &path, precision, language, then)?;
         Ok(Started { transcript, job_id })
     })
     .await

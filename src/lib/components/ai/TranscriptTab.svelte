@@ -38,7 +38,7 @@
     const i = active;
     if (!follow || editing || i < 0 || !body) return;
     const el = body.querySelector<HTMLElement>(`[data-seg="${i}"]`);
-    const scroller = el?.closest('.page');
+    const scroller = el?.closest('.scroll');
     if (!el || !scroller) return;
     const r = el.getBoundingClientRect();
     const v = scroller.getBoundingClientRect();
@@ -161,7 +161,7 @@
   }
   .toolbar {
     position: sticky;
-    top: -52px;
+    top: 0;
     z-index: 2;
     display: flex;
     align-items: center;

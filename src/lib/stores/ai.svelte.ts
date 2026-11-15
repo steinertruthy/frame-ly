@@ -96,6 +96,12 @@ class AiStore {
       .sort((a, b) => b.id - a.id)[0];
   }
 
+  /** What is happening to a transcript right now: the running job, else the next queued one. */
+  current(transcriptId: number): JobStatus | undefined {
+    const live = Object.values(this.jobs).filter((j) => j.transcriptId === transcriptId && (j.state === 'queued' || j.state === 'running'));
+    return live.find((j) => j.state === 'running') ?? live.sort((a, b) => a.id - b.id)[0];
+  }
+
   async modelAction(id: string, action: Parameters<typeof ai.modelAction>[1]): Promise<void> {
     try {
       this.patchModel(await ai.modelAction(id, action));

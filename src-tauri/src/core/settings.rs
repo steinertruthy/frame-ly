@@ -17,7 +17,7 @@ use std::{
     sync::RwLock,
 };
 
-pub const CURRENT_VERSION: u32 = 2;
+pub const CURRENT_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Language {
@@ -303,10 +303,10 @@ impl Default for Intelligence {
             precision: Precision::Auto,
             language: "auto".into(),
             summary_detail: Detail::Balanced,
-            summary_auto: false,
+            summary_auto: true,
             summary_provider: ProviderId::Framely,
             topics_detail: Detail::Balanced,
-            topics_auto: false,
+            topics_auto: true,
             topics_provider: ProviderId::Framely,
             local_only: false,
             external_enabled: false,
@@ -439,6 +439,14 @@ fn migrate(value: &mut Value) {
         // "system" keep it — write it explicitly so the new default doesn't override them.
         if value.get("appearance").and_then(|a| a.get("theme")).is_none() {
             value["appearance"]["theme"] = Value::from("system");
+        }
+    }
+    if version < 3 {
+        // v2 → v3: transcription, summary and topics run together by default. The first
+        // release saved both as off; this turns them on once (later choices are kept).
+        if let Some(i) = value.get_mut("intelligence").and_then(Value::as_object_mut) {
+            i.insert("summaryAuto".into(), Value::Bool(true));
+            i.insert("topicsAuto".into(), Value::Bool(true));
         }
     }
     value["version"] = Value::from(CURRENT_VERSION);
@@ -671,7 +679,13 @@ mod tests {
         let s = Settings::from_json(r#"{"version":2}"#, &d).unwrap();
         let i = &s.intelligence;
         assert_eq!((i.summary_provider, i.topics_provider), (ProviderId::Framely, ProviderId::Framely));
-        assert!(!i.summary_auto && !i.topics_auto && !i.external_enabled && i.consents.is_empty());
+        assert!(i.summary_auto && i.topics_auto, "everything in one go by default");
+        assert!(!i.external_enabled && i.consents.is_empty());
+        // The first release saved them off: v3 turns them on once; a v3 file keeps the choice.
+        let v2 = Settings::from_json(r#"{"version":2,"intelligence":{"summaryAuto":false,"topicsAuto":false}}"#, &d).unwrap();
+        assert!(v2.intelligence.summary_auto && v2.intelligence.topics_auto);
+        let v3 = Settings::from_json(r#"{"version":3,"intelligence":{"summaryAuto":false}}"#, &d).unwrap();
+        assert!(!v3.intelligence.summary_auto && v3.intelligence.topics_auto);
         assert_eq!(serde_json::to_value(ProviderId::Openai).unwrap(), "openai");
         let store = SettingsStore::load(tmp.path().join("s.json"), &d).unwrap();
         let mut s = store.get();

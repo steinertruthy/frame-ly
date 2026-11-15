@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Video, AudioLines, Clock, WifiOff, Info, Download, Users } from '@lucide/svelte';
+  import { Video, AudioLines, Clock, WifiOff, Info, Download, Users, FileText, ListTree } from '@lucide/svelte';
+  import Toggle from '$lib/components/Toggle.svelte';
   import Button from '$lib/components/Button.svelte';
   import Segmented from '$lib/components/Segmented.svelte';
   import Select from '$lib/components/Select.svelte';
@@ -13,7 +14,7 @@
   import { toast } from '$lib/stores/toasts.svelte';
   import { isReady, TRANSCRIPTION_LANGUAGES } from '$lib/ai';
   import Sheet from './Sheet.svelte';
-  import { languageName, modelName, pct, roughTime } from './format';
+  import { languageName, modelName, pct, providerName, roughTime } from './format';
 
   interface Props {
     path: string;
@@ -27,9 +28,13 @@
   let estimate = $state<Estimate | null>(null);
   let failed = $state<string | null>(null);
   let starting = $state(false);
+  let wantSummary = $state(true);
+  let wantTopics = $state(true);
 
   onMount(() => {
     const s = settings.value?.intelligence;
+    wantSummary = s?.summaryAuto ?? true;
+    wantTopics = s?.topicsAuto ?? true;
     precision = s && s.precision !== 'auto' ? s.precision : (aiStore.overview?.defaultPrecision ?? 'balanced');
     language = s?.language ?? 'auto';
   });
@@ -55,11 +60,29 @@
   );
   const unsupported = $derived(aiStore.overview ? !aiStore.overview.hardware.supported : false);
 
+  // What will generate the summary and topics, and whether it can run without asking.
+  const followups = $derived(
+    (['summary', 'topics'] as const).map((task) => {
+      const id = task === 'summary' ? settings.value?.intelligence.summaryProvider : settings.value?.intelligence.topicsProvider;
+      const info = aiStore.overview?.providers.find((p) => p.id === id);
+      return { task, provider: id ?? 'framely', info, ready: !!info?.available };
+    }),
+  );
+
   async function start() {
-    if (reused && estimate?.existing) return onopen(estimate.existing.id);
+    const then = { summary: wantSummary, topics: wantTopics };
+    // Remember the choice for next time (Settings › Intelligence › Generate automatically).
+    const s = settings.value?.intelligence;
+    if (s && (s.summaryAuto !== then.summary || s.topicsAuto !== then.topics)) {
+      await settings.update((d) => {
+        d.intelligence.summaryAuto = then.summary;
+        d.intelligence.topicsAuto = then.topics;
+      });
+    }
     starting = true;
     try {
-      const r = await ai.transcribe(path, precision, language);
+      // A finished transcript of the same file and settings is reused; only missing parts run.
+      const r = await ai.transcribe(path, precision, language, then);
       onopen(r.transcript.id);
     } catch (e) {
       toast('error', t(`error.${isAppError(e) ? e.code : 'generic'}` as MessageKey) || t('error.generic'), 5000);
@@ -108,6 +131,28 @@
         options={[{ value: 'auto', label: t('ai.language.auto') }, ...TRANSCRIPTION_LANGUAGES.map((c) => ({ value: c, label: languageName(c) }))]}
         onchange={(v) => (language = v)}
       />
+    </div>
+
+    <div class="field">
+      <div class="label">{t('ai.new.also')}</div>
+      <div class="also">
+        {#each followups as f (f.task)}
+          <div class="also-row">
+            <span class="also-icon">{#if f.task === 'summary'}<FileText size={15} />{:else}<ListTree size={15} />{/if}</span>
+            <span class="also-text">
+              <span>{t(f.task === 'summary' ? 'ai.new.alsoSummary' : 'ai.new.alsoTopics')}</span>
+              <span class="hint">
+                {providerName(f.provider)} · {f.info?.local ? t('ai.provider.local') : t('ai.provider.external')}{#if !f.ready && f.info?.reason} — {t(`ai.reason.${f.info.reason}` as MessageKey)}{/if}
+              </span>
+            </span>
+            <Toggle
+              checked={f.task === 'summary' ? wantSummary : wantTopics}
+              label={t(f.task === 'summary' ? 'ai.new.alsoSummary' : 'ai.new.alsoTopics')}
+              onchange={(v) => (f.task === 'summary' ? (wantSummary = v) : (wantTopics = v))}
+            />
+          </div>
+        {/each}
+      </div>
     </div>
 
     {#if model && !ready}
@@ -212,6 +257,41 @@
   }
   .label {
     font-weight: 600;
+  }
+  .also {
+    border-radius: var(--radius-lg);
+    background: var(--bg-2);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .also-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .also-row + .also-row {
+    box-shadow: inset 0 1px 0 var(--border);
+  }
+  .also-icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--icon-tile);
+    color: var(--icon-accent);
+  }
+  .also-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-weight: 600;
+  }
+  .also-text .hint {
+    font-weight: 400;
   }
   .need {
     display: flex;

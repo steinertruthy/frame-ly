@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import { convertFileSrc } from '@tauri-apps/api/core';
   import { save as saveDialog } from '@tauri-apps/plugin-dialog';
-  import { ArrowLeft, Download, Trash2, AudioLines, FileText, ListTree, Captions } from '@lucide/svelte';
+  import { ArrowLeft, Download, Trash2, AudioLines, FileText, ListTree, Captions, Check, LoaderCircle, Clock3, Circle, AlertTriangle } from '@lucide/svelte';
+  import type { Component } from 'svelte';
   import Button from '$lib/components/Button.svelte';
   import Segmented from '$lib/components/Segmented.svelte';
   import ContextMenu, { type MenuItem } from '$lib/components/ContextMenu.svelte';
@@ -10,13 +11,14 @@
   import { t, locale, type MessageKey } from '$lib/i18n/index.svelte';
   import { ai, type Detailed, type ExportFormat, type ExportWhat } from '$lib/ipc/ai';
   import { isAppError } from '$lib/ipc/commands';
-  import { formatDuration } from '$lib/stores/format';
+  import { framelyUrl } from '$lib/ipc/protocol';
+  import { formatBytes, formatDuration } from '$lib/stores/format';
   import { aiStore } from '$lib/stores/ai.svelte';
   import { toast } from '$lib/stores/toasts.svelte';
   import TranscriptTab from './TranscriptTab.svelte';
   import SummaryTab from './SummaryTab.svelte';
   import TopicsTab from './TopicsTab.svelte';
-  import { languageName } from './format';
+  import { languageName, modelName, providerName } from './format';
 
   interface Props {
     id: number;
@@ -49,6 +51,22 @@
   const summaryJob = $derived(aiStore.active(id, 'summary'));
   const topicsJob = $derived(aiStore.active(id, 'topics'));
   const keywords = $derived(detail?.topics?.content.keywords ?? []);
+
+  type StepState = 'done' | 'running' | 'queued' | 'off' | 'problem';
+  const steps = $derived.by(() => {
+    if (!detail) return [];
+    const tr = detail.transcript;
+    const one = (kind: Tab, job: typeof transcribeJob, done: boolean, problem: boolean, sub: string | null) => {
+      const state: StepState = job ? (job.state === 'running' ? 'running' : 'queued') : done ? 'done' : problem ? 'problem' : 'off';
+      return { kind, job, state, sub };
+    };
+    return [
+      one('transcript', transcribeJob, tr.status === 'done', tr.status !== 'done', tr.status === 'done' ? t('ai.step.segments', { n: detail.segments.length }) : null),
+      one('summary', summaryJob, !!detail.summary, false, detail.summary ? providerName(detail.summary.provider) : null),
+      one('topics', topicsJob, !!detail.topics, false, detail.topics ? providerName(detail.topics.provider) : null),
+    ];
+  });
+  const tabIcons: Record<Tab, Component<{ size?: number }>> = { transcript: AudioLines, summary: FileText, topics: ListTree };
 
   function seek(ms: number) {
     currentMs = ms;
@@ -167,12 +185,12 @@
     </header>
 
     <div class="grid">
-      <div class="side">
+      <aside class="side">
         <div class="player" class:audio={tr.media.kind === 'audio'}>
           {#if detail.mediaAvailable}
             {#if tr.media.kind === 'video'}
               <!-- svelte-ignore a11y_media_has_caption -->
-              <video bind:this={player} src={convertFileSrc(tr.media.path)} controls preload="metadata" ontimeupdate={(e) => (currentMs = e.currentTarget.currentTime * 1000)}></video>
+              <video bind:this={player} src={convertFileSrc(tr.media.path)} poster={framelyUrl(`transcript-thumb/${tr.id}?v=${tr.media.mtime}`)} controls preload="metadata" ontimeupdate={(e) => (currentMs = e.currentTarget.currentTime * 1000)}></video>
             {:else}
               <div class="wave"><AudioLines size={28} /></div>
               <audio bind:this={player} src={convertFileSrc(tr.media.path)} controls preload="metadata" ontimeupdate={(e) => (currentMs = e.currentTarget.currentTime * 1000)}></audio>
@@ -181,9 +199,43 @@
             <p class="missing">{t('ai.mediaMissing')}</p>
           {/if}
         </div>
-      </div>
 
-      <div class="main">
+        <div class="card steps">
+          <h4 class="eyebrow">{t('ai.steps')}</h4>
+          {#each steps as s (s.kind)}
+            {@const Icon = tabIcons[s.kind]}
+            <button class="step {s.state}" class:current={tab === s.kind} onclick={() => (tab = s.kind)}>
+              <span class="dot">
+                {#if s.state === 'done'}<Check size={13} />{:else if s.state === 'running'}<LoaderCircle size={13} class="spin" />{:else if s.state === 'queued'}<Clock3 size={13} />{:else if s.state === 'problem'}<AlertTriangle size={13} />{:else}<Circle size={13} />{/if}
+              </span>
+              <span class="step-text">
+                <span class="step-name"><Icon size={13} />{t(`ai.tab.${s.kind}` as MessageKey)}</span>
+                <span class="step-sub">
+                  {#if s.job}
+                    {t(`ai.phase.${s.job.phase}` as MessageKey)}{#if s.job.progress != null} · {Math.round(s.job.progress * 100)}%{/if}
+                  {:else if s.state === 'problem'}
+                    {t(`ai.status.${tr.status}` as MessageKey)}
+                  {:else if s.state === 'off'}
+                    {t('ai.step.notGenerated')}
+                  {:else}
+                    {s.sub}
+                  {/if}
+                </span>
+                {#if s.job && s.job.progress != null}<span class="mini"><span style:width="{Math.round(s.job.progress * 100)}%"></span></span>{/if}
+              </span>
+            </button>
+          {/each}
+        </div>
+
+        <dl class="card details">
+          <div><dt>{t('ai.duration')}</dt><dd>{formatDuration(tr.media.durationMs)}</dd></div>
+          <div><dt>{t('ai.size')}</dt><dd>{formatBytes(tr.media.size)}</dd></div>
+          <div><dt>{t('ai.new.precision')}</dt><dd>{t(`ai.precision.${tr.precision}` as MessageKey)}</dd></div>
+          <div><dt>{t('ai.step.model')}</dt><dd>{modelName(tr.modelId)}</dd></div>
+        </dl>
+      </aside>
+
+      <section class="main">
         <Segmented
           label={t('ai.title')}
           stretch
@@ -195,17 +247,17 @@
           ]}
           onchange={(v) => (tab = v)}
         />
-        <!-- Tabs stay mounted so switching keeps search, scroll and expanded topics. -->
-        <div class="tab" hidden={tab !== 'transcript'}>
+        <!-- Only this area scrolls. Tabs stay mounted so switching keeps search, scroll and expanded topics. -->
+        <div class="scroll" hidden={tab !== 'transcript'}>
           <TranscriptTab {detail} {currentMs} {keywords} job={transcribeJob} onseek={seek} onchanged={load} onresume={resume} />
         </div>
-        <div class="tab" hidden={tab !== 'summary'}>
-          {#if tr.status === 'done'}<SummaryTab {detail} job={summaryJob} onseek={seek} onchanged={load} />{:else}<p class="wait">{t('ai.partial')}</p>{/if}
+        <div class="scroll" hidden={tab !== 'summary'}>
+          {#if tr.status === 'done'}<SummaryTab {detail} job={summaryJob} onseek={seek} onchanged={load} />{:else}<p class="wait">{t('ai.step.afterTranscript')}</p>{/if}
         </div>
-        <div class="tab" hidden={tab !== 'topics'}>
-          {#if tr.status === 'done'}<TopicsTab {detail} job={topicsJob} onseek={seek} onchanged={load} />{:else}<p class="wait">{t('ai.partial')}</p>{/if}
+        <div class="scroll" hidden={tab !== 'topics'}>
+          {#if tr.status === 'done'}<TopicsTab {detail} job={topicsJob} onseek={seek} onchanged={load} />{:else}<p class="wait">{t('ai.step.afterTranscript')}</p>{/if}
         </div>
-      </div>
+      </section>
     </div>
   </div>
 
@@ -224,16 +276,22 @@
 {/if}
 
 <style>
+  /* Fills the page; only the tab content scrolls. */
   .view {
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 16px;
+    height: 100%;
+    min-height: 0;
+  }
+  header {
+    flex-shrink: 0;
   }
   .back {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin: 0 0 10px -6px;
+    margin: 0 0 8px -6px;
     padding: 4px 8px;
     border: 0;
     border-radius: 7px;
@@ -275,24 +333,50 @@
     flex-shrink: 0;
   }
   .grid {
+    flex: 1;
+    min-height: 0;
     display: grid;
-    grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.6fr);
+    grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.7fr);
     gap: 22px;
-    align-items: start;
   }
   .side {
-    position: sticky;
-    top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .main {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    min-height: 0;
+  }
+  .scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 6px 24px 2px;
+    scroll-padding-top: 60px;
+  }
+  .scroll[hidden] {
+    display: none;
   }
   @media (max-width: 960px) {
+    .view {
+      height: auto;
+    }
     .grid {
       grid-template-columns: 1fr;
     }
-    .side {
-      position: static;
+    .side,
+    .scroll {
+      overflow: visible;
     }
   }
   .player {
+    flex-shrink: 0;
     overflow: hidden;
     border-radius: var(--radius-lg);
     background: #000;
@@ -303,7 +387,7 @@
   .player video {
     display: block;
     width: 100%;
-    max-height: 60vh;
+    max-height: 40vh;
     background: #000;
   }
   .player.audio {
@@ -313,7 +397,7 @@
   .wave {
     display: grid;
     place-items: center;
-    height: 80px;
+    height: 72px;
     color: var(--icon-accent);
   }
   .player audio {
@@ -326,14 +410,128 @@
     background: var(--surface);
     text-align: center;
   }
-  .main {
+  .card {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 12px;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .steps h4 {
+    margin: 2px 4px 8px;
+  }
+  .step {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    padding: 8px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+  }
+  .step:hover {
+    background: var(--surface-hover);
+  }
+  .step.current {
+    background: var(--nav-active);
+    box-shadow: inset 0 0 0 1px var(--nav-active-border);
+  }
+  .dot {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--bg);
+    box-shadow: inset 0 0 0 1px var(--border);
+    color: var(--text-3);
+  }
+  .done .dot {
+    background: color-mix(in srgb, var(--ok-500) 16%, transparent);
+    box-shadow: none;
+    color: var(--ok-500);
+  }
+  .running .dot,
+  .queued .dot {
+    background: var(--accent-soft);
+    box-shadow: none;
+    color: var(--link);
+  }
+  .problem .dot {
+    color: var(--warn-500);
+  }
+  .dot :global(.spin) {
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .step-text {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    min-width: 0;
+    gap: 2px;
   }
-  .tab[hidden] {
-    display: none;
+  .step-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+  }
+  .step-name :global(svg) {
+    color: var(--text-3);
+  }
+  .step-sub {
+    color: var(--text-2);
+    font-size: var(--text-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mini {
+    position: relative;
+    height: 3px;
+    margin-top: 4px;
+    border-radius: 99px;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  .mini span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: var(--accent);
+    transition: width var(--dur-slow) var(--ease-out);
+  }
+  .details {
+    padding: 4px 0;
+    font-size: var(--text-sm);
+  }
+  .details div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 14px;
+  }
+  .details div + div {
+    box-shadow: inset 0 1px 0 var(--border);
+  }
+  dt {
+    color: var(--text-2);
+  }
+  dd {
+    margin: 0;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .wait {
     color: var(--text-2);

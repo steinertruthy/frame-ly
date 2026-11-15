@@ -303,6 +303,7 @@ pub fn cancel<R: Runtime>(app: &AppHandle<R>, job_id: u64) {
     if let Some(job) = queued {
         if let JobKind::Transcribe { .. } = job.kind {
             let _ = with_db(app, |db| db.set_status(job.transcript_id, Status::Cancelled, None));
+            drop_followups(app, job.transcript_id);
         }
         emit_status(app, base_status(&job, "cancelled", "queued"));
         return;
@@ -327,7 +328,21 @@ fn busy<R: Runtime>(app: &AppHandle<R>, transcript_id: i64, kind: &str) -> Optio
 
 /// Starts (or resumes) the transcription of a media file. A finished transcript of the same
 /// file with the same settings is reused instead of processing it again.
-pub fn start_transcription<R: Runtime>(app: &AppHandle<R>, path: &Path, precision: Option<String>, language: Option<String>) -> AppResult<(Transcript, Option<u64>)> {
+/// What to generate right after the transcription, in the same run. `None` follows the
+/// "generate automatically" settings.
+#[derive(Debug, Clone, Copy, Default, serde::Deserialize)]
+pub struct Followups {
+    pub summary: bool,
+    pub topics: bool,
+}
+
+pub fn start_transcription<R: Runtime>(
+    app: &AppHandle<R>,
+    path: &Path,
+    precision: Option<String>,
+    language: Option<String>,
+    then: Option<Followups>,
+) -> AppResult<(Transcript, Option<u64>)> {
     let p = prefs(app);
     if !hardware(app).supported {
         return Err(AppError::Unsupported("cpu".into()));
@@ -341,14 +356,56 @@ pub fn start_transcription<R: Runtime>(app: &AppHandle<R>, path: &Path, precisio
     let media = probe(app, path)?;
     let _ = app.asset_protocol_scope().allow_file(path);
     let t = with_db(app, |db| db.begin(&media, &language, catalog::precision_name(precision), spec.id))?;
+    let then = then.unwrap_or(Followups { summary: p.summary_auto, topics: p.topics_auto });
     if t.status == Status::Done {
+        // Cached transcript: only what's still missing is generated.
+        queue_followups(app, &t, Followups { summary: then.summary && !t.has_summary, topics: then.topics && !t.has_topics });
         return Ok((t, None));
     }
-    if let Some(job) = busy(app, t.id, "transcribe") {
-        return Ok((t, Some(job)));
-    }
-    let job = enqueue(app, t.id, JobKind::Transcribe { precision: catalog::precision_name(precision).into(), language });
+    let job = match busy(app, t.id, "transcribe") {
+        Some(job) => job,
+        None => enqueue(app, t.id, JobKind::Transcribe { precision: catalog::precision_name(precision).into(), language }),
+    };
+    // Queued right behind the transcription, so the whole result comes in one go.
+    queue_followups(app, &t, then);
     Ok((t, Some(job)))
+}
+
+/// Queues summary/topics with the preferred providers. A provider that can't run without
+/// asking (external without consent, missing model…) is skipped with a notice — never
+/// replaced by another one.
+fn queue_followups<R: Runtime>(app: &AppHandle<R>, t: &Transcript, then: Followups) {
+    let p = prefs(app);
+    for (task, on, provider, detail) in
+        [(Task::Summary, then.summary, p.summary_provider, p.summary_detail), (Task::Topics, then.topics, p.topics_provider, p.topics_detail)]
+    {
+        if !on || busy(app, t.id, task.as_str()).is_some() {
+            continue;
+        }
+        match provider_ready(app, provider) {
+            Ok(()) => {
+                enqueue(app, t.id, JobKind::Generate { task, provider, detail });
+            }
+            Err(reason) => {
+                let _ = app.emit(NOTICE_EVENT, serde_json::json!({"code": "auto_skipped", "task": task.as_str(), "provider": provider, "reason": reason}));
+            }
+        }
+    }
+}
+
+/// Drops queued follow-ups of a transcription that didn't finish.
+fn drop_followups<R: Runtime>(app: &AppHandle<R>, transcript_id: i64) {
+    let dropped: Vec<Job> = {
+        let state = st(app);
+        let mut q = state.intelligence.queue.lock().unwrap();
+        let (drop, keep): (Vec<Job>, Vec<Job>) =
+            q.drain(..).partition(|j| j.transcript_id == transcript_id && matches!(j.kind, JobKind::Generate { .. }));
+        q.extend(keep);
+        drop
+    };
+    for job in dropped {
+        emit_status(app, base_status(&job, "cancelled", "queued"));
+    }
 }
 
 fn pcm_paths<R: Runtime>(app: &AppHandle<R>, id: i64) -> (PathBuf, PathBuf) {
@@ -395,8 +452,8 @@ fn run_transcription<R: Runtime>(app: &AppHandle<R>, job: &Job) -> AppResult<()>
         }
     }
     let _ = app.emit(TRANSCRIPT_EVENT, t.id);
-    if result.is_ok() {
-        auto_generate(app, t.id);
+    if result.is_err() {
+        drop_followups(app, t.id);
     }
     result
 }
@@ -528,25 +585,6 @@ fn apple_reason(_: Option<&str>, _: &Prefs) -> Option<&'static str> {
     Some("unsupported")
 }
 
-fn auto_generate<R: Runtime>(app: &AppHandle<R>, transcript_id: i64) {
-    let p = prefs(app);
-    for (task, on, provider, detail) in
-        [(Task::Summary, p.summary_auto, p.summary_provider, p.summary_detail), (Task::Topics, p.topics_auto, p.topics_provider, p.topics_detail)]
-    {
-        if !on {
-            continue;
-        }
-        match provider_ready(app, provider) {
-            Ok(()) => {
-                enqueue(app, transcript_id, JobKind::Generate { task, provider, detail });
-            }
-            Err(reason) => {
-                let _ = app.emit(NOTICE_EVENT, serde_json::json!({"code": "auto_skipped", "task": task.as_str(), "provider": provider, "reason": reason}));
-            }
-        }
-    }
-}
-
 pub fn start_generation<R: Runtime>(app: &AppHandle<R>, transcript_id: i64, task: Task, provider: ProviderId, detail: Detail) -> AppResult<u64> {
     let t = with_db(app, |db| db.get(transcript_id))?;
     if t.status != Status::Done {
@@ -604,6 +642,9 @@ fn open_runner<R: Runtime>(app: &AppHandle<R>, job: &Job, provider: ProviderId) 
 
 fn run_generation<R: Runtime>(app: &AppHandle<R>, job: &Job, task: Task, provider: ProviderId, detail: Detail) -> AppResult<()> {
     let t = with_db(app, |db| db.get(job.transcript_id))?;
+    if t.status != Status::Done {
+        return Err(AppError::Cancelled);
+    }
     let segments = with_db(app, |db| db.segments(t.id))?;
     if segments.is_empty() {
         return Err(AppError::NoAudio);
@@ -724,6 +765,22 @@ fn generate_parts<R: Runtime>(
     Ok(level.remove(0))
 }
 
+/// JPEG thumbnail of a transcript's video (cached; audio files have none).
+pub fn thumbnail<R: Runtime>(app: &AppHandle<R>, id: i64) -> AppResult<Vec<u8>> {
+    let t = with_db(app, |db| db.get(id))?;
+    let path = Path::new(&t.media.path);
+    if t.media.kind != "video" || !path.exists() {
+        return Err(AppError::NotFound);
+    }
+    let dir = app.path().app_cache_dir()?.join("thumbs");
+    std::fs::create_dir_all(&dir)?;
+    let cached = dir.join(format!("tr-{}-{}-{}.jpg", t.id, t.media.size, t.media.mtime));
+    if !cached.exists() {
+        st(app).backend.thumbnail(path, &cached, 480)?;
+    }
+    Ok(std::fs::read(cached)?)
+}
+
 // ---------------------------------------------------------------------------------------------
 // Storage
 
@@ -830,7 +887,7 @@ mod tests {
 
         // 2. Transcription.
         let started = Instant::now();
-        let (t, job) = start_transcription(&handle, &media, None, None).unwrap();
+        let (t, job) = start_transcription(&handle, &media, None, None, Some(Followups::default())).unwrap();
         if let Some(job) = job {
             let s = wait_job(&handle, job);
             assert_eq!(s.state, "done", "{:?}", s.error);
@@ -843,7 +900,7 @@ mod tests {
         println!("{}", transcript::to_txt(&segments, true));
 
         // Same file + settings again: reused, no new job.
-        let (again, job) = start_transcription(&handle, &media, None, None).unwrap();
+        let (again, job) = start_transcription(&handle, &media, None, None, Some(Followups::default())).unwrap();
         assert_eq!((again.id, job), (t.id, None));
 
         // 3. Summary and topics with FrameLy AI (framely-llm process).
@@ -876,7 +933,44 @@ mod tests {
         // 5. External providers stay blocked without switch, key and consent.
         assert!(start_generation(&handle, t.id, Task::Summary, ProviderId::Anthropic, Detail::Brief).is_err());
 
-        // 6. Exports.
+        // 6. Long file, everything in one go, cancelled mid-way and resumed.
+        if let Ok(long) = std::env::var("FRAMELY_TEST_MEDIA_LONG") {
+            let long = PathBuf::from(long);
+            if let Some(old) = with_db(&handle, |db| db.find_by_path(&long.to_string_lossy())).unwrap() {
+                with_db(&handle, |db| db.delete(old.id)).unwrap();
+            }
+            let both = Some(Followups { summary: true, topics: true });
+            let (lt, job) = start_transcription(&handle, &long, None, None, both).unwrap();
+            let job = job.unwrap();
+            let queued: Vec<JobStatus> = jobs(&handle).into_iter().filter(|j| j.transcript_id == lt.id && j.state == "queued" && j.kind != "transcribe").collect();
+            assert_eq!(queued.len(), 2, "summary and topics queued behind the transcription");
+            wait("first block", 600, || (with_db(&handle, |db| db.get(lt.id)).unwrap().blocks_done >= 1).then_some(()));
+            cancel(&handle, job);
+            let s = wait_job(&handle, job);
+            assert_eq!(s.state, "cancelled");
+            let after = with_db(&handle, |db| db.get(lt.id)).unwrap();
+            assert_eq!(after.status, Status::Cancelled);
+            assert!(jobs(&handle).iter().filter(|j| j.transcript_id == lt.id && j.kind != "transcribe").all(|j| j.state == "cancelled"), "follow-ups dropped");
+            println!("cancelled after {} block(s), {} ms", after.blocks_done, after.done_ms);
+
+            let started = Instant::now();
+            let (again, job) = start_transcription(&handle, &long, None, None, both).unwrap();
+            assert_eq!(again.blocks_done, after.blocks_done, "resumes from the next block");
+            assert_eq!(wait_job(&handle, job.unwrap()).state, "done");
+            let ids: Vec<u64> = jobs(&handle).into_iter().filter(|j| j.transcript_id == lt.id && j.state == "queued").map(|j| j.id).collect();
+            for id in ids {
+                let s = wait_job(&handle, id);
+                assert_eq!(s.state, "done", "{:?}", s.error);
+            }
+            let fin = with_db(&handle, |db| db.get(lt.id)).unwrap();
+            println!("long: {} ms of audio, resumed and finished with summary+topics in {:?}", fin.media.duration_ms, started.elapsed());
+            assert!(fin.has_summary && fin.has_topics);
+            let segs = with_db(&handle, |db| db.segments(lt.id)).unwrap();
+            assert!(segs.windows(2).all(|w| w[1].start_ms >= w[0].start_ms), "segments in order across blocks");
+            assert!(segs.last().unwrap().end_ms > fin.media.duration_ms - 30_000, "covers the whole file");
+        }
+
+        // 7. Exports.
         let out = tmp.path().join("export.pdf");
         let summary = with_db(&handle, |db| db.generated(t.id, "summary")).unwrap().unwrap();
         let md = generation::summary_markdown(&summary.content);

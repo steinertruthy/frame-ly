@@ -1,17 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { open as openDialog } from '@tauri-apps/plugin-dialog';
-  import { FileUp, Library, Video, AudioLines, ChevronRight, FileText, ListTree, Sparkles } from '@lucide/svelte';
+  import { FileUp, Library, Sparkles, Search } from '@lucide/svelte';
   import Button from '$lib/components/Button.svelte';
   import AiSetup from '$lib/components/ai/AiSetup.svelte';
-  import JobProgress from '$lib/components/ai/JobProgress.svelte';
+  import TranscriptCard from '$lib/components/ai/TranscriptCard.svelte';
   import NewTranscription from '$lib/components/ai/NewTranscription.svelte';
   import LibraryPicker from '$lib/components/ai/LibraryPicker.svelte';
   import TranscriptView from '$lib/components/ai/TranscriptView.svelte';
-  import { languageName } from '$lib/components/ai/format';
-  import { t, locale, type MessageKey } from '$lib/i18n/index.svelte';
+  import { t } from '$lib/i18n/index.svelte';
   import { ai } from '$lib/ipc/ai';
-  import { formatDuration } from '$lib/stores/format';
   import { aiStore } from '$lib/stores/ai.svelte';
   import { nav } from '$lib/stores/nav.svelte';
   import { languageModelId, setupPlan, speechModelId } from '$lib/ai';
@@ -52,7 +50,12 @@
     if (plan && !plan.done) setupShown = true;
   });
   const showSetup = $derived(!!plan && !setupDismissed && (!plan.done || setupShown));
-  const dateFmt = $derived(new Intl.DateTimeFormat(locale(), { dateStyle: 'medium', timeStyle: 'short' }));
+  let query = $state('');
+  const filtered = $derived(
+    query.trim() ? aiStore.transcripts.filter((x) => x.media.name.toLowerCase().includes(query.trim().toLowerCase())) : aiStore.transcripts,
+  );
+  const working = $derived(filtered.filter((x) => aiStore.current(x.id)));
+  const rest = $derived(filtered.filter((x) => !aiStore.current(x.id)));
 </script>
 
 {#if detailId != null}
@@ -89,33 +92,24 @@
         </div>
       {/if}
     {:else}
-      <div class="list">
-        {#each aiStore.transcripts as tr (tr.id)}
-          {@const job = aiStore.active(tr.id, 'transcribe')}
-          <button class="row" onclick={() => (detailId = tr.id)}>
-            <span class="kind" class:video={tr.media.kind === 'video'}>
-              {#if tr.media.kind === 'video'}<Video size={16} />{:else}<AudioLines size={16} />{/if}
-            </span>
-            <span class="text">
-              <span class="name">{tr.media.name}</span>
-              <span class="facts">
-                {dateFmt.format(new Date(tr.createdAt))} · {formatDuration(tr.media.durationMs)}{#if tr.detectedLanguage} · {languageName(tr.detectedLanguage)}{/if}
-              </span>
-            </span>
-            {#if job}
-              <span class="job"><JobProgress {job} /></span>
-            {:else}
-              <span class="badges">
-                {#if tr.status !== 'done'}<span class="status {tr.status}">{t(`ai.status.${tr.status}` as MessageKey)}</span>{/if}
-                {#if tr.hasSummary}<span class="badge" title={t('ai.badge.summary')}><FileText size={12} />{t('ai.badge.summary')}</span>{/if}
-                {#if tr.hasTopics}<span class="badge" title={t('ai.badge.topics')}><ListTree size={12} />{t('ai.badge.topics')}</span>{/if}
-                {#if tr.edited}<span class="badge">{t('ai.badge.edited')}</span>{/if}
-              </span>
-            {/if}
-            <ChevronRight size={16} />
-          </button>
-        {/each}
-      </div>
+      <label class="search">
+        <Search size={14} />
+        <input type="search" placeholder={t('ai.searchList')} bind:value={query} spellcheck="false" />
+      </label>
+      {#if working.length}
+        <section>
+          <h2 class="eyebrow">{t('ai.list.working')}</h2>
+          <div class="grid">{#each working as tr (tr.id)}<TranscriptCard {tr} onopen={() => (detailId = tr.id)} />{/each}</div>
+        </section>
+      {/if}
+      {#if rest.length}
+        <section>
+          {#if working.length}<h2 class="eyebrow">{t('ai.list.all')}</h2>{/if}
+          <div class="grid">{#each rest as tr (tr.id)}<TranscriptCard {tr} onopen={() => (detailId = tr.id)} />{/each}</div>
+        </section>
+      {:else if !working.length}
+        <p class="none">{t('ai.noResults', { q: query.trim() })}</p>
+      {/if}
     {/if}
   </div>
 {/if}
@@ -153,92 +147,44 @@
     display: flex;
     gap: 8px;
   }
-  .list {
+  .search {
     display: flex;
-    flex-direction: column;
-    border-radius: var(--radius-xl);
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    width: min(320px, 100%);
+    height: 32px;
+    padding: 0 10px;
+    border-radius: var(--radius-md);
     background: var(--surface);
     box-shadow: inset 0 0 0 1px var(--border);
-    overflow: hidden;
-  }
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 12px 16px;
-    border: 0;
-    background: transparent;
-    color: var(--text);
-    text-align: left;
-    transition: background var(--dur-fast);
-  }
-  .row + .row {
-    box-shadow: inset 0 1px 0 var(--border);
-  }
-  .row:hover {
-    background: var(--surface-hover);
-  }
-  .row > :global(svg:last-child) {
-    flex-shrink: 0;
     color: var(--text-3);
   }
-  .kind {
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    background: var(--icon-tile);
-    color: var(--icon-accent);
+  .search:focus-within {
+    box-shadow: var(--focus-ring);
   }
-  .kind.video {
-    background: var(--rec-tile);
-    color: var(--rec-icon);
-  }
-  .text {
+  .search input {
     flex: 1;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .name {
-    font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .facts {
-    color: var(--text-2);
+    border: 0;
+    background: none;
+    color: var(--text);
     font-size: var(--text-sm);
+    user-select: text;
   }
-  .job {
-    width: 260px;
-    flex-shrink: 0;
+  .search input:focus {
+    outline: none;
   }
-  .badges {
-    display: flex;
-    gap: 6px;
-    flex-shrink: 0;
+  section h2 {
+    margin: 0 0 var(--space-3);
   }
-  .badge,
-  .status {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: 99px;
-    background: var(--bg);
-    box-shadow: inset 0 0 0 1px var(--border);
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .none {
     color: var(--text-2);
-    font-size: var(--text-xs);
-    font-weight: 600;
-  }
-  .status.interrupted,
-  .status.failed,
-  .status.cancelled {
-    color: var(--warn-500);
   }
   .empty {
     display: flex;
@@ -273,10 +219,5 @@
   .empty-actions {
     display: flex;
     gap: 8px;
-  }
-  @media (max-width: 760px) {
-    .job {
-      width: 160px;
-    }
   }
 </style>
