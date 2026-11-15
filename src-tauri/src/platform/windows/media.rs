@@ -165,7 +165,9 @@ impl Writer {
             // Rate control goes in as encoder creation parameters: many hardware encoders only
             // honor it when set before they are configured (set afterwards, it was accepted but
             // ignored — every quality produced the same constant-bitrate file).
-            let params = attributes(2)?;
+            let params = attributes(3)?;
+            // Spend encoder time on quality rather than speed (best effort).
+            let _ = params.SetUINT32(&CODECAPI_AVEncCommonQualityVsSpeed, 100);
             params
                 .SetUINT32(&CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_Quality.0 as u32)
                 .map_err(|e| win_err("rate control param", e))?;
@@ -286,9 +288,10 @@ fn uint_variant(v: u32) -> VARIANT {
 
 /// App quality level (the scale VideoToolbox uses on macOS: Leve 0.5, Boa 0.65, Ótima 0.75,
 /// Máxima 0.85) → Media Foundation's H.264/HEVC quality, whose scale runs higher: calibration
-/// on screen recordings showed 0.45 visibly soft and 0.55–0.65 indistinguishable from 0.75.
+/// on screen recordings showed 0.45 visibly soft; 0.60 was judged acceptable but not sharp
+/// enough, so Ótima sits at 0.67.
 pub fn encoder_quality(level: f64) -> f64 {
-    const MAP: [(f64, f64); 4] = [(0.5, 0.45), (0.65, 0.52), (0.75, 0.60), (0.85, 0.75)];
+    const MAP: [(f64, f64); 4] = [(0.5, 0.50), (0.65, 0.58), (0.75, 0.67), (0.85, 0.80)];
     let level = level.clamp(MAP[0].0, MAP[3].0);
     MAP.windows(2)
         .find(|w| level <= w[1].0)
@@ -319,6 +322,7 @@ fn configure_rate_control(sink: &IMFSinkWriter, stream: u32, quality: f64, bitra
         let set = |guid: &windows::core::GUID, v: u32| -> bool {
             api.IsSupported(guid).is_ok() && api.SetValue(guid, &uint_variant(v)).is_ok()
         };
+        let _ = set(&CODECAPI_AVEncCommonQualityVsSpeed, 100);
         if set(&CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_Quality.0 as u32)
             && set(&CODECAPI_AVEncCommonQuality, (quality.clamp(0.0, 1.0) * 100.0).round() as u32)
         {
