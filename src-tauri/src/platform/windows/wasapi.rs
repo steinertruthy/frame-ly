@@ -129,7 +129,7 @@ impl AppAudioSetup {
         // Float 48 kHz with Windows conversion, 100 ms buffer.
         AppAudioSetup {
             name: "A",
-            marker: "framely-app-audio-k-a.attempt",
+            marker: "framely-app-audio-s-a.attempt",
             format: AppAudioFormat::Float48k { autoconvert: true },
             buffer_hns: BUFFER_HNS,
             service_first: false,
@@ -137,7 +137,7 @@ impl AppAudioSetup {
         // Microsoft's ApplicationLoopback sample: 16-bit 44.1 kHz, 20 ms buffer.
         AppAudioSetup {
             name: "B",
-            marker: "framely-app-audio-k-b.attempt",
+            marker: "framely-app-audio-s-b.attempt",
             format: AppAudioFormat::Pcm16At44k,
             buffer_hns: 200_000,
             service_first: true,
@@ -145,7 +145,7 @@ impl AppAudioSetup {
         // Float at 48 kHz without Windows conversion.
         AppAudioSetup {
             name: "C",
-            marker: "framely-app-audio-k-c.attempt",
+            marker: "framely-app-audio-s-c.attempt",
             format: AppAudioFormat::Float48k { autoconvert: false },
             buffer_hns: BUFFER_HNS,
             service_first: true,
@@ -765,9 +765,9 @@ impl Source {
 /// reach an output (process loopback, Windows 10 2004+): independent of which output is in
 /// use and of that output's volume or mute in Windows.
 ///
-/// The stream lives on one worker thread for the whole life of the app: it is opened, read
-/// and closed there, and that thread never exits (a test PC closed the app as soon as the
-/// thread that had started such a stream ended). Packets reach the recorder through a channel.
+/// The stream lives on one worker thread for the whole life of the app: opened there by the
+/// first recording, then kept open (never stopped or released, which closed the app on a test
+/// PC) and reused by every later recording. Packets reach the recorder through a channel.
 ///
 /// Crash guard: each setup step is written to a marker file, removed once audio flows or the
 /// stream opens and closes cleanly. A marker left behind means that setup once took the app
@@ -779,6 +779,9 @@ pub struct AppsCapture {
     pub name: String,
     pub format: String,
 }
+
+/// Timestamped stereo packets to the recording.
+type PacketSender = std::sync::mpsc::Sender<(i64, Vec<f32>)>;
 
 struct OpenRequest {
     setup: AppAudioSetup,
@@ -800,31 +803,58 @@ fn apps_worker() -> AppResult<std::sync::mpsc::Sender<OpenRequest>> {
         .spawn(move || {
             // SAFETY: COM initialization of this (never-ending) thread.
             let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
-            for req in rx {
-                let marker = req.marker.clone();
-                let step = |s: &str| {
-                    let _ = std::fs::write(&marker, s);
+            // The stream, once open, is never stopped or released: closing it took the app
+            // down on a test PC. Between recordings its packets are read and discarded (so the
+            // next recording starts with fresh audio and continuous timestamps).
+            let mut stream: Option<Capture> = None;
+            let mut listener: Option<(PacketSender, Arc<AtomicBool>)> = None;
+            loop {
+                let next = if stream.is_some() {
+                    rx.recv_timeout(Duration::from_millis(5))
+                } else {
+                    rx.recv().map_err(|_| std::sync::mpsc::RecvTimeoutError::Disconnected)
                 };
-                match Capture::open_all_apps(&step, req.setup) {
-                    Err(e) => {
-                        let _ = req.reply.send(Err(e));
-                    }
-                    Ok(mut capture) => {
-                        step("first read");
-                        let _ = req.reply.send(Ok(capture.format.clone()));
-                        while !req.stop.load(Ordering::Relaxed) {
-                            let sent = capture.read(|t, samples| {
-                                let _ = req.data.send((t, samples.to_vec()));
-                            });
-                            if let Err(e) = sent {
-                                tracing::warn!(error = %e, "app audio stream stopped");
-                                break;
+                match next {
+                    Ok(req) => {
+                        if stream.is_none() {
+                            let marker = req.marker.clone();
+                            let step = |s: &str| {
+                                let _ = std::fs::write(&marker, s);
+                            };
+                            match Capture::open_all_apps(&step, req.setup) {
+                                Ok(capture) => {
+                                    step("first read");
+                                    stream = Some(capture);
+                                }
+                                Err(e) => {
+                                    let _ = req.reply.send(Err(e));
+                                    continue;
+                                }
                             }
-                            std::thread::sleep(Duration::from_millis(5));
                         }
-                        step("closing");
-                        drop(capture);
-                        let _ = std::fs::remove_file(&marker);
+                        if let Some(c) = stream.as_ref() {
+                            let _ = req.reply.send(Ok(c.format.clone()));
+                            listener = Some((req.data, req.stop));
+                        }
+                    }
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
+                }
+                if listener.as_ref().is_some_and(|(_, stop)| stop.load(Ordering::Relaxed)) {
+                    listener = None; // the recording ended: its channel closes
+                }
+                if let Some(c) = stream.as_mut() {
+                    let target = listener.as_ref().map(|(tx, _)| tx);
+                    let read = c.read(|t, samples| {
+                        if let Some(tx) = target {
+                            let _ = tx.send((t, samples.to_vec()));
+                        }
+                    });
+                    if let Err(e) = read {
+                        tracing::warn!(error = %e, "app audio stream stopped; reopened by the next recording");
+                        // Never released (see above): leaked instead.
+                        std::mem::forget(stream.take());
+                        listener = None;
                     }
                 }
             }
