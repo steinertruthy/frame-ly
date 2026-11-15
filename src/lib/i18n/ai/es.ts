@@ -101,8 +101,6 @@ export const aiEs: Record<keyof typeof aiEn, string> = {
   'ai.noResults': 'Nada coincide con «{q}».',
   'ai.matches': '{n} coincidencias',
 
-  'ai.gen.summary.empty': 'Genera un resumen fiel de esta grabación.',
-  'ai.gen.topics.empty': 'Organiza el contenido en temas, con decisiones, tareas, fechas y números.',
   'ai.gen.generate': 'Generar',
   'ai.gen.regenerate': 'Volver a generar',
   'ai.gen.detail': 'Detalle',

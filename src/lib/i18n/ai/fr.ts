@@ -101,8 +101,6 @@ export const aiFr: Record<keyof typeof aiEn, string> = {
   'ai.noResults': 'Aucun résultat pour « {q} ».',
   'ai.matches': '{n} résultats',
 
-  'ai.gen.summary.empty': 'Générez un résumé fidèle de cet enregistrement.',
-  'ai.gen.topics.empty': 'Organisez le contenu en thèmes, avec décisions, tâches, dates et nombres.',
   'ai.gen.generate': 'Générer',
   'ai.gen.regenerate': 'Régénérer',
   'ai.gen.detail': 'Niveau de détail',

@@ -101,8 +101,6 @@ export const aiDe: Record<keyof typeof aiEn, string> = {
   'ai.noResults': 'Keine Treffer für „{q}“.',
   'ai.matches': '{n} Treffer',
 
-  'ai.gen.summary.empty': 'Erstelle eine getreue Zusammenfassung dieser Aufnahme.',
-  'ai.gen.topics.empty': 'Ordne den Inhalt in Themen, mit Entscheidungen, Aufgaben, Terminen und Zahlen.',
   'ai.gen.generate': 'Erstellen',
   'ai.gen.regenerate': 'Neu erstellen',
   'ai.gen.detail': 'Detailgrad',

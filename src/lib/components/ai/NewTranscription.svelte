@@ -101,6 +101,7 @@
   $effect(() => {
     if (steps.summary.provider === 'cloud' || steps.topics.provider === 'cloud') void aiStore.checkCloud();
   });
+  const usesCloud = $derived(external.includes('cloud'));
   const anyBlocked = $derived(!!blocker('summary') || !!blocker('topics'));
   const willGenerate = $derived(steps.summary.on || steps.topics.on);
 
@@ -181,26 +182,29 @@
         </span>
       </header>
       <div class="rows">
-        <div class="row">
-          <span class="label">{t('ai.new.precision')}</span>
-          <Segmented
-            label={t('ai.new.precision')}
-            size="sm"
-            value={precision}
+        <div class="grid">
+          <div class="field">
+            <span class="label">{t('ai.new.precision')}</span>
+            <Segmented
+              label={t('ai.new.precision')}
+              size="sm"
+              stretch
+              value={precision}
             options={(['fast', 'balanced', 'max'] as const).map((p) => ({ value: p, label: t(`ai.precision.${p}` as MessageKey) }))}
-            onchange={(v) => (precision = v)}
-          />
+              onchange={(v) => (precision = v)}
+            />
+          </div>
+          <div class="field">
+            <span class="label">{t('ai.new.language')}</span>
+            <Select
+              label={t('ai.new.language')}
+              value={language}
+              options={[{ value: 'auto', label: t('ai.language.auto') }, ...TRANSCRIPTION_LANGUAGES.map((c) => ({ value: c, label: languageName(c) }))]}
+              onchange={(v) => (language = v)}
+            />
+          </div>
         </div>
         <p class="hint">{t(`ai.precision.${precision}.hint` as MessageKey)}</p>
-        <div class="row">
-          <span class="label">{t('ai.new.language')}</span>
-          <Select
-            label={t('ai.new.language')}
-            value={language}
-            options={[{ value: 'auto', label: t('ai.language.auto') }, ...TRANSCRIPTION_LANGUAGES.map((c) => ({ value: c, label: languageName(c) }))]}
-            onchange={(v) => (language = v)}
-          />
-        </div>
         {#if model && !speechReady}
           <div class="need">
             <Download size={15} />
@@ -238,33 +242,26 @@
         </header>
         {#if st.on}
           <div class="rows">
-            <div class="row">
-              <span class="label">{t('ai.gen.provider')}</span>
-              <Select
-                label={t('ai.gen.provider')}
-                icon={pi?.local ? Cpu : Globe}
-                value={st.provider}
-                options={providers.map((p) => ({ value: p.id, label: providerName(p.id) }))}
-                onchange={(v) => (steps[task].provider = v)}
-              />
-            </div>
-            <div class="row">
-              <span class="label">{t(task === 'summary' ? 'ai.gen.detail' : 'ai.new.organization')}</span>
-              <Segmented label={t('ai.gen.detail')} size="sm" value={st.detail} options={detailOptions} onchange={(v) => (steps[task].detail = v)} />
+            <div class="grid">
+              <div class="field">
+                <span class="label">{t('ai.gen.provider')}</span>
+                <Select
+                  label={t('ai.gen.provider')}
+                  icon={pi?.local ? Cpu : Globe}
+                  value={st.provider}
+                  options={providers.map((p) => ({ value: p.id, label: providerName(p.id) }))}
+                  onchange={(v) => (steps[task].provider = v)}
+                />
+              </div>
+              <div class="field">
+                <span class="label">{t(task === 'summary' ? 'ai.gen.detail' : 'ai.new.organization')}</span>
+                <Segmented label={t('ai.gen.detail')} size="sm" stretch value={st.detail} options={detailOptions} onchange={(v) => (steps[task].detail = v)} />
+              </div>
             </div>
             {#if block}
               <p class="warn"><AlertTriangle size={13} />{t(`ai.reason.${block}` as MessageKey)}</p>
-            {:else if st.provider === 'cloud'}
-              <p class="hint">
-                <Globe size={13} />
-                <span>
-                  {t('ai.cloud.privacy', { tokens: estimate.inputTokens.toLocaleString(locale()) })}
-                  {#if !aiStore.cloud}<CloudState />{/if}
-                </span>
-              </p>
-            {:else if pi?.local}
-              <p class="hint"><Cpu size={13} />{t('ai.gen.privacy.local')}</p>
-            {:else if pi}
+            {:else if pi && !pi.local && st.provider !== 'cloud'}
+              <!-- Paid providers: what is sent and what it may cost, per step. FrameLy Cloud is summed up below. -->
               <p class="hint">
                 <Globe size={13} />
                 <span>
@@ -280,16 +277,13 @@
 
     <div class="totals">
       <div class="total">
-        <Clock size={16} />
-        <div>
-          <strong>{t('ai.new.total', { time: total ? roughTime(total.ms) : '—' })}</strong>
-          <div class="hint">{total?.approximate ? t('ai.new.approx') : t('ai.new.measuredShort')}</div>
-        </div>
-      </div>
-      <div class="total">
         {#if external.length}<Globe size={16} />{:else}<ShieldCheck size={16} />{/if}
         <div>
           <strong>{external.length ? t('ai.new.privacyExternal', { providers: [...new Set(external)].map(providerName).join(', ') }) : t('ai.new.privacyLocal')}</strong>
+          {#if usesCloud}
+            <div class="hint">{t('ai.cloud.privacy', { tokens: estimate.inputTokens.toLocaleString(locale()) })}</div>
+            <div class="cloud-state"><CloudState /></div>
+          {/if}
           <div class="hint">{t('ai.new.privacyMedia')}</div>
         </div>
       </div>
@@ -300,6 +294,11 @@
   {/if}
 
   {#snippet footer()}
+    {#if estimate}
+      <span class="eta" title={total?.approximate ? t('ai.new.approx') : t('ai.new.measuredShort')}>
+        <Clock size={14} />{t('ai.new.total', { time: total ? roughTime(total.ms) : '—' })}{#if total?.approximate}<span class="approx">· {t('ai.approx')}</span>{/if}
+      </span>
+    {/if}
     <Button variant="ghost" onclick={onclose}>{t('library.cancel')}</Button>
     <Button variant="primary" busy={starting} disabled={!estimate || (!speechReady && !reused) || unsupported || anyBlocked} onclick={start}>
       {willGenerate ? t('ai.new.startAll') : t('ai.new.start')}
@@ -329,7 +328,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px;
+    padding: 10px 12px;
     border-radius: var(--radius-lg);
     background: var(--bg-2);
     box-shadow: inset 0 0 0 1px var(--border);
@@ -338,8 +337,8 @@
     display: grid;
     place-items: center;
     flex-shrink: 0;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 10px;
     background: var(--icon-tile);
     color: var(--icon-accent);
@@ -363,7 +362,7 @@
     font-size: var(--text-sm);
   }
   .step {
-    margin-top: 12px;
+    margin-top: 10px;
     border-radius: var(--radius-lg);
     background: var(--bg-2);
     box-shadow: inset 0 0 0 1px var(--border);
@@ -373,7 +372,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 14px;
+    padding: 10px 14px;
   }
   .step.off header {
     opacity: 0.7;
@@ -411,8 +410,8 @@
   .rows {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 2px 14px 14px 44px;
+    gap: 8px;
+    padding: 0 14px 12px 44px;
     animation: open var(--dur-med) var(--ease-out);
   }
   @keyframes open {
@@ -421,20 +420,29 @@
       transform: translateY(-3px);
     }
   }
-  .row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 10px 12px;
   }
-  .row :global(.seg) {
+  .field {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+  }
+  .field :global(.seg) {
+    width: 100%;
     min-width: 0;
   }
   .label {
-    font-size: var(--text-md);
+    color: var(--text-3);
+    font-size: var(--text-xs);
     font-weight: 600;
-    color: var(--text-2);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .rows .hint {
+    font-size: var(--text-xs);
   }
   .rows .hint,
   .warn {
@@ -486,20 +494,29 @@
     transition: width var(--dur-med) var(--ease-out);
   }
   .totals {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-top: 14px;
+    margin-top: 12px;
   }
-  @media (max-width: 620px) {
-    .totals {
-      grid-template-columns: 1fr;
-    }
+  .eta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: auto;
+    color: var(--text-2);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .eta :global(svg) {
+    color: var(--icon-accent);
+  }
+  .approx {
+    color: var(--text-3);
+    font-weight: 500;
   }
   .total {
     display: flex;
     gap: 10px;
-    padding: 12px;
+    padding: 10px 12px;
     border-radius: var(--radius-lg);
     background: var(--surface-raised);
     box-shadow: inset 0 0 0 1px var(--border);
@@ -508,6 +525,14 @@
     flex-shrink: 0;
     margin-top: 1px;
     color: var(--icon-accent);
+  }
+  .total .hint {
+    margin-top: 3px;
+    font-size: var(--text-xs);
+    line-height: 1.45;
+  }
+  .cloud-state {
+    margin-top: 4px;
   }
   .fine {
     margin: 12px 0 0;

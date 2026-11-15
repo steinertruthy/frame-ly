@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ListTree, Copy, Pencil, Check, RefreshCw, Info, Gavel, ListTodo, CalendarDays, Hash, ChevronsDownUp, ChevronsUpDown } from '@lucide/svelte';
+  import { Copy, Pencil, Check, RefreshCw, Info, Gavel, ListTodo, CalendarDays, Hash, ChevronsDownUp, ChevronsUpDown } from '@lucide/svelte';
   import type { Component } from 'svelte';
   import Button from '$lib/components/Button.svelte';
   import { t, locale, type MessageKey } from '$lib/i18n/index.svelte';
@@ -97,8 +97,6 @@
 
 {#if !g && !job}
   <div class="empty">
-    <span class="icon"><ListTree size={22} /></span>
-    <p>{t('ai.gen.topics.empty')}</p>
     <GeneratePanel transcriptId={detail.transcript.id} task="topics" />
   </div>
 {:else if g && content}
@@ -181,24 +179,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
-    padding: 48px 16px;
-    text-align: center;
-  }
-  .empty .icon {
-    display: grid;
-    place-items: center;
-    width: 52px;
-    height: 52px;
-    border-radius: 15px;
-    background: var(--icon-tile);
-    box-shadow: inset 0 0 0 1px var(--border);
-    color: var(--icon-accent);
-  }
-  .empty p {
-    margin: 0;
-    color: var(--text-2);
-    max-width: 440px;
+    padding: 32px 16px;
   }
   .head {
     display: flex;

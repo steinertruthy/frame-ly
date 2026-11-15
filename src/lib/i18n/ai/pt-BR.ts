@@ -101,8 +101,6 @@ export const aiPtBR: Record<keyof typeof aiEn, string> = {
   'ai.noResults': 'Nada corresponde a “{q}”.',
   'ai.matches': '{n} ocorrências',
 
-  'ai.gen.summary.empty': 'Gere um resumo fiel desta gravação.',
-  'ai.gen.topics.empty': 'Organize o conteúdo em tópicos, com decisões, tarefas, datas e números.',
   'ai.gen.generate': 'Gerar',
   'ai.gen.regenerate': 'Gerar de novo',
   'ai.gen.detail': 'Detalhamento',

@@ -100,8 +100,6 @@ export const aiEn = {
   'ai.noResults': 'Nothing matches “{q}”.',
   'ai.matches': '{n} matches',
 
-  'ai.gen.summary.empty': 'Generate a faithful summary of this recording.',
-  'ai.gen.topics.empty': 'Organize the content into topics, with decisions, tasks, dates and numbers.',
   'ai.gen.generate': 'Generate',
   'ai.gen.regenerate': 'Regenerate',
   'ai.gen.detail': 'Detail',
