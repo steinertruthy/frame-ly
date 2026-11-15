@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod clipboard;
 pub mod disk;
+pub mod keystore;
 #[cfg(target_os = "macos")]
 mod macos;
 pub mod sound;
@@ -225,6 +226,38 @@ pub enum NativeEvent {
     /// "Stop" control, permission revoked). The file is already finalized.
     #[serde(rename_all = "camelCase")]
     Stopped { reason: String, duration_ms: u64, frames: u64 },
+}
+
+/// Apple Intelligence (Foundation Models) status, as reported by FrameLyKit.
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppleAiStatus {
+    pub available: bool,
+    pub reason: Option<String>,
+    pub supports_language: Option<bool>,
+    pub context_tokens: u32,
+}
+
+/// Apple Intelligence (macOS only; FrameLy never mentions it on Windows).
+#[cfg(target_os = "macos")]
+pub mod apple_ai {
+    pub use super::macos::{ai_generate as generate, ai_status as status};
+}
+
+/// Decodes the audio of a media file (video or audio) to 16 kHz mono f32 PCM, little-endian
+/// and headerless, streamed into `dest`. Calls `progress` with 0…1 and stops (`Cancelled`)
+/// when `cancel` is set. Returns the number of samples. Errors: `NoAudio`, `Unsupported`.
+pub fn decode_audio(
+    path: &std::path::Path,
+    dest: &std::path::Path,
+    progress: &mut dyn FnMut(f64),
+    cancel: &std::sync::atomic::AtomicBool,
+) -> AppResult<u64> {
+    #[cfg(target_os = "macos")]
+    return macos::decode_audio(path, dest, progress, cancel);
+    #[cfg(windows)]
+    return windows::decode_audio(path, dest, progress, cancel);
 }
 
 pub fn backend() -> Box<dyn CaptureBackend> {

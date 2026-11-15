@@ -212,6 +212,112 @@ impl Default for Audio {
     }
 }
 
+/// FrameLy AI hardware profile. `Auto` follows the recommendation for this computer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum AiProfile {
+    #[default]
+    Auto,
+    Basic,
+    Balanced,
+    Advanced,
+}
+
+/// Transcription accuracy. `Auto` uses the profile's default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Precision {
+    #[default]
+    Auto,
+    Fast,
+    Balanced,
+    Max,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Detail {
+    Brief,
+    #[default]
+    Balanced,
+    Detailed,
+}
+
+/// Who generates summaries and topics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum ProviderId {
+    /// FrameLy AI: local models managed by the app.
+    #[default]
+    Framely,
+    /// Apple Intelligence (macOS 26+, on device).
+    Apple,
+    Anthropic,
+    Openai,
+}
+
+impl ProviderId {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ProviderId::Framely => "framely",
+            ProviderId::Apple => "apple",
+            ProviderId::Anthropic => "anthropic",
+            ProviderId::Openai => "openai",
+        }
+    }
+    pub fn is_external(self) -> bool {
+        matches!(self, ProviderId::Anthropic | ProviderId::Openai)
+    }
+}
+
+/// Transcription, summaries and topics. API keys are never stored here (OS keychain only).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Intelligence {
+    pub profile: AiProfile,
+    pub precision: Precision,
+    /// "auto" or an ISO 639-1 code.
+    pub language: String,
+    pub summary_detail: Detail,
+    pub summary_auto: bool,
+    pub summary_provider: ProviderId,
+    pub topics_detail: Detail,
+    pub topics_auto: bool,
+    pub topics_provider: ProviderId,
+    /// Blocks every network request (external providers and model downloads).
+    pub local_only: bool,
+    /// Master switch for third-party providers.
+    pub external_enabled: bool,
+    pub anthropic_model: String,
+    pub openai_model: String,
+    /// Providers the user agreed to send content to.
+    pub consents: Vec<ProviderId>,
+    /// Offer Apple Intelligence where available (macOS only).
+    pub apple_enabled: bool,
+}
+
+impl Default for Intelligence {
+    fn default() -> Self {
+        Self {
+            profile: AiProfile::Auto,
+            precision: Precision::Auto,
+            language: "auto".into(),
+            summary_detail: Detail::Balanced,
+            summary_auto: false,
+            summary_provider: ProviderId::Framely,
+            topics_detail: Detail::Balanced,
+            topics_auto: false,
+            topics_provider: ProviderId::Framely,
+            local_only: false,
+            external_enabled: false,
+            anthropic_model: "claude-opus-5-5".into(),
+            openai_model: String::new(),
+            consents: Vec::new(),
+            apple_enabled: true,
+        }
+    }
+}
+
 pub const MAX_GAIN: f32 = 2.0;
 
 pub const ALLOWED_FPS: [u32; 3] = [24, 30, 60];
@@ -236,6 +342,8 @@ pub struct Settings {
     /// Global shortcuts (action → accelerator; empty = off).
     pub shortcuts: super::shortcuts::Shortcuts,
     pub storage: Storage,
+    #[serde(default)]
+    pub intelligence: Intelligence,
 }
 
 /// OS-dependent default locations, injected so defaults are testable.
@@ -267,6 +375,7 @@ impl Settings {
             audio: Audio::default(),
             shortcuts: super::shortcuts::defaults(),
             storage: Storage { recordings_dir: d.videos.clone(), screenshots_dir: d.pictures.clone() },
+            intelligence: Intelligence::default(),
         }
     }
 
@@ -295,6 +404,11 @@ impl Settings {
             if p.as_os_str().is_empty() || !p.is_absolute() {
                 return Err(AppError::InvalidSettings(format!("{name} must be an absolute path")));
             }
+        }
+        let lang = &self.intelligence.language;
+        let valid = lang == "auto" || ((2..=3).contains(&lang.len()) && lang.chars().all(|c| c.is_ascii_lowercase()));
+        if !valid {
+            return Err(AppError::InvalidSettings("language must be \"auto\" or an ISO 639-1 code".into()));
         }
         Ok(())
     }
@@ -547,6 +661,24 @@ mod tests {
         assert_eq!(v["resolution"], "native");
         assert_eq!(v["codec"], "h264");
         assert_eq!(serde_json::to_value(Resolution::P1080).unwrap(), "1080p");
+    }
+
+    #[test]
+    fn intelligence_defaults_are_local_and_on_demand() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = dirs_in(tmp.path());
+        // Files from before the feature gain the section.
+        let s = Settings::from_json(r#"{"version":2}"#, &d).unwrap();
+        let i = &s.intelligence;
+        assert_eq!((i.summary_provider, i.topics_provider), (ProviderId::Framely, ProviderId::Framely));
+        assert!(!i.summary_auto && !i.topics_auto && !i.external_enabled && i.consents.is_empty());
+        assert_eq!(serde_json::to_value(ProviderId::Openai).unwrap(), "openai");
+        let store = SettingsStore::load(tmp.path().join("s.json"), &d).unwrap();
+        let mut s = store.get();
+        s.intelligence.language = "Português".into();
+        assert_eq!(store.replace(s.clone()).unwrap_err().code(), "invalid_settings");
+        s.intelligence.language = "pt".into();
+        assert_eq!(store.replace(s).unwrap().intelligence.language, "pt");
     }
 
     #[test]

@@ -39,6 +39,18 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 libc = "0.2"
 percent-encoding = "2"
 nnnoiseless = { version = "0.5", default-features = false }
+# FrameLy AI: HTTPS (model downloads, optional external providers) with the OS TLS stack.
+ureq = { version = "3.5", default-features = false, features = ["native-tls-no-default"] }
+sha2 = "0.10"
+
+# Speech recognition (whisper.cpp). Metal on macOS; CPU (AVX2) on Windows. The summary/topics
+# model runs in the separate `framely-llm` process (llm-worker/): whisper.cpp and llama.cpp each
+# vendor a different ggml version, which must not be linked into one binary.
+[target.'cfg(target_os = "macos")'.dependencies]
+whisper-rs = { version = "0.16", features = ["metal"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+whisper-rs = "0.16"
 
 [features]
 # Windows test builds that also encode each recording at other quality levels (see
@@ -66,6 +78,8 @@ windows = { version = "0.62", features = [
   "Win32_System_Ole",
   "Win32_System_Threading",
   "Win32_Security",
+  "Win32_Security_Credentials",
+  "Win32_System_SystemInformation",
   "Win32_System_Registry",
   "Win32_UI_Shell_PropertiesSystem",
   "Win32_Devices_FunctionDiscovery",

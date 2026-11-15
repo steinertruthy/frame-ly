@@ -2,6 +2,7 @@
 
 pub mod capture;
 pub mod editor;
+pub mod intelligence;
 pub mod library;
 pub mod recording;
 pub mod screenshot;

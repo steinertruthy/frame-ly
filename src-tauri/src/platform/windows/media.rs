@@ -461,3 +461,82 @@ pub fn save_jpeg_thumbnail(frame: &crate::core::image::Frame, dest: &Path, max_p
         .save_with_format(dest, ::image::ImageFormat::Jpeg)
         .map_err(|e| AppError::Platform(format!("cannot write thumbnail: {e}")))
 }
+
+/// 16 kHz mono f32 PCM of the first audio stream, streamed into `dest` (see
+/// `platform::decode_audio`). Media Foundation decodes to float at the native rate; the
+/// conversion to 16 kHz mono is `core::resample`.
+pub fn decode_audio(
+    path: &Path,
+    dest: &Path,
+    progress: &mut dyn FnMut(f64),
+    cancel: &std::sync::atomic::AtomicBool,
+) -> AppResult<u64> {
+    use std::io::Write;
+    const FIRST_AUDIO: u32 = MF_SOURCE_READER_FIRST_AUDIO_STREAM.0 as u32;
+    let reader = source_reader(path, false).map_err(|e| AppError::Unsupported(e.to_string()))?;
+    // SAFETY: reader calls with valid arguments; locked buffers are read within their length
+    // and unlocked before the next read.
+    unsafe {
+        let duration_hns = reader
+            .GetPresentationAttribute(MF_SOURCE_READER_MEDIASOURCE.0 as u32, &MF_PD_DURATION)
+            .ok()
+            .and_then(|v| u64::try_from(&v).ok())
+            .unwrap_or(0);
+        let _ = reader.SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS.0 as u32, false);
+        reader.SetStreamSelection(FIRST_AUDIO, true).map_err(|_| AppError::NoAudio)?;
+        let wanted = MFCreateMediaType().map_err(|e| win_err("MFCreateMediaType", e))?;
+        wanted.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Audio).map_err(|e| win_err("audio type", e))?;
+        wanted.SetGUID(&MF_MT_SUBTYPE, &MFAudioFormat_Float).map_err(|e| win_err("float type", e))?;
+        reader
+            .SetCurrentMediaType(FIRST_AUDIO, None, &wanted)
+            .map_err(|e| AppError::Unsupported(format!("audio decoder: {e}")))?;
+        let current = reader.GetCurrentMediaType(FIRST_AUDIO).map_err(|e| win_err("current type", e))?;
+        let rate = current.GetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND).map_err(|e| win_err("sample rate", e))?;
+        let channels = current.GetUINT32(&MF_MT_AUDIO_NUM_CHANNELS).map_err(|e| win_err("channels", e))?;
+
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create(true).truncate(true);
+        let mut file = std::io::BufWriter::new(opts.open(dest)?);
+        let mut resampler = crate::core::resample::Resampler::new(rate, channels as u16, crate::core::resample::ASR_RATE);
+        let mut out: Vec<f32> = Vec::new();
+        let mut written = 0u64;
+        let mut last_report = 0i64;
+        let flush = |out: &mut Vec<f32>, file: &mut std::io::BufWriter<std::fs::File>| -> AppResult<u64> {
+            let bytes: Vec<u8> = out.iter().flat_map(|v| v.to_le_bytes()).collect();
+            file.write_all(&bytes)?;
+            let n = out.len() as u64;
+            out.clear();
+            Ok(n)
+        };
+        loop {
+            if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                return Err(AppError::Cancelled);
+            }
+            let (mut flags, mut ts, mut sample) = (0u32, 0i64, None);
+            reader
+                .ReadSample(FIRST_AUDIO, 0, None, Some(&mut flags), Some(&mut ts), Some(&mut sample))
+                .map_err(|e| win_err("ReadSample", e))?;
+            if let Some(sample) = sample {
+                let buffer = sample.ConvertToContiguousBuffer().map_err(|e| win_err("contiguous buffer", e))?;
+                let (mut data, mut len) = (std::ptr::null_mut(), 0u32);
+                buffer.Lock(&mut data, None, Some(&mut len)).map_err(|e| win_err("Lock", e))?;
+                let floats = std::slice::from_raw_parts(data as *const f32, len as usize / 4);
+                resampler.push(floats, &mut out);
+                let _ = buffer.Unlock();
+                written += flush(&mut out, &mut file)?;
+                if duration_hns > 0 && ts - last_report >= 20_000_000 {
+                    last_report = ts;
+                    progress((ts as f64 / duration_hns as f64).min(1.0));
+                }
+            }
+            if flags & MF_SOURCE_READERF_ENDOFSTREAM.0 as u32 != 0 {
+                break;
+            }
+        }
+        resampler.finish(&mut out);
+        written += flush(&mut out, &mut file)?;
+        file.flush()?;
+        progress(1.0);
+        Ok(written)
+    }
+}

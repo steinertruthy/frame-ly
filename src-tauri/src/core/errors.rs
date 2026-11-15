@@ -22,6 +22,28 @@ pub enum AppError {
     NotFound,
     #[error("Invalid file name: {0}")]
     InvalidName(String),
+    #[error("Blocked by local-only mode")]
+    LocalOnly,
+    #[error("Consent required to send content to {0}")]
+    ConsentRequired(String),
+    #[error("Model not installed: {0}")]
+    ModelMissing(String),
+    #[error("Cancelled")]
+    Cancelled,
+    #[error("The file has no audio")]
+    NoAudio,
+    #[error("Not supported: {0}")]
+    Unsupported(String),
+    #[error("Network error: {0}")]
+    Network(String),
+    #[error("Provider error: {0}")]
+    Provider(String),
+    #[error("Not enough disk space")]
+    DiskFull,
+    #[error("Integrity check failed: {0}")]
+    Integrity(String),
+    #[error("Missing API key")]
+    MissingKey,
 }
 
 impl AppError {
@@ -36,6 +58,17 @@ impl AppError {
             AppError::EmptyRecording => "empty_recording",
             AppError::NotFound => "not_found",
             AppError::InvalidName(_) => "invalid_name",
+            AppError::LocalOnly => "local_only",
+            AppError::ConsentRequired(_) => "consent_required",
+            AppError::ModelMissing(_) => "model_missing",
+            AppError::Cancelled => "cancelled",
+            AppError::NoAudio => "no_audio",
+            AppError::Unsupported(_) => "unsupported",
+            AppError::Network(_) => "network",
+            AppError::Provider(_) => "provider",
+            AppError::DiskFull => "disk_full",
+            AppError::Integrity(_) => "integrity",
+            AppError::MissingKey => "missing_key",
         }
     }
 }

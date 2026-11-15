@@ -37,6 +37,17 @@ extern "C" {
     fn fl_mic_monitor_stop();
     fn fl_media_info(path: *const c_char) -> *mut c_char;
     fn fl_thumbnail(path: *const c_char, dest: *const c_char, max_pixels: i32) -> *mut c_char;
+    fn fl_decode_audio(
+        path: *const c_char,
+        dest: *const c_char,
+        progress: extern "C" fn(*mut std::ffi::c_void, f64) -> bool,
+        ctx: *mut std::ffi::c_void,
+    ) -> *mut c_char;
+    fn fl_keychain_set(account: *const c_char, secret: *const c_char) -> *mut c_char;
+    fn fl_keychain_get(account: *const c_char) -> *mut c_char;
+    fn fl_keychain_delete(account: *const c_char) -> *mut c_char;
+    fn fl_ai_status(language: *const c_char) -> *mut c_char;
+    fn fl_ai_generate(request: *const c_char) -> *mut c_char;
 }
 
 fn c_path(p: &std::path::Path) -> AppResult<std::ffi::CString> {
@@ -142,8 +153,95 @@ fn decode<T: DeserializeOwned>(json: &str) -> AppResult<T> {
                 _ => "screen",
             }))
         }
-        Envelope::Err(e) => Err(AppError::Platform(e.message)),
+        Envelope::Err(e) => Err(match e.code.as_str() {
+            "no_audio" => AppError::NoAudio,
+            "cancelled" => AppError::Cancelled,
+            "unsupported" => AppError::Unsupported(e.message),
+            "provider" => AppError::Provider(e.message),
+            "context_overflow" => AppError::Provider("context_overflow".into()),
+            _ => AppError::Platform(e.message),
+        }),
     }
+}
+
+/// Takes ownership of a FrameLyKit result string and decodes it.
+///
+/// # Safety
+/// `ptr` must be a string returned by a FrameLyKit export (owned, released here exactly once).
+unsafe fn take<T: DeserializeOwned>(ptr: *mut c_char) -> AppResult<T> {
+    if ptr.is_null() {
+        return Err(AppError::Platform("FrameLyKit returned null".into()));
+    }
+    let json = CStr::from_ptr(ptr).to_string_lossy().into_owned();
+    fl_free_string(ptr);
+    decode(&json)
+}
+
+fn cstring(s: &str) -> AppResult<std::ffi::CString> {
+    std::ffi::CString::new(s).map_err(|_| AppError::Platform("argument contains NUL".into()))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Decoded {
+    samples: u64,
+}
+
+struct DecodeCtx<'a> {
+    progress: &'a mut dyn FnMut(f64),
+    cancel: &'a std::sync::atomic::AtomicBool,
+}
+
+extern "C" fn decode_progress(ctx: *mut std::ffi::c_void, fraction: f64) -> bool {
+    // SAFETY: `ctx` is the `DecodeCtx` passed to fl_decode_audio, alive for the whole call,
+    // and FrameLyKit calls back synchronously on the calling thread.
+    let ctx = unsafe { &mut *(ctx as *mut DecodeCtx<'_>) };
+    (ctx.progress)(fraction);
+    !ctx.cancel.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// 16 kHz mono f32 PCM of any media file AVFoundation reads, streamed into `dest`.
+pub fn decode_audio(
+    path: &std::path::Path,
+    dest: &std::path::Path,
+    progress: &mut dyn FnMut(f64),
+    cancel: &std::sync::atomic::AtomicBool,
+) -> AppResult<u64> {
+    let (p, d) = (c_path(path)?, c_path(dest)?);
+    let mut ctx = DecodeCtx { progress, cancel };
+    // SAFETY: valid C strings; `ctx` outlives the synchronous call.
+    let r: Decoded = unsafe {
+        take(fl_decode_audio(p.as_ptr(), d.as_ptr(), decode_progress, &mut ctx as *mut DecodeCtx<'_> as *mut _))?
+    };
+    Ok(r.samples)
+}
+
+pub fn keychain_set(account: &str, secret: &str) -> AppResult<()> {
+    let (a, s) = (cstring(account)?, cstring(secret)?);
+    // SAFETY: valid C strings for the duration of the call.
+    unsafe { take::<bool>(fl_keychain_set(a.as_ptr(), s.as_ptr())) }.map(|_| ())
+}
+
+pub fn keychain_get(account: &str) -> AppResult<Option<String>> {
+    call_with(fl_keychain_get, account)
+}
+
+pub fn keychain_delete(account: &str) -> AppResult<()> {
+    call_with::<bool>(fl_keychain_delete, account).map(|_| ())
+}
+
+/// Apple Intelligence availability (and support for `language`, when given).
+pub fn ai_status(language: Option<&str>) -> AppResult<super::AppleAiStatus> {
+    call_with(fl_ai_status, language.unwrap_or(""))
+}
+
+/// Runs a request (`task`, `instructions`, `prompt`, `maxTokens`) and returns the JSON result.
+pub fn ai_generate(request: &serde_json::Value) -> AppResult<String> {
+    #[derive(Deserialize)]
+    struct R {
+        json: String,
+    }
+    call_with::<R>(fl_ai_generate, &request.to_string()).map(|r| r.json)
 }
 
 /// Microphone noise suppression for the active recording (see `core::denoise`); Swift calls

@@ -15,7 +15,8 @@
     "tauri": "tauri",
     "app:mac": "./scripts/macos-dev-app.sh",
     "check:windows": "cd src-tauri && cargo clippy --target x86_64-pc-windows-gnu --all-targets -- -D warnings",
-    "build:windows": "tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis"
+    "build:windows": "tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis",
+    "llm:build": "./scripts/build-llm-worker.sh"
   },
   "dependencies": {
     "@lucide/svelte": "^1.72.0",

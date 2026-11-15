@@ -10,3 +10,5 @@ src-tauri/gen/schemas/
 *.xcodeproj/
 .swiftpm/
 dist-windows/
+src-tauri/binaries/
+src-tauri/llm-worker/target/

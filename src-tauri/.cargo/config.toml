@@ -1,0 +1,6 @@
+# Build environment for whisper.cpp (whisper-rs-sys). See cmake/ggml-windows.cmake.
+[env]
+CMAKE_PROJECT_ggml_INCLUDE = { value = "cmake/ggml-windows.cmake", relative = true }
+# Lint-only Windows GNU target: point bindgen at the mingw-w64 headers (Homebrew layout); the
+# bindings bundled with whisper-rs-sys are Linux-specific and don't compile for Windows.
+BINDGEN_EXTRA_CLANG_ARGS_x86_64_pc_windows_gnu = "--sysroot=/opt/homebrew/opt/mingw-w64/toolchain-x86_64/x86_64-w64-mingw32"

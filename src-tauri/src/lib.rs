@@ -3,6 +3,7 @@
 mod commands;
 mod core;
 mod editor;
+mod intelligence;
 mod library;
 mod notify;
 mod panel;
@@ -25,6 +26,7 @@ pub struct AppState {
     pub screenshots: screenshot::Screenshots,
     pub recordings: recording::Recordings,
     pub library: library::LibraryService,
+    pub intelligence: intelligence::Intelligence,
     pub log_dir: PathBuf,
     /// Set when FrameLy should start without showing its window (login item / preference).
     pub start_hidden: std::sync::atomic::AtomicBool,
@@ -158,6 +160,7 @@ pub fn run() {
                 screenshots: Default::default(),
                 recordings: Default::default(),
                 library: Default::default(),
+                intelligence: Default::default(),
                 log_dir,
                 start_hidden: std::sync::atomic::AtomicBool::new(
                     std::env::args().any(|a| a == "--background") || !initial.general.show_on_launch,
@@ -168,6 +171,9 @@ pub fn run() {
             recording::recover(&handle);
             if let Err(e) = library::init(&handle) {
                 tracing::error!(error = %e, "library unavailable");
+            }
+            if let Err(e) = intelligence::init(&handle) {
+                tracing::error!(error = %e, "transcription unavailable");
             }
             windows::create_main(&handle, initial.appearance.theme)?;
             if let Some(action) = cli_action(&std::env::args().collect::<Vec<_>>()) {
@@ -266,6 +272,27 @@ pub fn run() {
             commands::editor::editor_source,
             commands::editor::editor_save,
             commands::editor::editor_copy,
+            commands::intelligence::ai_overview,
+            commands::intelligence::ai_model_action,
+            commands::intelligence::ai_estimate,
+            commands::intelligence::ai_generation_estimate,
+            commands::intelligence::transcription_start,
+            commands::intelligence::transcripts_list,
+            commands::intelligence::transcript_get,
+            commands::intelligence::transcript_find,
+            commands::intelligence::transcript_edit,
+            commands::intelligence::transcript_delete,
+            commands::intelligence::generated_save,
+            commands::intelligence::generation_start,
+            commands::intelligence::ai_job_cancel,
+            commands::intelligence::ai_jobs,
+            commands::intelligence::transcript_export,
+            commands::intelligence::provider_key_set,
+            commands::intelligence::provider_remove,
+            commands::intelligence::provider_test,
+            commands::intelligence::ai_consent,
+            commands::intelligence::ai_clear_temp,
+            commands::intelligence::media_probe,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build FrameLy");
