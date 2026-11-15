@@ -7,6 +7,7 @@
   import SettingRow from '$lib/components/SettingRow.svelte';
   import Select from '$lib/components/Select.svelte';
   import Toggle from '$lib/components/Toggle.svelte';
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import { t, type MessageKey } from '$lib/i18n/index.svelte';
   import { ai, type AiProfile, type Detail, type Precision, type ProviderId } from '$lib/ipc/ai';
   import { isAppError } from '$lib/ipc/commands';
@@ -17,7 +18,7 @@
   import { toast } from '$lib/stores/toasts.svelte';
   import { TRANSCRIPTION_LANGUAGES } from '$lib/ai';
   import ModelRow from './ModelRow.svelte';
-  import { languageName, offeredProvider, providerName } from './format';
+  import { consentBody, languageName, offeredProvider, providerName } from './format';
   import CloudState from './CloudState.svelte';
 
   interface Props {
@@ -85,6 +86,14 @@
     const freed = await ai.clearTemp();
     toast('success', t('ai.set.tempCleared', { size: formatBytes(freed) }));
     await aiStore.loadOverview();
+  }
+
+  // Consent can also be given here, after reading the same notice shown before the first send.
+  let granting = $state<ProviderId | null>(null);
+  async function grant() {
+    const p = granting!;
+    granting = null;
+    await save((d) => void (d.intelligence.consents.includes(p) || d.intelligence.consents.push(p)));
   }
 
   const profileName = (p: Exclude<AiProfile, 'auto'>) => t(`ai.profile.${p}` as MessageKey);
@@ -171,8 +180,15 @@
     >
       {#if s.consents.includes('cloud')}
         <Button size="sm" variant="ghost" onclick={() => save((d) => (d.intelligence.consents = d.intelligence.consents.filter((c) => c !== 'cloud')))}>{t('ai.set.revoke')}</Button>
+      {:else}
+        <Button size="sm" disabled={s.localOnly} onclick={() => (granting = 'cloud')}>{t('ai.set.allow')}</Button>
       {/if}
     </SettingRow>
+    {#if cloud?.requestsPerDay}
+      <SettingRow title={t('ai.cloud.limit')} hint={t('ai.cloud.limit.hint', { n: cloud.requestsPerDay })}>
+        <span class="value">{cloud.requestsPerDay}</span>
+      </SettingRow>
+    {/if}
   </Section>
 
   {#if mac}
@@ -230,6 +246,8 @@
             <Globe size={16} />
             {#if consented}
               <Button size="sm" variant="ghost" onclick={() => save((d) => (d.intelligence.consents = d.intelligence.consents.filter((c) => c !== p)))}>{t('ai.set.revoke')}</Button>
+            {:else}
+              <Button size="sm" disabled={s.localOnly} onclick={() => (granting = p)}>{t('ai.set.allow')}</Button>
             {/if}
           </SettingRow>
         {/if}
@@ -238,7 +256,23 @@
   {/if}
 {/if}
 
+{#if granting}
+  <ConfirmDialog
+    title={t('ai.set.allow.title', { provider: providerName(granting) })}
+    body={consentBody(granting, aiStore.cloud)}
+    confirm={t('ai.set.allow')}
+    cancel={t('ai.consent.cancel')}
+    onconfirm={grant}
+    oncancel={() => (granting = null)}
+  />
+{/if}
+
 <style>
+  .value {
+    color: var(--text-2);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
   .ok {
     display: grid;
     place-items: center;

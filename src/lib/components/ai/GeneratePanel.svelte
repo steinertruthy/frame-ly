@@ -83,7 +83,6 @@
   <Segmented
     label={t('ai.gen.detail')}
     size="sm"
-    stretch={!regenerate}
     value={detail}
     options={(['brief', 'balanced', 'detailed'] as const).map((d) => ({ value: d, label: t(`ai.detail.${d}` as MessageKey) }))}
     onchange={(v) => (detail = v)}
@@ -140,9 +139,9 @@
       <li><Cpu size={14} /><span>{t('ai.gen.privacy.local')}</span></li>
     {:else if provider === 'cloud'}
       <li class="state"><CloudState /></li>
-      <li><Globe size={14} /><span>{t('ai.cloud.privacy', { tokens: (estimate?.inputTokens ?? 0).toLocaleString(locale()) })}</span></li>
+      <li><Globe size={14} /><span>{t('ai.cloud.privacy')}</span></li>
     {:else if info}
-      <li><Globe size={14} /><span>{t('ai.gen.privacy.external', { tokens: (estimate?.inputTokens ?? 0).toLocaleString(locale()), provider: providerName(provider) })}</span></li>
+      <li><Globe size={14} /><span>{t('ai.gen.privacy.external', { provider: providerName(provider) })}</span></li>
       <li>
         <CircleDollarSign size={14} />
         <span>{#if estimate?.costUsd}{t('ai.gen.cost', { min: money(estimate.costUsd[0]), max: money(estimate.costUsd[1]) })}{:else}{t('ai.gen.costUnknown')}{/if}</span>
@@ -186,8 +185,9 @@
     box-shadow: inset 0 0 0 1px var(--border);
   }
   .fields {
-    display: grid;
-    gap: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 16px;
   }
   .opt {
     display: grid;
@@ -200,8 +200,8 @@
     letter-spacing: 0.02em;
     text-transform: uppercase;
   }
-  .opt :global(.seg) {
-    width: 100%;
+  .opt > :global(label) {
+    min-width: 190px;
   }
   .controls {
     display: flex;

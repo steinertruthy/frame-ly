@@ -19,7 +19,7 @@
 
 {#if rich}
   <!-- The native select covers the whole field (invisible), so a click anywhere opens the system list. -->
-  <label class="field" class:disabled title={prefix ? `${prefix}: ${current}` : current}>
+  <label class="field" class:disabled class:plain={!prefix} title={prefix ? `${prefix}: ${current}` : current}>
     {#if Icon}<span class="icon"><Icon size={15} strokeWidth={1.9} /></span>{/if}
     {#if prefix}<span class="prefix">{prefix}</span>{/if}
     <span class="value">{current}</span>
@@ -120,6 +120,14 @@
     text-align: right;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* Without a prefix the choice reads left to right next to its icon. */
+  .plain .value {
+    flex: 0 1 auto;
+    text-align: left;
+  }
+  .plain .chev {
+    margin-left: auto;
   }
   .chev {
     display: grid;

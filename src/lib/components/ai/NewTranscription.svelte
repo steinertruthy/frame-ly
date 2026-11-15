@@ -265,7 +265,7 @@
               <p class="hint">
                 <Globe size={13} />
                 <span>
-                  {t('ai.gen.privacy.external', { tokens: estimate.inputTokens.toLocaleString(locale()), provider: providerName(st.provider) })}
+                  {t('ai.gen.privacy.external', { provider: providerName(st.provider) })}
                   {#if st.provider === 'anthropic' && estimate.anthropicCostUsd}{t('ai.gen.cost', { min: money(estimate.anthropicCostUsd[0]), max: money(estimate.anthropicCostUsd[1]) })}.{:else}{t('ai.gen.costUnknown')}{/if}
                 </span>
               </p>
@@ -281,7 +281,7 @@
         <div>
           <strong>{external.length ? t('ai.new.privacyExternal', { providers: [...new Set(external)].map(providerName).join(', ') }) : t('ai.new.privacyLocal')}</strong>
           {#if usesCloud}
-            <div class="hint">{t('ai.cloud.privacy', { tokens: estimate.inputTokens.toLocaleString(locale()) })}</div>
+            <div class="hint">{t('ai.cloud.privacy')}</div>
             <div class="cloud-state"><CloudState /></div>
           {/if}
           <div class="hint">{t('ai.new.privacyMedia')}</div>
@@ -433,6 +433,12 @@
   .field :global(.seg) {
     width: 100%;
     min-width: 0;
+  }
+  /* Selects keep a size that fits their short choices instead of filling the column. */
+  .field > :global(label) {
+    justify-self: start;
+    min-width: 190px;
+    max-width: 100%;
   }
   .label {
     color: var(--text-3);

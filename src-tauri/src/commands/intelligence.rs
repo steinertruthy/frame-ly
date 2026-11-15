@@ -67,22 +67,7 @@ fn provider_infos(app: &AppHandle) -> Vec<ProviderInfo> {
         model: lm.id.into(),
         consented: true,
     }];
-    if cfg!(target_os = "macos") {
-        let r = ai::provider_ready(app, ProviderId::Apple);
-        out.push(ProviderInfo {
-            id: ProviderId::Apple,
-            local: true,
-            needs_internet: false,
-            needs_key: false,
-            key_configured: false,
-            available: r.is_ok(),
-            reason: r.err().map(str::to_string),
-            context_tokens: 4_096,
-            paid: false,
-            model: "apple-foundation-model".into(),
-            consented: true,
-        });
-    }
+    // Order shown everywhere: FrameLy AI (local), FrameLy Cloud, Apple Intelligence, then paid providers.
     {
         let reason = providers::cloud_reason(&p, ai::cloud::base_url().is_some());
         out.push(ProviderInfo {
@@ -97,6 +82,22 @@ fn provider_infos(app: &AppHandle) -> Vec<ProviderInfo> {
             paid: false,
             model: "framely-cloud".into(),
             consented: p.consents.contains(&ProviderId::Cloud),
+        });
+    }
+    if cfg!(target_os = "macos") {
+        let r = ai::provider_ready(app, ProviderId::Apple);
+        out.push(ProviderInfo {
+            id: ProviderId::Apple,
+            local: true,
+            needs_internet: false,
+            needs_key: false,
+            key_configured: false,
+            available: r.is_ok(),
+            reason: r.err().map(str::to_string),
+            context_tokens: 4_096,
+            paid: false,
+            model: "apple-foundation-model".into(),
+            consented: true,
         });
     }
     for (id, model) in [(ProviderId::Anthropic, p.anthropic_model.clone()), (ProviderId::Openai, p.openai_model.clone())] {

@@ -179,7 +179,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 32px 16px;
+    padding: 4px 0 16px;
   }
   .head {
     display: flex;
