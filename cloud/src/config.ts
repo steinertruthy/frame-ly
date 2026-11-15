@@ -5,7 +5,7 @@
  */
 export interface Env {
   LIMITER: DurableObjectNamespace;
-  /** "deepseek" (default) | "gemini" | "mock". */
+  /** "gemini" (default) | "deepseek" | "mock". */
   PROVIDER: string;
   PROVIDER_TIMEOUT_MS: string;
   MAX_INPUT_CHARS: string;

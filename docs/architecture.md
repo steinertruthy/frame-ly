@@ -260,7 +260,7 @@ mídia (gravação, vídeo ou áudio importado)
   FrameLy, sem chave nem modelo para o usuário. O app envia a requisição estruturada (texto da
   transcrição, idioma, detalhe, parte) — nunca prompts nem mídia — assinada com uma identidade
   Ed25519 anônima guardada no Keychain/Gerenciador de Credenciais (registro com prova de trabalho).
-  O serviço monta os prompts, chama o provedor configurado nele (DeepSeek por padrão; Gemini como
+  O serviço monta os prompts, chama o provedor configurado nele (Gemini por padrão; DeepSeek como
   alternativa), valida e devolve o mesmo JSON dos outros provedores. O app não sabe qual provedor
   nem qual modelo processa o texto: `/v1/status` informa só disponibilidade, limites e a política
   de uso de dados. É externo para fins de privacidade: consentimento antes do primeiro envio (citando

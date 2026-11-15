@@ -3,13 +3,13 @@
 Serviço próprio do FrameLy para gerar **resumos e tópicos** na nuvem, sem que o usuário precise
 configurar modelos, chaves ou contas. É um Cloudflare Worker em TypeScript, sem dependências de
 runtime. O Desktop vê o FrameLy Cloud como mais um provedor (`ProviderId::Cloud`); quem processa o
-texto por trás dele (padrão: **DeepSeek**; alternativa: **Google Gemini**) é configuração deste
+texto por trás dele (padrão: **Google Gemini**; alternativa: **DeepSeek**) é configuração deste
 serviço. **O app não sabe qual provedor nem qual modelo é usado** — nenhuma resposta da API os
 informa; só os logs do servidor registram o provedor.
 
 ```
-FrameLy Desktop ──HTTPS assinado──▶ FrameLy Cloud API (Worker) ──▶ DeepSeek (chat/completions, JSON)
-                ◀── JSON validado ──                            ◀── ou Gemini (generateContent)
+FrameLy Desktop ──HTTPS assinado──▶ FrameLy Cloud API (Worker) ──▶ Gemini (generateContent)
+                ◀── JSON validado ──                            ◀── ou DeepSeek (chat/completions, JSON)
 ```
 
 ## O que o serviço faz (e não faz)
@@ -61,11 +61,21 @@ Sem contas não existe proteção perfeita contra abuso; os tetos globais garant
 
 ## Provedores
 
-### DeepSeek (padrão)
+### Google Gemini (padrão)
+
+1. Em <https://aistudio.google.com>, crie uma chave de API.
+2. `cd cloud && npx wrangler secret put GEMINI_API_KEY` (cole a chave quando pedir).
+3. `npx wrangler secret put TOKEN_SECRET` com um valor aleatório longo (ex.: `openssl rand -hex 32`).
+
+No plano gratuito o Google pode usar o conteúdo para melhorar seus produtos e revisores humanos
+podem lê-lo (`GEMINI_DATA_USE = "may_train"`), e o plano não pode ser oferecido no EEE, Suíça e
+Reino Unido (`GEMINI_BLOCKED_COUNTRIES`). Com faturamento ativo: `GEMINI_DATA_USE = "no_training"`
+e (opcionalmente) esvazie a lista de países.
+
+### DeepSeek (alternativa)
 
 1. Crie uma conta em <https://platform.deepseek.com>, adicione crédito e gere uma chave de API.
 2. `cd cloud && npx wrangler secret put DEEPSEEK_API_KEY` (cole a chave quando pedir).
-3. `npx wrangler secret put TOKEN_SECRET` com um valor aleatório longo (ex.: `openssl rand -hex 32`).
 
 Chamada: `POST https://api.deepseek.com/chat/completions` com `response_format: json_object` (o
 schema vai no prompt de sistema e a resposta é validada aqui), `thinking` desligado
@@ -79,22 +89,12 @@ conteúdo de forma desidentificada para melhorar os serviços — por isso `DEEP
 no EEE/Reino Unido, faça uma revisão jurídica (transferência internacional, LGPD/GDPR); se preciso,
 preencha `DEEPSEEK_BLOCKED_COUNTRIES`.
 
-### Google Gemini (alternativa)
-
-1. Em <https://aistudio.google.com>, crie uma chave de API.
-2. `npx wrangler secret put GEMINI_API_KEY`.
-
-No plano gratuito o Google pode usar o conteúdo para melhorar seus produtos e revisores humanos
-podem lê-lo (`GEMINI_DATA_USE = "may_train"`), e o plano não pode ser oferecido no EEE, Suíça e
-Reino Unido (`GEMINI_BLOCKED_COUNTRIES`). Com faturamento ativo: `GEMINI_DATA_USE = "no_training"`
-e (opcionalmente) esvazie a lista de países.
-
 ### Trocar o provedor
 
 Edite `PROVIDER` em `wrangler.toml` (`"deepseek"` ou `"gemini"`), confirme que o segredo da chave
 dele existe e publique (`pnpm run deploy`). Nada muda no Desktop: o texto de consentimento usa o
 `dataUse` do provedor ativo, vindo de `/v1/status`. Para testar sem publicar:
-`npx wrangler dev --var PROVIDER:gemini`.
+`npx wrangler dev --var PROVIDER:deepseek`.
 
 ## Execução local
 
@@ -103,7 +103,7 @@ cd cloud
 pnpm install
 printf 'TOKEN_SECRET="local-dev-token-secret-123456"\n' > .dev.vars
 pnpm dev:mock          # provedor simulado: não gasta cota nem crédito
-# ou: DEEPSEEK_API_KEY no .dev.vars + `pnpm dev` para chamar o DeepSeek de verdade
+# ou: GEMINI_API_KEY no .dev.vars + `pnpm dev` para chamar o Gemini de verdade
 ```
 
 Desktop apontando para o serviço local:
@@ -117,7 +117,7 @@ FRAMELY_CLOUD_URL=http://127.0.0.1:8787 pnpm tauri dev
 ```bash
 cd cloud
 npx wrangler login
-npx wrangler secret put DEEPSEEK_API_KEY   # e/ou GEMINI_API_KEY
+npx wrangler secret put GEMINI_API_KEY   # ou DEEPSEEK_API_KEY, se PROVIDER = "deepseek"
 npx wrangler secret put TOKEN_SECRET
 pnpm run deploy        # publica em https://framely-cloud.<sua-conta>.workers.dev
 ```

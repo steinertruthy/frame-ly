@@ -17,9 +17,9 @@ tag = "v1"
 new_sqlite_classes = ["Limiter"]
 
 [vars]
-# Active AI provider: "deepseek" (default), "gemini", or "mock" (local development and tests).
+# Active AI provider: "gemini" (default), "deepseek", or "mock" (local development and tests).
 # The desktop app never learns which provider or model is in use.
-PROVIDER = "deepseek"
+PROVIDER = "gemini"
 
 # DeepSeek (https://api-docs.deepseek.com). Secret: DEEPSEEK_API_KEY.
 DEEPSEEK_MODEL = "deepseek-flash"
