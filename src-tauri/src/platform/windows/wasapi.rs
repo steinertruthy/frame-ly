@@ -1,4 +1,4 @@
-//! WASAPI capture: system audio (loopback of the default output) and microphones, delivered
+//! WASAPI capture: system audio (loopback of output devices) and microphones, delivered
 //! as interleaved stereo f32 at 48 kHz with QPC timestamps (100 ns), the clock
 //! Windows.Graphics.Capture uses for video frames.
 //!
@@ -24,10 +24,11 @@ use windows::{
     Win32::{
         Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
         Media::Audio::{
-            eCapture, eConsole, eRender, IAudioCaptureClient, IAudioClient, IMMDeviceEnumerator,
-            MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
+            eCapture, eConsole, eRender, Endpoints::IAudioEndpointVolume, IAudioCaptureClient, IAudioClient,
+            IMMDeviceEnumerator, MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
             AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM, AUDCLNT_STREAMFLAGS_LOOPBACK,
-            AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY, WAVEFORMATEX,
+            AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY, DEVICE_STATE_ACTIVE, ENDPOINT_HARDWARE_SUPPORT_VOLUME,
+            WAVEFORMATEX,
         },
         System::Com::{
             CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ,
@@ -68,7 +69,15 @@ pub struct Capture {
     /// Friendly name and native format, for the log.
     pub name: String,
     pub format: String,
+    /// Loopback of an output without hardware volume (HDMI/DisplayPort monitors, some
+    /// digital outputs): Windows applies its volume slider digitally *before* the loopback
+    /// tap, so a low slider (with the speakers turned up instead) gives a near-silent capture.
+    /// Its level is read on every packet and undone.
+    volume: Option<IAudioEndpointVolume>,
 }
+
+/// Most a software volume is undone by (60 dB): beyond that the slider is effectively at zero.
+const MAX_VOLUME_COMPENSATION: f32 = 1000.0;
 
 // SAFETY: WASAPI clients are free-threaded in the MTA; each `Capture` is used by one thread
 // at a time (moved into the audio thread).
@@ -87,11 +96,6 @@ fn target_format() -> WAVEFORMATEX {
 }
 
 impl Capture {
-    /// Everything the system's default output device plays (and only that device).
-    pub fn default_output() -> AppResult<Capture> {
-        Self::open(None, true)
-    }
-
     /// Everything one specific output device plays.
     pub fn loopback_of(output_id: &str) -> AppResult<Capture> {
         Self::open(Some(output_id), true)
@@ -147,6 +151,7 @@ impl Capture {
                             device_id,
                             name,
                             format: "48000 Hz, 2 ch, float 32-bit (converted by Windows)".into(),
+                            volume: None,
                         });
                     }
                     Err(e) => {
@@ -172,7 +177,16 @@ impl Capture {
             let capture: IAudioCaptureClient =
                 client.GetService().map_err(|e| win_err("IAudioCaptureClient", e))?;
             client.Start().map_err(|e| win_err("audio Start", e))?;
-            Ok(Capture { client, capture, conversion: Some(conversion), device_id, name, format })
+            let volume = if loopback { software_volume(&device) } else { None };
+            let format = match volume.as_ref() {
+                Some(v) => format!(
+                    "{format}; software volume {:.1} dB, compensated",
+                    v.GetMasterVolumeLevel().unwrap_or(0.0)
+                ),
+                None if loopback => format!("{format}; hardware volume"),
+                None => format,
+            };
+            Ok(Capture { client, capture, conversion: Some(conversion), device_id, name, format, volume })
         }
     }
 
@@ -182,6 +196,10 @@ impl Capture {
         // SAFETY: GetBuffer/ReleaseBuffer are paired; the data pointer is read only for
         // `frames` frames of the negotiated format before ReleaseBuffer.
         unsafe {
+            let gain = self.volume.as_ref().map_or(1.0, |v| {
+                let db = v.GetMasterVolumeLevel().unwrap_or(0.0).min(0.0);
+                10f32.powf(-db / 20.0).min(MAX_VOLUME_COMPENSATION)
+            });
             loop {
                 let packet = self.capture.GetNextPacketSize().map_err(|e| win_err("GetNextPacketSize", e))?;
                 if packet == 0 {
@@ -192,7 +210,7 @@ impl Capture {
                     .GetBuffer(&mut data, &mut frames, &mut flags, None, Some(&mut qpc))
                     .map_err(|e| win_err("GetBuffer", e))?;
                 let silent = flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32 != 0;
-                let samples = match self.conversion {
+                let mut samples = match self.conversion {
                     None => {
                         if silent || data.is_null() {
                             vec![0.0; frames as usize * 2]
@@ -203,6 +221,9 @@ impl Capture {
                     Some(c) => convert(data, frames as usize, c, silent),
                 };
                 self.capture.ReleaseBuffer(frames).map_err(|e| win_err("ReleaseBuffer", e))?;
+                if gain != 1.0 {
+                    samples.iter_mut().for_each(|s| *s *= gain);
+                }
                 if frames > 0 {
                     on_data(qpc as i64, &samples);
                 }
@@ -232,14 +253,41 @@ unsafe fn endpoint_id(device: &windows::Win32::Media::Audio::IMMDevice) -> Strin
     }
 }
 
-/// Endpoint id of the current default output (what the system plays sound through now).
-pub fn default_output_id() -> Option<String> {
-    // SAFETY: COM calls with valid arguments; the id string is owned and freed in endpoint_id.
+/// The device's volume control when Windows applies it in software (no hardware volume).
+unsafe fn software_volume(device: &windows::Win32::Media::Audio::IMMDevice) -> Option<IAudioEndpointVolume> {
+    // SAFETY: activating an interface on a live device.
+    unsafe {
+        let v: IAudioEndpointVolume = device.Activate(CLSCTX_ALL, None).ok()?;
+        let hardware = v.QueryHardwareSupport().unwrap_or(0) & ENDPOINT_HARDWARE_SUPPORT_VOLUME != 0;
+        (!hardware).then_some(v)
+    }
+}
+
+/// An active output device (speakers, monitor, headphones, a headset's hands-free side…).
+pub struct Output {
+    pub id: String,
+    pub name: String,
+}
+
+/// Every active output: system audio is captured from all of them, so it is recorded
+/// whichever device the sound plays through (and apps set to a non-default output).
+pub fn active_outputs() -> Vec<Output> {
+    // SAFETY: COM enumeration with valid arguments; strings are owned here.
     unsafe {
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()?;
-        let device = enumerator.GetDefaultAudioEndpoint(eRender, eConsole).ok()?;
-        Some(endpoint_id(&device)).filter(|id| !id.is_empty())
+        let Ok(enumerator) =
+            CoCreateInstance::<_, IMMDeviceEnumerator>(&MMDeviceEnumerator, None, CLSCTX_ALL)
+        else {
+            return Vec::new();
+        };
+        let Ok(collection) = enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE) else {
+            return Vec::new();
+        };
+        let count = collection.GetCount().unwrap_or(0);
+        (0..count)
+            .filter_map(|i| collection.Item(i).ok())
+            .map(|d| Output { id: endpoint_id(&d), name: device_name(&d) })
+            .collect()
     }
 }
 
