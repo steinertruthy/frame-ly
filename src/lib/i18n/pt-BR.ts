@@ -1,4 +1,5 @@
 import type { Messages } from './en';
+import { aiPtBR } from './ai/pt-BR';
 
 export const ptBR: Messages = {
   'app.name': 'FrameLy',
@@ -355,4 +356,5 @@ export const ptBR: Messages = {
   'error.empty_recording': 'Nada foi gravado — a gravação parou logo de cara.',
   'error.not_found': 'Esse arquivo não está mais lá.',
   'error.invalid_name': 'Esse nome não pode ser usado. Evite caracteres como / : * ?',
+  ...aiPtBR,
 };

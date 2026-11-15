@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { open as openDialog } from '@tauri-apps/plugin-dialog';
-  import { Settings2, Scan, Video, AudioLines, Keyboard, Palette, HardDrive, Info, Check, FolderOpen } from '@lucide/svelte';
+  import { Settings2, Scan, Video, AudioLines, Keyboard, Palette, HardDrive, Info, Check, FolderOpen, Sparkles } from '@lucide/svelte';
+  import IntelligenceSettings from '$lib/components/ai/IntelligenceSettings.svelte';
+  import { nav } from '$lib/stores/nav.svelte';
   import type { Component } from 'svelte';
   import Button from '$lib/components/Button.svelte';
   import Section from '$lib/components/Section.svelte';
@@ -33,13 +35,14 @@
   let { info }: { info: AppInfo } = $props();
   const s = $derived(settings.value);
 
-  type Category = 'general' | 'captures' | 'recording' | 'audio' | 'shortcuts' | 'appearance' | 'storage' | 'about';
+  type Category = 'general' | 'captures' | 'recording' | 'audio' | 'intelligence' | 'shortcuts' | 'appearance' | 'storage' | 'about';
   const categories = $derived<{ id: Category; icon: Component<{ size?: number }>; label: MessageKey }[]>(
     [
       { id: 'general' as const, icon: Settings2, label: 'settings.cat.general' as const },
       { id: 'captures' as const, icon: Scan, label: 'settings.cat.captures' as const },
       { id: 'recording' as const, icon: Video, label: 'settings.cat.recording' as const },
       { id: 'audio' as const, icon: AudioLines, label: 'settings.cat.audio' as const },
+      { id: 'intelligence' as const, icon: Sparkles, label: 'settings.cat.intelligence' as const },
       { id: 'shortcuts' as const, icon: Keyboard, label: 'settings.cat.shortcuts' as const },
       { id: 'appearance' as const, icon: Palette, label: 'settings.cat.appearance' as const },
       { id: 'storage' as const, icon: HardDrive, label: 'settings.cat.storage' as const },
@@ -47,6 +50,12 @@
     ].filter((c) => info.supportsRecording || (c.id !== 'recording' && c.id !== 'audio')),
   );
   let category = $state<Category>('general');
+  // Other pages can open a specific category (e.g. "Open settings" from a transcript).
+  $effect(() => {
+    const c = nav.settingsCategory;
+    if (c && categories.some((x) => x.id === c)) category = c as Category;
+    nav.settingsCategory = null;
+  });
 
   // ── Saving with feedback ───────────────────────────────────────────────
   let savedFlash = $state(0);
@@ -365,6 +374,8 @@
                 <Slider label={t('audio.systemVolume')} value={s.audio.systemGain} onchange={(v) => set((d) => (d.audio.systemGain = v))} />
               </SettingRow>
             </Section>
+          {:else if category === 'intelligence'}
+            <IntelligenceSettings platform={info.platform} {set} />
           {:else if category === 'shortcuts'}
             <p class="lead">{t('shortcuts.hint')}</p>
             <Section>

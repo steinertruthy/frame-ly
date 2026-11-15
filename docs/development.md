@@ -4,7 +4,11 @@
 
 - Rust stable via rustup (`rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc` para Windows).
 - Node 22 (`.nvmrc`) e pnpm 10 (`corepack enable`).
-- macOS: Xcode 15+. Windows: VS Build Tools com C++ e o runtime WebView2.
+- macOS: Xcode 15+ (26 para Apple Intelligence). Windows: VS Build Tools com C++ e o runtime WebView2.
+- `cmake` e `ninja` (`brew install cmake ninja`): compilam whisper.cpp e llama.cpp.
+- O runtime local de IA (`framely-llm`) é um sidecar: `pnpm llm:build` gera
+  `src-tauri/binaries/framely-llm-<alvo>` (o `pnpm tauri dev/build` já chama). Sem ele o build do app
+  para com uma mensagem explicando.
 
 ## Comandos
 
@@ -26,6 +30,9 @@
 | `<app>/Contents/MacOS/framely --panel` | Abre/fecha o painel rápido. |
 | `<app>/Contents/MacOS/framely --show library` | Abre a janela principal numa página (`home`, `library`, `settings`). |
 | `<app>/Contents/MacOS/framely --edit <imagem>` | Abre uma imagem das pastas do FrameLy no editor. |
+| `<app>/Contents/MacOS/framely --transcribe <arquivo>` | Abre a transcrição do arquivo (ou a tela de nova transcrição). |
+| `cargo test -- --ignored --nocapture end_to_end_with_real_models` | FrameLy AI de ponta a ponta com modelos reais: `FRAMELY_TEST_MEDIA=<áudio>` e `FRAMELY_LLM_WORKER=src-tauri/binaries/framely-llm-<alvo>` (baixa ~3,5 GB na pasta de dados do FrameLy). |
+| `cargo test -- --ignored round_trip` | Grava e apaga uma chave de teste no Keychain/Gerenciador de Credenciais. |
 
 ## Logs e depuração
 
@@ -50,7 +57,9 @@ brew install nsis llvm lld && cargo install --locked cargo-xwin
 LANG=en_US.UTF-8 XWIN_ACCEPT_LICENSE=1 PATH="/opt/homebrew/opt/llvm/bin:$PATH" pnpm build:windows
 ```
 
-O `cargo-xwin` baixa os headers do Windows SDK/CRT da Microsoft (aceitando a licença deles) e gera
+O build compila whisper.cpp e o `framely-llm` (llama.cpp) com AVX2/FMA/F16C; o script
+`src-tauri/cmake/ggml-windows.cmake` contorna o build do `whisper-rs-sys`, que decide pelo sistema
+que compila e não pelo alvo. O `cargo-xwin` baixa os headers do Windows SDK/CRT da Microsoft (aceitando a licença deles) e gera
 `src-tauri/target/x86_64-pc-windows-msvc/release/framely.exe`; o NSIS empacota o instalador em
 `…/release/bundle/nsis/`. O instalador sai sem assinatura (SmartScreen avisa). O `.exe` sozinho também
 roda (não há recursos externos), útil como versão portátil — exige o WebView2 Runtime.

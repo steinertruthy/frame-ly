@@ -93,19 +93,11 @@ struct GAction: Encodable {
 
 @available(macOS 26.0, *)
 @Generable
-struct GLeaf: Encodable {
-    var title: String
-    var time: String
-    var points: [String]
-}
-
-@available(macOS 26.0, *)
-@Generable
 struct GSubtopic: Encodable {
     var title: String
+    @Guide(description: "Timestamp mm:ss")
     var time: String
     var points: [String]
-    var subtopics: [GLeaf]
 }
 
 @available(macOS 26.0, *)
@@ -114,7 +106,6 @@ struct GTopic: Encodable {
     var title: String
     @Guide(description: "Timestamp mm:ss where the topic starts")
     var time: String
-    var points: [String]
     var subtopics: [GSubtopic]
 }
 

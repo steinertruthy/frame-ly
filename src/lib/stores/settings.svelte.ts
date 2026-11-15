@@ -30,6 +30,11 @@ class SettingsStore {
     }
   }
 
+  /** Takes settings the backend already saved (commands that change them as a side effect). */
+  adopt(s: Settings): void {
+    this.apply(s);
+  }
+
   private apply(s: Settings): void {
     this.value = s;
     setLanguage(s.general.language);

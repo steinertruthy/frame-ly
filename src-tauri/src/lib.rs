@@ -42,9 +42,11 @@ enum CliAction {
     Panel,
     Show(String),
     Edit(std::path::PathBuf),
+    Transcribe(std::path::PathBuf),
 }
 
-/// `framely --panel`, `framely --show home|library|settings`, `framely --edit <image>`,
+/// `framely --panel`, `framely --show home|library|transcripts|settings`, `framely --edit <image>`,
+/// `framely --transcribe <video or audio>`,
 /// `framely --capture region|window|screen|cancel` and
 /// `framely --record region|window|screen|stop|pause` (forwarded to the running instance) —
 /// lets people bind FrameLy in launchers and automation tools.
@@ -52,6 +54,9 @@ fn cli_action(argv: &[String]) -> Option<CliAction> {
     use screenshot::{Request, SelectMode};
     if argv.iter().any(|a| a == "--panel") {
         return Some(CliAction::Panel);
+    }
+    if let Some(i) = argv.iter().position(|a| a == "--transcribe") {
+        return argv.get(i + 1).map(|p| CliAction::Transcribe(p.into()));
     }
     if let Some(i) = argv.iter().position(|a| a == "--edit") {
         return argv.get(i + 1).map(|p| CliAction::Edit(p.into()));
@@ -107,6 +112,11 @@ fn run_cli_action(app: &tauri::AppHandle, action: CliAction) {
             if let Err(e) = editor::open(app, &path) {
                 tracing::warn!(error = %e, "edit from CLI failed");
             }
+        }
+        CliAction::Transcribe(path) => {
+            windows::show_main(app);
+            let path = std::fs::canonicalize(&path).unwrap_or(path);
+            let _ = app.emit_to(windows::MAIN, "main://transcribe", path.to_string_lossy().to_string());
         }
         CliAction::Show(page) => {
             windows::show_main(app);

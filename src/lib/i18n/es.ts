@@ -1,4 +1,5 @@
 import type { Messages } from './en';
+import { aiEs } from './ai/es';
 
 export const es: Messages = {
   'app.name': 'FrameLy',
@@ -355,4 +356,5 @@ export const es: Messages = {
   'error.empty_recording': 'No se grabó nada — la grabación se detuvo enseguida.',
   'error.not_found': 'Ese archivo ya no está.',
   'error.invalid_name': 'Ese nombre no se puede usar. Evita caracteres como / : * ?',
+  ...aiEs,
 };

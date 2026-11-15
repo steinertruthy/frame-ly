@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { House, Images, PanelLeftClose, PanelLeftOpen, Settings as SettingsIcon, Square } from '@lucide/svelte';
+  import { House, Images, AudioLines, PanelLeftClose, PanelLeftOpen, Settings as SettingsIcon, Square } from '@lucide/svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import Aurora from '$lib/components/Aurora.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
@@ -12,16 +12,19 @@
   import Home from './pages/Home.svelte';
   import Settings from './pages/Settings.svelte';
   import Library from './pages/Library.svelte';
+  import Transcripts from './pages/Transcripts.svelte';
+  import { nav as navigation, type Page } from '$lib/stores/nav.svelte';
 
   let { info }: { info: AppInfo } = $props();
 
-  type Page = 'home' | 'library' | 'settings';
   const nav: { id: Page; label: MessageKey; icon: typeof House }[] = [
     { id: 'home', label: 'nav.home', icon: House },
     { id: 'library', label: 'nav.library', icon: Images },
+    { id: 'transcripts', label: 'nav.transcripts', icon: AudioLines },
     { id: 'settings', label: 'nav.settings', icon: SettingsIcon },
   ];
-  let page = $state<Page>('home');
+  // Shared with the pages so any of them can navigate (e.g. "Transcribe" in the library).
+  const page = $derived(navigation.page);
 
   // Icons only: by choice (saved with the appearance settings) or because the window is narrow.
   let width = $state(window.innerWidth);
@@ -34,16 +37,21 @@
   // The quick panel and tray can open a specific page.
   $effect(() => {
     const un = events.onNavigate((p) => {
-      if (p === 'home' || p === 'library' || p === 'settings') page = p;
+      if (p === 'home' || p === 'library' || p === 'transcripts' || p === 'settings') navigation.go(p);
     });
-    return () => void un.then((u) => u());
+    // `framely --transcribe <file>` (launchers, Shortcuts…).
+    const un2 = events.onTranscribe((path) => navigation.transcribe(path));
+    return () => {
+      void un.then((u) => u());
+      void un2.then((u) => u());
+    };
   });
 
   // Cmd/Ctrl+, opens Settings, as in every native app.
   function onkeydown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key === ',') {
       e.preventDefault();
-      page = 'settings';
+      navigation.go('settings');
     }
     // Cmd/Ctrl+\ shows or hides the sidebar labels.
     if ((e.metaKey || e.ctrlKey) && e.key === '\\' && !narrow) {
@@ -74,7 +82,7 @@
         <button
           class="nav-item"
           class:active={page === item.id}
-          onclick={() => (page = item.id)}
+          onclick={() => navigation.go(item.id)}
           aria-current={page === item.id ? 'page' : undefined}
           aria-label={collapsed ? t(item.label) : undefined}
           title={collapsed ? t(item.label) : undefined}
@@ -108,9 +116,11 @@
     {#key page}
       <div class="page" class:wide={page !== 'home'}>
         {#if page === 'home'}
-          <Home {info} onnavigate={(p) => (page = p)} />
+          <Home {info} onnavigate={(p) => navigation.go(p)} />
         {:else if page === 'library'}
           <Library />
+        {:else if page === 'transcripts'}
+          <Transcripts />
         {:else}
           <Settings {info} />
         {/if}

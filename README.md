@@ -5,7 +5,8 @@ Gravação de tela e screenshots para macOS e Windows — simples, rápido e lev
 > Estado atual: **Etapa 8 + redesign**. Nova identidade visual escura, screenshot com edição
 > direto na seleção (setas, formas, texto, destaque, desfoque, recorte, desfazer/refazer), gravação
 > com áudio no macOS e no Windows, painel rápido, biblioteca, ajustes por categoria e interface em
-> cinco idiomas (pt-BR, en, es, fr, de). O gravador do Windows ainda não foi validado em hardware
+> cinco idiomas (pt-BR, en, es, fr, de). Transcrição, resumo e tópicos com a FrameLy AI, local e
+> offline (modelos abertos baixados pelo app), com Apple Intelligence e provedores externos opcionais. O gravador do Windows ainda não foi validado em hardware
 > real — veja [docs/roadmap.md](docs/roadmap.md).
 
 ## Stack

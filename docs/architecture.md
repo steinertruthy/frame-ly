@@ -38,6 +38,8 @@ plataforma (`CaptureBackend`, Etapa 1); não há outras camadas.
 | `src-tauri/src/core/recorder.rs`, `core/video.rs` | Estado/relógio da gravação; tamanho de saída e bitrate (puros, testados). |
 | `src-tauri/src/library.rs`, `core/library.rs` | Serviço da biblioteca; índice SQLite puro e testado. |
 | `src-tauri/src/editor.rs`, `src/windows/editor/` | Janela do editor (sessão, salvar/copiar) e editor em canvas. |
+| `src-tauri/src/intelligence/`, `llm-worker/` | FrameLy AI: transcrição, resumo, tópicos, modelos e provedores (ver abaixo). |
+| `src-tauri/src/core/transcript*.rs`, `core/pdf.rs`, `core/resample.rs` | Modelo da transcrição, banco, exportações e reamostragem (puros, testados). |
 | `src-tauri/src/protocol.rs` | Protocolo `framely://` para imagens em memória. |
 | `src-tauri/src/core/image.rs` | Quadros BGRA, recorte, PNG e BMP (puro, testado). |
 | `src/lib/design/tokens.css` | Design tokens (cores, tipografia, raio, movimento) com temas claro/escuro. |
@@ -211,6 +213,51 @@ AVCaptureSession (microfone escolhido, relógio convertido p/ host) ─┤→ Au
   sobrescreve o original: cria "nome (edited).png" ao lado e o registra na biblioteca. "Copiar" põe
   a imagem na área de transferência.
 - Entradas: botão de editar na prévia pós-captura, no visualizador e no menu de contexto da biblioteca.
+
+## FrameLy AI: transcrição, resumo e tópicos (`src-tauri/src/intelligence/`)
+
+```
+mídia (gravação, vídeo ou áudio importado)
+  → 1 decodificação nativa → PCM 16 kHz mono num temporário privado (AVAssetReader | IMFSourceReader + core/resample)
+  → 2 whisper.cpp em blocos de ~5 min cortados no ponto mais silencioso → SQLite a cada bloco (retomável)
+  → 7 transcripts.sqlite3 (transcrição ligada ao arquivo por caminho + tamanho + data)
+  → 6 geração (prompts fiéis + JSON schema estrito; map-reduce quando não cabe no contexto)
+      → 5 provedor: FrameLy AI (3: processo framely-llm, llama.cpp) | Apple Intelligence | Anthropic | OpenAI
+  → 8 exportação: TXT, SRT, VTT, Markdown, PDF
+4 gerenciador de modelos: catálogo versionado, download retomável (HTTP Range), SHA-256, espaço, reparo
+```
+
+- **Dois runtimes, dois processos.** whisper.cpp (`whisper-rs`) roda no app; llama.cpp roda no
+  `framely-llm` (`src-tauri/llm-worker`, sidecar do Tauri, JSON por stdin/stdout). Os dois embutem
+  versões diferentes do `ggml` (0.9 e 0.26) e, ligados no mesmo binário, o linker mistura os
+  símbolos sem erro — comportamento indefinido. O processo separado também devolve a memória do modelo
+  ao terminar, cancela na hora (o app encerra o processo) e isola falhas.
+- **Modelos** (avaliados numa reunião pt-BR real; detalhes em `intelligence/catalog.rs`): transcrição
+  whisper small (Rápida, 190 MB), large-v3-turbo (Equilibrada, 574 MB) e large-v3 com busca em feixe
+  (Máxima, 1,08 GB), licença MIT; resumos/tópicos Gemma 4 E2B (Básico, 2,8 GB), Qwen3.5-4B
+  (Equilibrado, 3,0 GB) e Qwen3.5-9B (Avançado, 5,7 GB), Apache 2.0. Qwen3.5-2B e Granite 4.2 3B foram
+  descartados por inventarem decisões e responsáveis. Arquivos em `<app data>/models`, nunca no instalador.
+- **Perfil por hardware** (`hardware.rs`): RAM, Apple Silicon (Metal), AVX2, GPU/VRAM (DXGI, informativo).
+  Só a GPU da Apple é usada; no Windows tudo roda na CPU (AVX2 obrigatório, verificado em runtime).
+- **Progresso real**: etapas (preparar áudio, carregar modelo, transcrever, gerar, juntar partes),
+  percentual vindo do decodificador, do callback do whisper e da avaliação do prompt; tempo restante
+  pela vazão medida da própria execução. Carregar o modelo mostra só atividade (não é mensurável).
+- **Estimativas** (`estimate.rs`): mediana das últimas execuções nesta máquina (tabela `perf`); sem
+  histórico, taxas de referência medidas, marcadas como aproximadas na UI.
+- **Retomada e cache**: blocos persistidos; ao reabrir, o que estava rodando vira "interrompida" e
+  continua do próximo bloco (o PCM temporário é reaproveitado se completo). O mesmo arquivo com os
+  mesmos ajustes nunca é processado de novo.
+- **Provedores** (`providers.rs`): cada um declara local/externo, internet, chave, contexto, custo e
+  disponibilidade (com o motivo). Anthropic usa a Messages API (`anthropic-version: 2026-10-21`,
+  `output_config.format`), OpenAI usa Chat Completions com `json_schema` estrito. Chaves só no Keychain
+  (Swift `Keychain.swift`) ou no Gerenciador de Credenciais (`CredWriteW`). Envio externo exige
+  provedores externos ligados, chave e consentimento explícito por provedor; o modo exclusivamente local
+  (`net.rs`) bloqueia qualquer requisição, inclusive downloads. Não há fallback silencioso.
+- **Apple Intelligence** (`Intelligence.swift`): Foundation Models com geração guiada (`@Generable`) no
+  mesmo formato dos outros provedores; contexto de 4096 tokens → partes menores. `FoundationModels` é
+  weak-linked, então o app segue abrindo no macOS 14/15. Não aparece no Windows.
+- **Diarização**: não há separação de falantes local (whisper.cpp só tem `tinydiarize`, inglês) e as
+  gravações do FrameLy têm uma faixa mixada; o ajuste aparece indisponível, com explicação.
 
 ## Comportamento de ciclo de vida
 

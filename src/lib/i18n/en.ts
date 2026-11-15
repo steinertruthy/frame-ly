@@ -1,3 +1,5 @@
+import { aiEn } from './ai/en';
+
 /**
  * English strings. This file defines the canonical key set; every locale must provide all keys
  * (enforced by the `Messages` type and a unit test). Tone: short, warm, plain language.
@@ -370,6 +372,7 @@ export const en = {
   'error.empty_recording': 'Nothing was recorded — the recording stopped right away.',
   'error.not_found': 'That file isn’t there anymore.',
   'error.invalid_name': 'That name can’t be used. Avoid characters like / : * ?',
+  ...aiEn,
 } as const;
 
 export type MessageKey = keyof typeof en;

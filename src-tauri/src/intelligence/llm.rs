@@ -34,6 +34,10 @@ pub struct Output {
 
 /// Where the sidecar lives: next to the app executable (Tauri bundles it there).
 pub fn worker_path() -> AppResult<PathBuf> {
+    // Tests and `cargo run` builds point at the worker explicitly.
+    if let Some(p) = std::env::var_os("FRAMELY_LLM_WORKER") {
+        return Ok(PathBuf::from(p));
+    }
     let exe = std::env::current_exe()?;
     let dir = exe.parent().ok_or_else(|| AppError::Runtime("no executable dir".into()))?;
     let name = if cfg!(windows) { "framely-llm.exe" } else { "framely-llm" };

@@ -113,6 +113,7 @@ export const events = {
   onLibraryChanged: (cb: () => void): Promise<UnlistenFn> => listen('library://changed', () => cb()),
   onEditorLoad: (cb: () => void): Promise<UnlistenFn> => listen('editor://load', () => cb()),
   onNavigate: (cb: (page: string) => void): Promise<UnlistenFn> => listen<string>('main://navigate', (e) => cb(e.payload)),
+  onTranscribe: (cb: (path: string) => void): Promise<UnlistenFn> => listen<string>('main://transcribe', (e) => cb(e.payload)),
   onShortcutStatus: (cb: (s: ShortcutStatus) => void): Promise<UnlistenFn> =>
     listen<ShortcutStatus>('shortcuts://status', (e) => cb(e.payload)),
   onRecordingFailed: (cb: (e: AppError) => void): Promise<UnlistenFn> =>

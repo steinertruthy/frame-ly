@@ -38,7 +38,7 @@ use std::{
     },
     time::{Instant, UNIX_EPOCH},
 };
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 pub const JOB_EVENT: &str = "ai://job";
 pub const MODELS_EVENT: &str = "ai://models";
@@ -113,40 +113,40 @@ pub struct Intelligence {
     temp_dir: OnceLock<PathBuf>,
 }
 
-fn st(app: &AppHandle) -> tauri::State<'_, AppState> {
+fn st<R: Runtime>(app: &AppHandle<R>) -> tauri::State<'_, AppState> {
     app.state::<AppState>()
 }
 
-pub fn prefs(app: &AppHandle) -> Prefs {
+pub fn prefs<R: Runtime>(app: &AppHandle<R>) -> Prefs {
     st(app).settings.get().intelligence
 }
 
-pub fn with_db<T>(app: &AppHandle, f: impl FnOnce(&mut Transcripts) -> AppResult<T>) -> AppResult<T> {
+pub fn with_db<R: Runtime, T>(app: &AppHandle<R>, f: impl FnOnce(&mut Transcripts) -> AppResult<T>) -> AppResult<T> {
     let state = st(app);
     let mut g = state.intelligence.db.lock().unwrap();
     let db = g.as_mut().ok_or_else(|| AppError::Runtime("transcripts not ready".into()))?;
     f(db)
 }
 
-pub fn models(app: &AppHandle) -> Arc<models::ModelManager> {
+pub fn models<R: Runtime>(app: &AppHandle<R>) -> Arc<models::ModelManager> {
     st(app).intelligence.models.get().expect("intelligence initialized").clone()
 }
 
-pub fn hardware(app: &AppHandle) -> hardware::Hardware {
+pub fn hardware<R: Runtime>(app: &AppHandle<R>) -> hardware::Hardware {
     st(app).intelligence.hardware.get_or_init(hardware::detect).clone()
 }
 
-pub fn profile(app: &AppHandle) -> crate::core::settings::AiProfile {
+pub fn profile<R: Runtime>(app: &AppHandle<R>) -> crate::core::settings::AiProfile {
     hardware::resolve(prefs(app).profile, &hardware(app))
 }
 
-fn temp_dir(app: &AppHandle) -> PathBuf {
+fn temp_dir<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
     st(app).intelligence.temp_dir.get().cloned().unwrap_or_else(std::env::temp_dir)
 }
 
 /// Opens the store, marks jobs that were running when FrameLy last quit as interrupted, and
 /// wires model-manager events.
-pub fn init(app: &AppHandle) -> AppResult<()> {
+pub fn init<R: Runtime>(app: &AppHandle<R>) -> AppResult<()> {
     // whisper.cpp/ggml print diagnostics to stderr; keep them out of the app's output.
     whisper_rs::install_logging_hooks();
     let data = app.path().app_data_dir()?;
@@ -181,7 +181,7 @@ pub fn init(app: &AppHandle) -> AppResult<()> {
 }
 
 /// Facts about a media file before transcribing it.
-pub fn probe(app: &AppHandle, path: &Path) -> AppResult<MediaRef> {
+pub fn probe<R: Runtime>(app: &AppHandle<R>, path: &Path) -> AppResult<MediaRef> {
     let ext = path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).unwrap_or_default();
     if !importable_extensions().contains(&ext.as_str()) {
         return Err(AppError::Unsupported(ext));
@@ -199,7 +199,7 @@ pub fn probe(app: &AppHandle, path: &Path) -> AppResult<MediaRef> {
     })
 }
 
-fn emit_status(app: &AppHandle, s: JobStatus) {
+fn emit_status<R: Runtime>(app: &AppHandle<R>, s: JobStatus) {
     {
         let state = st(app);
         let mut list = state.intelligence.statuses.lock().unwrap();
@@ -213,7 +213,7 @@ fn emit_status(app: &AppHandle, s: JobStatus) {
     let _ = app.emit(JOB_EVENT, s);
 }
 
-pub fn jobs(app: &AppHandle) -> Vec<JobStatus> {
+pub fn jobs<R: Runtime>(app: &AppHandle<R>) -> Vec<JobStatus> {
     st(app).intelligence.statuses.lock().unwrap().clone()
 }
 
@@ -242,7 +242,7 @@ fn base_status(job: &Job, state: &'static str, phase: &'static str) -> JobStatus
     }
 }
 
-fn enqueue(app: &AppHandle, transcript_id: i64, kind: JobKind) -> u64 {
+fn enqueue<R: Runtime>(app: &AppHandle<R>, transcript_id: i64, kind: JobKind) -> u64 {
     let state = st(app);
     let intel = &state.intelligence;
     let id = intel.next_id.fetch_add(1, Ordering::Relaxed) + 1;
@@ -259,7 +259,7 @@ fn enqueue(app: &AppHandle, transcript_id: i64, kind: JobKind) -> u64 {
     id
 }
 
-fn worker_loop(app: AppHandle) {
+fn worker_loop<R: Runtime>(app: AppHandle<R>) {
     loop {
         let job = {
             let state = st(&app);
@@ -292,7 +292,7 @@ fn worker_loop(app: AppHandle) {
     }
 }
 
-pub fn cancel(app: &AppHandle, job_id: u64) {
+pub fn cancel<R: Runtime>(app: &AppHandle<R>, job_id: u64) {
     let state = st(app);
     let intel = &state.intelligence;
     let queued = {
@@ -314,7 +314,7 @@ pub fn cancel(app: &AppHandle, job_id: u64) {
 }
 
 /// Is a job for this transcript queued or running?
-fn busy(app: &AppHandle, transcript_id: i64, kind: &str) -> Option<u64> {
+fn busy<R: Runtime>(app: &AppHandle<R>, transcript_id: i64, kind: &str) -> Option<u64> {
     let state = st(app);
     let intel = &state.intelligence;
     let mut all: Vec<Job> = intel.current.lock().unwrap().clone().into_iter().collect();
@@ -327,7 +327,7 @@ fn busy(app: &AppHandle, transcript_id: i64, kind: &str) -> Option<u64> {
 
 /// Starts (or resumes) the transcription of a media file. A finished transcript of the same
 /// file with the same settings is reused instead of processing it again.
-pub fn start_transcription(app: &AppHandle, path: &Path, precision: Option<String>, language: Option<String>) -> AppResult<(Transcript, Option<u64>)> {
+pub fn start_transcription<R: Runtime>(app: &AppHandle<R>, path: &Path, precision: Option<String>, language: Option<String>) -> AppResult<(Transcript, Option<u64>)> {
     let p = prefs(app);
     if !hardware(app).supported {
         return Err(AppError::Unsupported("cpu".into()));
@@ -351,7 +351,7 @@ pub fn start_transcription(app: &AppHandle, path: &Path, precision: Option<Strin
     Ok((t, Some(job)))
 }
 
-fn pcm_paths(app: &AppHandle, id: i64) -> (PathBuf, PathBuf) {
+fn pcm_paths<R: Runtime>(app: &AppHandle<R>, id: i64) -> (PathBuf, PathBuf) {
     let dir = temp_dir(app);
     (dir.join(format!("{id}.pcm")), dir.join(format!("{id}.pcm.ok")))
 }
@@ -373,7 +373,7 @@ impl Meter {
     }
 }
 
-fn run_transcription(app: &AppHandle, job: &Job) -> AppResult<()> {
+fn run_transcription<R: Runtime>(app: &AppHandle<R>, job: &Job) -> AppResult<()> {
     let JobKind::Transcribe { precision, language } = &job.kind else { unreachable!() };
     let t = with_db(app, |db| db.get(job.transcript_id))?;
     with_db(app, |db| db.set_status(t.id, Status::Running, None))?;
@@ -401,7 +401,7 @@ fn run_transcription(app: &AppHandle, job: &Job) -> AppResult<()> {
     result
 }
 
-fn transcribe_inner(app: &AppHandle, job: &Job, t: &Transcript, precision: &str, language: &str) -> AppResult<()> {
+fn transcribe_inner<R: Runtime>(app: &AppHandle<R>, job: &Job, t: &Transcript, precision: &str, language: &str) -> AppResult<()> {
     let precision = catalog::parse_precision(precision);
     let spec = catalog::speech_model(precision);
     let mgr = models(app);
@@ -487,7 +487,7 @@ fn transcribe_inner(app: &AppHandle, job: &Job, t: &Transcript, precision: &str,
 
 /// Can `provider` run now without asking the user anything? (Used for automatic generation:
 /// never sends anything out without prior consent, never falls back to another provider.)
-pub fn provider_ready(app: &AppHandle, provider: ProviderId) -> Result<(), &'static str> {
+pub fn provider_ready<R: Runtime>(app: &AppHandle<R>, provider: ProviderId) -> Result<(), &'static str> {
     let p = prefs(app);
     match provider {
         ProviderId::Framely => {
@@ -528,7 +528,7 @@ fn apple_reason(_: Option<&str>, _: &Prefs) -> Option<&'static str> {
     Some("unsupported")
 }
 
-fn auto_generate(app: &AppHandle, transcript_id: i64) {
+fn auto_generate<R: Runtime>(app: &AppHandle<R>, transcript_id: i64) {
     let p = prefs(app);
     for (task, on, provider, detail) in
         [(Task::Summary, p.summary_auto, p.summary_provider, p.summary_detail), (Task::Topics, p.topics_auto, p.topics_provider, p.topics_detail)]
@@ -547,7 +547,7 @@ fn auto_generate(app: &AppHandle, transcript_id: i64) {
     }
 }
 
-pub fn start_generation(app: &AppHandle, transcript_id: i64, task: Task, provider: ProviderId, detail: Detail) -> AppResult<u64> {
+pub fn start_generation<R: Runtime>(app: &AppHandle<R>, transcript_id: i64, task: Task, provider: ProviderId, detail: Detail) -> AppResult<u64> {
     let t = with_db(app, |db| db.get(transcript_id))?;
     if t.status != Status::Done {
         return Err(AppError::Runtime("transcription not finished".into()));
@@ -567,7 +567,7 @@ pub fn start_generation(app: &AppHandle, transcript_id: i64, task: Task, provide
     Ok(enqueue(app, transcript_id, JobKind::Generate { task, provider, detail }))
 }
 
-fn open_runner(app: &AppHandle, job: &Job, provider: ProviderId) -> AppResult<(Box<dyn providers::Runner>, Option<models::InUse>)> {
+fn open_runner<R: Runtime>(app: &AppHandle<R>, job: &Job, provider: ProviderId) -> AppResult<(Box<dyn providers::Runner>, Option<models::InUse>)> {
     let p = prefs(app);
     match provider {
         ProviderId::Framely => {
@@ -602,7 +602,7 @@ fn open_runner(app: &AppHandle, job: &Job, provider: ProviderId) -> AppResult<(B
     }
 }
 
-fn run_generation(app: &AppHandle, job: &Job, task: Task, provider: ProviderId, detail: Detail) -> AppResult<()> {
+fn run_generation<R: Runtime>(app: &AppHandle<R>, job: &Job, task: Task, provider: ProviderId, detail: Detail) -> AppResult<()> {
     let t = with_db(app, |db| db.get(job.transcript_id))?;
     let segments = with_db(app, |db| db.segments(t.id))?;
     if segments.is_empty() {
@@ -646,8 +646,8 @@ fn run_generation(app: &AppHandle, job: &Job, task: Task, provider: ProviderId, 
 }
 
 #[allow(clippy::too_many_arguments)]
-fn generate_parts(
-    app: &AppHandle,
+fn generate_parts<R: Runtime>(
+    app: &AppHandle<R>,
     job: &Job,
     runner: &mut dyn providers::Runner,
     task: Task,
@@ -728,7 +728,7 @@ fn generate_parts(
 // Storage
 
 /// Bytes used by models and by temporary audio.
-pub fn storage(app: &AppHandle) -> (u64, u64) {
+pub fn storage<R: Runtime>(app: &AppHandle<R>) -> (u64, u64) {
     let temp = std::fs::read_dir(temp_dir(app))
         .map(|rd| rd.flatten().filter_map(|e| e.metadata().ok()).map(|m| m.len()).sum())
         .unwrap_or(0);
@@ -736,7 +736,7 @@ pub fn storage(app: &AppHandle) -> (u64, u64) {
 }
 
 /// Deletes temporary audio not used by a running job (interrupted jobs re-decode on resume).
-pub fn clear_temp(app: &AppHandle) -> AppResult<u64> {
+pub fn clear_temp<R: Runtime>(app: &AppHandle<R>) -> AppResult<u64> {
     let running = st(app).intelligence.current.lock().unwrap().as_ref().map(|j| j.transcript_id);
     let mut freed = 0;
     for e in std::fs::read_dir(temp_dir(app))?.flatten() {
@@ -749,4 +749,144 @@ pub fn clear_temp(app: &AppHandle) -> AppResult<u64> {
         let _ = std::fs::remove_file(e.path());
     }
     Ok(freed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn wait<T>(what: &str, timeout_s: u64, mut f: impl FnMut() -> Option<T>) -> T {
+        let start = Instant::now();
+        loop {
+            if let Some(v) = f() {
+                return v;
+            }
+            assert!(start.elapsed().as_secs() < timeout_s, "timed out waiting for {what}");
+            std::thread::sleep(Duration::from_millis(500));
+        }
+    }
+
+    fn wait_job<R: Runtime>(app: &AppHandle<R>, id: u64) -> JobStatus {
+        let mut last = String::new();
+        wait("job", 1800, || {
+            let s = jobs(app).into_iter().find(|j| j.id == id)?;
+            let line = format!("{} {} {:?} eta={:?} part={:?}", s.state, s.phase, s.progress.map(|p| (p * 100.0).round()), s.eta_ms, s.part);
+            if line != last {
+                println!("  job {id}: {line}");
+                last = line;
+            }
+            matches!(s.state, "done" | "failed" | "cancelled").then_some(s)
+        })
+    }
+
+    /// The whole FrameLy AI pipeline against the real services and runtimes: model downloads
+    /// (with SHA-256 checks) into FrameLy's data folder, native audio decoding, speech
+    /// recognition, the framely-llm process for summaries and topics, Apple Intelligence,
+    /// resumption and exports. Needs network, ~3.5 GB of disk and:
+    ///   FRAMELY_TEST_MEDIA=<audio or video>  FRAMELY_LLM_WORKER=<framely-llm binary>
+    #[test]
+    #[ignore = "downloads models and runs them (minutes)"]
+    fn end_to_end_with_real_models() {
+        let media = PathBuf::from(std::env::var("FRAMELY_TEST_MEDIA").expect("FRAMELY_TEST_MEDIA"));
+        let mut ctx = tauri::test::mock_context(tauri::test::noop_assets());
+        ctx.config_mut().identifier = "app.framely.desktop".into();
+        let app = tauri::test::mock_builder().build(ctx).expect("mock app");
+        let handle = app.handle().clone();
+        let tmp = tempfile::tempdir().unwrap();
+        let dirs = crate::core::settings::DefaultDirs { videos: tmp.path().join("v"), pictures: tmp.path().join("p") };
+        let settings = crate::core::settings::SettingsStore::load(tmp.path().join("settings.json"), &dirs).unwrap();
+        handle.manage(AppState {
+            settings,
+            backend: Arc::from(crate::platform::backend()),
+            screenshots: Default::default(),
+            recordings: Default::default(),
+            library: Default::default(),
+            intelligence: Default::default(),
+            log_dir: tmp.path().to_path_buf(),
+            start_hidden: AtomicBool::new(true),
+            _log_guard: None,
+        });
+        init(&handle).unwrap();
+        let hw = hardware(&handle);
+        println!("hardware: {hw:?}\nprofile: {:?}", profile(&handle));
+
+        // 1. Models: real downloads, verified.
+        let mgr = models(&handle);
+        let speech = catalog::speech_model(catalog::precision_for(profile(&handle), crate::core::settings::Precision::Auto));
+        let language = catalog::language_model(profile(&handle));
+        for spec in [speech, language] {
+            if mgr.ready_path(spec).is_none() {
+                mgr.download(spec, false).unwrap();
+                let started = Instant::now();
+                let s = wait("download", 3600, || {
+                    let s = mgr.status_of(spec);
+                    (!matches!(s.state, models::State::Downloading | models::State::Verifying)).then_some(s)
+                });
+                println!("{}: {:?} in {:?} ({:?})", spec.id, s.state, started.elapsed(), s.error);
+            }
+            assert!(mgr.ready_path(spec).is_some(), "{} installed", spec.id);
+        }
+
+        // 2. Transcription.
+        let started = Instant::now();
+        let (t, job) = start_transcription(&handle, &media, None, None).unwrap();
+        if let Some(job) = job {
+            let s = wait_job(&handle, job);
+            assert_eq!(s.state, "done", "{:?}", s.error);
+        }
+        let t = with_db(&handle, |db| db.get(t.id)).unwrap();
+        let segments = with_db(&handle, |db| db.segments(t.id)).unwrap();
+        println!("transcribed {} ms of audio in {:?}: {} segments, language {:?}", t.media.duration_ms, started.elapsed(), segments.len(), t.detected_language);
+        assert_eq!(t.status, Status::Done);
+        assert!(!segments.is_empty());
+        println!("{}", transcript::to_txt(&segments, true));
+
+        // Same file + settings again: reused, no new job.
+        let (again, job) = start_transcription(&handle, &media, None, None).unwrap();
+        assert_eq!((again.id, job), (t.id, None));
+
+        // 3. Summary and topics with FrameLy AI (framely-llm process).
+        for task in [Task::Summary, Task::Topics] {
+            let started = Instant::now();
+            let job = start_generation(&handle, t.id, task, ProviderId::Framely, Detail::Balanced).unwrap();
+            let s = wait_job(&handle, job);
+            assert_eq!(s.state, "done", "{:?}", s.error);
+            let g = with_db(&handle, |db| db.generated(t.id, task.as_str())).unwrap().unwrap();
+            println!("{} ({:?}): {}", task.as_str(), started.elapsed(), serde_json::to_string_pretty(&g.content).unwrap());
+        }
+
+        // 4. Apple Intelligence, when this Mac has it.
+        #[cfg(target_os = "macos")]
+        if provider_ready(&handle, ProviderId::Apple).is_ok() {
+            for task in [Task::Summary, Task::Topics] {
+                let job = start_generation(&handle, t.id, task, ProviderId::Apple, Detail::Brief).unwrap();
+                let s = wait_job(&handle, job);
+                assert_eq!(s.state, "done", "{:?}", s.error);
+                let g = with_db(&handle, |db| db.generated(t.id, task.as_str())).unwrap().unwrap();
+                println!("apple {}: {}", task.as_str(), serde_json::to_string_pretty(&g.content).unwrap());
+            }
+            // Leave FrameLy AI's results in place for the app.
+            for task in [Task::Summary, Task::Topics] {
+                let job = start_generation(&handle, t.id, task, ProviderId::Framely, Detail::Balanced).unwrap();
+                assert_eq!(wait_job(&handle, job).state, "done");
+            }
+        }
+
+        // 5. External providers stay blocked without switch, key and consent.
+        assert!(start_generation(&handle, t.id, Task::Summary, ProviderId::Anthropic, Detail::Brief).is_err());
+
+        // 6. Exports.
+        let out = tmp.path().join("export.pdf");
+        let summary = with_db(&handle, |db| db.generated(t.id, "summary")).unwrap().unwrap();
+        let md = generation::summary_markdown(&summary.content);
+        assert!(!md.trim().is_empty());
+        let blocks: Vec<crate::core::pdf::Block> = transcript::paragraphs(&segments)
+            .iter()
+            .map(|p| crate::core::pdf::Block::Para { time: Some(transcript::fmt_clock(p.start_ms)), text: p.segments.iter().map(|&i| segments[i as usize].text.clone()).collect::<Vec<_>>().join(" ") })
+            .collect();
+        std::fs::write(&out, crate::core::pdf::render(&blocks, "test")).unwrap();
+        assert!(std::fs::metadata(&out).unwrap().len() > 1000);
+        assert!(transcript::to_srt(&segments).contains(" --> "));
+    }
 }

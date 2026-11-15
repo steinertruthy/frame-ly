@@ -4,7 +4,8 @@ import { t, type MessageKey } from '$lib/i18n/index.svelte';
 import { toast } from '$lib/stores/toasts.svelte';
 import type { LibraryItem } from '$lib/ipc/types';
 import type { MenuItem } from '$lib/components/ContextMenu.svelte';
-import { Copy, ExternalLink, FolderOpen, Pencil, PenLine, Trash2 } from '@lucide/svelte';
+import { AudioLines, Copy, ExternalLink, FolderOpen, Pencil, PenLine, Trash2 } from '@lucide/svelte';
+import { nav } from '$lib/stores/nav.svelte';
 
 function fail(e: unknown) {
   logUi('warn', `library action failed: ${isAppError(e) ? `${e.code}: ${e.message}` : String(e)}`);
@@ -70,7 +71,9 @@ export const itemActions = {
  */
 export function itemMenu(item: LibraryItem, page: { rename: (item: LibraryItem) => void; trash: (item: LibraryItem) => void }): MenuItem[] {
   return [
-    ...(item.kind === 'image' ? [{ label: t('editor.edit'), icon: PenLine, run: () => itemActions.edit(item) }] : []),
+    ...(item.kind === 'image'
+      ? [{ label: t('editor.edit'), icon: PenLine, run: () => itemActions.edit(item) }]
+      : [{ label: t('ai.transcribe'), icon: AudioLines, run: () => nav.transcribe(item.path) }]),
     { label: t('library.open'), icon: ExternalLink, run: () => itemActions.open(item) },
     { label: t('library.show'), icon: FolderOpen, run: () => itemActions.reveal(item) },
     { label: t('library.copy'), icon: Copy, run: () => itemActions.copy(item) },

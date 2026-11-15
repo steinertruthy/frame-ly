@@ -12,6 +12,7 @@
 | 7 | Biblioteca + Dashboard | ✅ |
 | 8 | Editor de screenshots | ✅ |
 | 8.5 | Redesign: identidade escura, edição inline na seleção, ajustes por categoria, 5 idiomas, iniciar com o sistema, notificações | ✅ |
+| 8.6 | FrameLy AI: transcrição, resumo e tópicos locais; Apple Intelligence e provedores externos opcionais | ✅ (Windows: compila e empacota; validar em hardware real) |
 | 9 | Ajustes completos, polimento, instaladores, assinatura | ⏳ |
 
 ## Limitações conhecidas (v1)
@@ -30,3 +31,8 @@
   nele); os sons do FrameLy tocam fora da janela de captura.
 - A biblioteca lista os arquivos diretamente nas pastas de gravações e screenshots (sem subpastas) e
   se atualiza ao abrir a biblioteca; não há monitoramento contínuo do sistema de arquivos.
+- FrameLy AI: sem separação de falantes (diarização) local; no Windows os modelos rodam só na CPU
+  (aceleração por Vulkan/CUDA é a próxima etapa, após testes em hardware real); a exportação em PDF
+  usa as fontes padrão e aceita apenas texto em alfabeto latino (TXT/Markdown cobrem os demais).
+- Próximos passos da FrameLy AI: GPU no Windows, diarização local, SpeechAnalyzer da Apple como
+  mecanismo alternativo de transcrição no macOS 26.

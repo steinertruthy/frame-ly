@@ -59,6 +59,7 @@ pub fn system_prompt(language: Option<&str>) -> String {
         "You turn transcripts of recordings into faithful notes.\n\
          Rules:\n\
          - Use only information stated in the transcript. Never invent names, numbers, dates, decisions, owners or conclusions, and never change the meaning.\n\
+         - Do not add interpretations, intentions, plans or evaluations that were not said.\n\
          - Do not repeat the same information.\n\
          - Speakers are not labeled. Attribute something to a person only when the transcript makes it explicit (for example, someone is addressed by name or introduces themselves).\n\
          - Each transcript line starts with its time as [mm:ss] or [h:mm:ss]. For every item, give the time of the passage it comes from, copied from those labels.\n\
@@ -80,18 +81,20 @@ fn summary_instructions(d: Detail) -> &'static str {
 
 fn topics_instructions(d: Detail) -> &'static str {
     match d {
-        Detail::Brief => "List only the main topics, in the order they come up, each with a few short points; add subtopics only when essential.",
-        Detail::Balanced => "Organize the content into topics and subtopics in a logical order, each with short points; use a third level only when it really helps.",
-        Detail::Detailed => "Organize all the content into a complete hierarchy of topics, subtopics and details (up to three levels), each with short points.",
+        Detail::Brief => "List the main topics in the order they come up, each with one or two subtopics and few short points.",
+        Detail::Balanced => "Organize the content into topics and subtopics in a logical order; each subtopic has short points.",
+        Detail::Detailed => "Organize all the content into topics and subtopics covering every detail discussed; each subtopic has short points.",
     }
 }
+
+const TOPICS_STRUCTURE: &str = "Make one top-level topic for each subject or agenda item, in the order they come up; never wrap everything in a single topic.";
 
 const TOPICS_EXTRAS: &str = "Also list: decisions that were made; actions or tasks (owner and due date only when explicitly said, otherwise empty strings); dates and deadlines mentioned; relevant numbers with what they refer to; and up to 12 keywords or names that appear verbatim in the transcript.";
 
 pub fn user_prompt(task: Task, detail: Detail, transcript: &str, part: Option<(usize, usize)>) -> String {
     let what = match task {
         Task::Summary => summary_instructions(detail).to_string(),
-        Task::Topics => format!("{} {}", topics_instructions(detail), TOPICS_EXTRAS),
+        Task::Topics => format!("{} {} {}", topics_instructions(detail), TOPICS_STRUCTURE, TOPICS_EXTRAS),
     };
     let scope = match part {
         Some((i, n)) => format!("This is part {} of {} of a longer transcript; cover only this part.\n", i + 1, n),
@@ -128,8 +131,8 @@ fn timed(extra: &[(&str, Value)]) -> Value {
     json!({"type": "object", "properties": props, "required": required, "additionalProperties": false})
 }
 
-/// JSON Schema of the model output (strict: no extra fields, everything required; three
-/// explicit levels because recursive schemas aren't accepted everywhere).
+/// JSON Schema of the model output (strict: no extra fields, everything required; explicit
+/// levels because recursive schemas aren't accepted everywhere).
 pub fn schema(task: Task) -> Value {
     match task {
         Task::Summary => json!({
@@ -139,18 +142,20 @@ pub fn schema(task: Task) -> Value {
             "additionalProperties": false
         }),
         Task::Topics => {
-            let node = |children: Option<Value>| {
-                let mut props = json!({"title": {"type": "string"}, "time": {"type": "string"}, "points": {"type": "array", "items": {"type": "string"}}});
-                let mut required = vec!["title", "time", "points"];
-                if let Some(c) = children {
-                    props["subtopics"] = json!({"type": "array", "items": c});
-                    required.push("subtopics");
-                }
-                json!({"type": "object", "properties": props, "required": required, "additionalProperties": false})
-            };
-            let leaf = node(None);
-            let mid = node(Some(leaf));
-            let top = node(Some(mid));
+            // Topic → subtopics → points. (A third level made small models collapse everything
+            // into a single topic in testing; two levels keep the outline readable.)
+            let sub = json!({
+                "type": "object",
+                "properties": {"title": {"type": "string"}, "time": {"type": "string"}, "points": {"type": "array", "items": {"type": "string"}}},
+                "required": ["title", "time", "points"],
+                "additionalProperties": false
+            });
+            let top = json!({
+                "type": "object",
+                "properties": {"title": {"type": "string"}, "time": {"type": "string"}, "subtopics": {"type": "array", "items": sub}},
+                "required": ["title", "time", "subtopics"],
+                "additionalProperties": false
+            });
             json!({
                 "type": "object",
                 "properties": {
@@ -393,9 +398,9 @@ mod tests {
         }
         check(&schema(Task::Summary));
         check(&schema(Task::Topics));
-        // Three levels, the last without children.
-        let lvl3 = &schema(Task::Topics)["properties"]["topics"]["items"]["properties"]["subtopics"]["items"]["properties"]["subtopics"]["items"];
-        assert!(lvl3["properties"].get("subtopics").is_none());
+        // Two levels: topics → subtopics (with points).
+        let sub = &schema(Task::Topics)["properties"]["topics"]["items"]["properties"]["subtopics"]["items"];
+        assert!(sub["properties"].get("subtopics").is_none() && sub["properties"].get("points").is_some());
     }
 
     #[test]

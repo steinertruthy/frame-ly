@@ -1,3 +1,4 @@
+import type { AiProfile, Detail, Precision, ProviderId } from './ai';
 import type { ShortcutAction } from '$lib/shortcuts';
 
 // Mirrors of the Rust IPC types (src-tauri/src/core/settings.rs, commands/system.rs).
@@ -18,6 +19,26 @@ export interface Settings {
   audio: AudioSettings;
   shortcuts: Record<ShortcutAction, string>;
   storage: { recordingsDir: string; screenshotsDir: string };
+  intelligence: IntelligenceSettings;
+}
+
+export interface IntelligenceSettings {
+  profile: AiProfile;
+  precision: Precision;
+  /** "auto" or an ISO 639-1 code. */
+  language: string;
+  summaryDetail: Detail;
+  summaryAuto: boolean;
+  summaryProvider: ProviderId;
+  topicsDetail: Detail;
+  topicsAuto: boolean;
+  topicsProvider: ProviderId;
+  localOnly: boolean;
+  externalEnabled: boolean;
+  anthropicModel: string;
+  openaiModel: string;
+  consents: ProviderId[];
+  appleEnabled: boolean;
 }
 
 export interface AppInfo {
