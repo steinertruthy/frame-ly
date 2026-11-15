@@ -90,14 +90,6 @@
   {#if list.length}<kbd class="keys">{#each list as k, i (i)}<span>{k}</span>{/each}</kbd>{/if}
 {/snippet}
 
-{#snippet emptyBody(withKeys: MessageKey, plain: MessageKey, list: string[])}
-  {#if list.length}
-    {@const [before, after] = t(withKeys).split('{keys}')}
-    {before}{@render shortcut(list)}{after}
-  {:else}
-    {t(plain)}
-  {/if}
-{/snippet}
 
 {#if system.permissions && !system.screenReady}
   <section class="setup">
@@ -193,11 +185,8 @@
       <span class="empty-icon" aria-hidden="true"><Camera size={18} /></span>
       <div class="empty-text">
         <span class="empty-title">{t('home.recent.shots.emptyTitle')}</span>
-        <span class="empty-body">{@render emptyBody('home.recent.shots.emptyBody', 'home.recent.shots.emptyBodyPlain', keys('captureRegion'))}</span>
+        <span class="empty-body">{t('home.recent.shots.emptyBodyPlain')}</span>
       </div>
-      <button class="btn primary sm" disabled={busy} onclick={() => screenshot('region')}>
-        <Camera size={15} strokeWidth={1.9} /><span>{t('home.recent.shots.cta')}</span>
-      </button>
     </div>
   {/if}
 </section>
@@ -225,11 +214,8 @@
         <span class="empty-icon rec-tone" aria-hidden="true"><Video size={18} /></span>
         <div class="empty-text">
           <span class="empty-title">{t('home.recent.videos.emptyTitle')}</span>
-          <span class="empty-body">{@render emptyBody('home.recent.videos.emptyBody', 'home.recent.videos.emptyBodyPlain', keys(recAction))}</span>
+          <span class="empty-body">{t('home.recent.videos.emptyBodyPlain')}</span>
         </div>
-        <button class="btn record sm" disabled={busy} onclick={record}>
-          <span class="dot" aria-hidden="true"></span><span>{t('home.rec.start')}</span>
-        </button>
       </div>
     {/if}
   </section>
@@ -392,11 +378,6 @@
     transition:
       background var(--dur-fast),
       transform var(--dur-fast);
-  }
-  .btn.sm {
-    height: 32px;
-    padding: 0 13px;
-    font-size: var(--text-sm);
   }
   .btn:active:not(:disabled) {
     transform: scale(0.98);
