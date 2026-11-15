@@ -120,7 +120,7 @@ impl AppAudioSetup {
         // Float 48 kHz with Windows conversion, 100 ms buffer.
         AppAudioSetup {
             name: "A",
-            marker: "framely-app-audio-w-a.attempt",
+            marker: "framely-app-audio-p-a.attempt",
             format: AppAudioFormat::Float48k { autoconvert: true },
             buffer_hns: BUFFER_HNS,
             service_first: false,
@@ -128,7 +128,7 @@ impl AppAudioSetup {
         // Microsoft's ApplicationLoopback sample: 16-bit 44.1 kHz, 20 ms buffer.
         AppAudioSetup {
             name: "B",
-            marker: "framely-app-audio-w-b.attempt",
+            marker: "framely-app-audio-p-b.attempt",
             format: AppAudioFormat::Pcm16At44k,
             buffer_hns: 200_000,
             service_first: true,
@@ -136,7 +136,7 @@ impl AppAudioSetup {
         // Float at 48 kHz without Windows conversion.
         AppAudioSetup {
             name: "C",
-            marker: "framely-app-audio-w-c.attempt",
+            marker: "framely-app-audio-p-c.attempt",
             format: AppAudioFormat::Float48k { autoconvert: false },
             buffer_hns: BUFFER_HNS,
             service_first: true,
@@ -413,8 +413,11 @@ impl Capture {
                     return Ok(());
                 }
                 let (mut data, mut frames, mut flags, mut qpc) = (std::ptr::null_mut(), 0u32, 0u32, 0u64);
+                // Both position pointers are always given: process loopback writes the device
+                // position without checking for null (a null one closed the app on a test PC).
+                let mut position = 0u64;
                 self.capture
-                    .GetBuffer(&mut data, &mut frames, &mut flags, None, Some(&mut qpc))
+                    .GetBuffer(&mut data, &mut frames, &mut flags, Some(&mut position), Some(&mut qpc))
                     .map_err(|e| win_err("GetBuffer", e))?;
                 let silent = flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32 != 0;
                 let mut samples = match self.conversion {
@@ -789,6 +792,7 @@ fn apps_worker() -> AppResult<std::sync::mpsc::Sender<OpenRequest>> {
                         let _ = req.reply.send(Err(e));
                     }
                     Ok(mut capture) => {
+                        step("first read");
                         let _ = req.reply.send(Ok(capture.format.clone()));
                         while !req.stop.load(Ordering::Relaxed) {
                             let sent = capture.read(|t, samples| {
@@ -833,7 +837,6 @@ impl AppsCapture {
             worker.send(request).map_err(|_| AppError::Runtime("app audio thread gone".into()))?;
             match answer.recv_timeout(Duration::from_secs(5)) {
                 Ok(Ok(format)) => {
-                    let _ = std::fs::write(&marker, "first packets");
                     return Ok(AppsCapture {
                         data,
                         stop,
