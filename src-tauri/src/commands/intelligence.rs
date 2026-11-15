@@ -101,7 +101,7 @@ fn provider_infos(app: &AppHandle) -> Vec<ProviderInfo> {
         });
     }
     for (id, model) in [(ProviderId::Anthropic, p.anthropic_model.clone()), (ProviderId::Openai, p.openai_model.clone())] {
-        let key = crate::platform::keystore::get(providers::key_account(id)).ok().flatten().is_some();
+        let key = crate::platform::keystore::exists(providers::key_account(id)).unwrap_or(false);
         let reason = providers::external_reason(&p, id, key);
         out.push(ProviderInfo {
             id,

@@ -15,18 +15,29 @@ private func keychainError(_ status: OSStatus) -> FFIError {
     return FFIError.platform("Keychain: \(message)")
 }
 
+// Writing replaces the item instead of updating it: a new item belongs to the app that creates it,
+// so FrameLy can read it later without macOS asking for the keychain password.
 func keychainSet(_ account: String, _ secret: String) throws {
-    let data = Data(secret.utf8)
-    let update: [String: Any] = [kSecValueData as String: data]
-    var status = SecItemUpdate(baseQuery(account) as CFDictionary, update as CFDictionary)
-    if status == errSecItemNotFound {
-        var add = baseQuery(account)
-        add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        add[kSecAttrLabel as String] = "FrameLy — \(account)"
-        status = SecItemAdd(add as CFDictionary, nil)
-    }
+    let removed = SecItemDelete(baseQuery(account) as CFDictionary)
+    guard removed == errSecSuccess || removed == errSecItemNotFound else { throw keychainError(removed) }
+    var add = baseQuery(account)
+    add[kSecValueData as String] = Data(secret.utf8)
+    add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    add[kSecAttrLabel as String] = "FrameLy — \(account)"
+    let status = SecItemAdd(add as CFDictionary, nil)
     guard status == errSecSuccess else { throw keychainError(status) }
+}
+
+/// Whether an item exists, reading only its attributes (never the secret), so it never prompts.
+func keychainExists(_ account: String) throws -> Bool {
+    var query = baseQuery(account)
+    query[kSecReturnAttributes as String] = true
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+    var item: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+    if status == errSecItemNotFound { return false }
+    guard status == errSecSuccess else { throw keychainError(status) }
+    return true
 }
 
 func keychainGet(_ account: String) throws -> String? {
@@ -58,6 +69,12 @@ public func fl_keychain_set(_ account: UnsafePointer<CChar>, _ secret: UnsafePoi
 public func fl_keychain_get(_ account: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar> {
     let a = String(cString: account)
     return respond { try keychainGet(a) }
+}
+
+@_cdecl("fl_keychain_exists")
+public func fl_keychain_exists(_ account: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar> {
+    let a = String(cString: account)
+    return respond { try keychainExists(a) }
 }
 
 @_cdecl("fl_keychain_delete")

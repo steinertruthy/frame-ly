@@ -28,7 +28,9 @@ use std::{
     time::Duration,
 };
 
-const KEY_ACCOUNT: &str = "framely-cloud-device";
+/// Keychain account of this computer's FrameLy AI Cloud identity. "-v2": the first item could have
+/// been written by a test binary, which makes macOS ask for the password; tests use their own.
+const KEY_ACCOUNT: &str = if cfg!(test) { "framely-cloud-device-test" } else { "framely-cloud-device-v2" };
 
 /// API address: `FRAMELY_CLOUD_URL` at run time (development) or at build time (releases).
 pub fn base_url() -> Option<String> {

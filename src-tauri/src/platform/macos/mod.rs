@@ -46,6 +46,7 @@ extern "C" {
     fn fl_keychain_set(account: *const c_char, secret: *const c_char) -> *mut c_char;
     fn fl_keychain_get(account: *const c_char) -> *mut c_char;
     fn fl_keychain_delete(account: *const c_char) -> *mut c_char;
+    fn fl_keychain_exists(account: *const c_char) -> *mut c_char;
     fn fl_ai_status(language: *const c_char) -> *mut c_char;
     fn fl_ai_generate(request: *const c_char) -> *mut c_char;
 }
@@ -224,6 +225,10 @@ pub fn keychain_set(account: &str, secret: &str) -> AppResult<()> {
 
 pub fn keychain_get(account: &str) -> AppResult<Option<String>> {
     call_with(fl_keychain_get, account)
+}
+
+pub fn keychain_exists(account: &str) -> AppResult<bool> {
+    call_with(fl_keychain_exists, account)
 }
 
 pub fn keychain_delete(account: &str) -> AppResult<()> {

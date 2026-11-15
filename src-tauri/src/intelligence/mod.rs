@@ -565,7 +565,7 @@ pub fn provider_ready<R: Runtime>(app: &AppHandle<R>, provider: ProviderId) -> R
         ProviderId::Apple => apple_reason(None, &p).map_or(Ok(()), Err),
         ProviderId::Cloud => providers::cloud_reason(&p, cloud::base_url().is_some()).map_or(Ok(()), Err),
         ext => {
-            let key = crate::platform::keystore::get(providers::key_account(ext)).ok().flatten().is_some();
+            let key = crate::platform::keystore::exists(providers::key_account(ext)).unwrap_or(false);
             providers::external_reason(&p, ext, key).map_or(Ok(()), Err)
         }
     }
