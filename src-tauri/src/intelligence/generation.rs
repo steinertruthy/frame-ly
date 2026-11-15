@@ -97,7 +97,9 @@ pub fn user_prompt(task: Task, detail: Detail, transcript: &str, part: Option<(u
         Task::Topics => format!("{} {} {}", topics_instructions(detail), TOPICS_STRUCTURE, TOPICS_EXTRAS),
     };
     let scope = match part {
-        Some((i, n)) => format!("This is part {} of {} of a longer transcript; cover only this part.\n", i + 1, n),
+        Some((i, n)) => {
+            format!("This is part {} of {} of a longer transcript; cover only this part.\n", i + 1, n)
+        }
         None => String::new(),
     };
     format!("{what}\n{scope}\nTRANSCRIPT:\n{transcript}")
@@ -248,11 +250,17 @@ pub fn normalize_summary(raw: &Value, segments: &[Segment], duration_ms: u64) ->
 
 fn normalize_node(n: &Value, segments: &[Segment], duration_ms: u64, depth: usize) -> Value {
     let children: Vec<Value> = if depth < 2 {
-        n["subtopics"].as_array().into_iter().flatten().map(|c| normalize_node(c, segments, duration_ms, depth + 1)).collect()
+        n["subtopics"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|c| normalize_node(c, segments, duration_ms, depth + 1))
+            .collect()
     } else {
         Vec::new()
     };
-    let points: Vec<String> = n["points"].as_array().into_iter().flatten().map(s).filter(|p| !p.is_empty()).collect();
+    let points: Vec<String> =
+        n["points"].as_array().into_iter().flatten().map(s).filter(|p| !p.is_empty()).collect();
     json!({"title": s(&n["title"]), "ms": locate(&n["time"], segments, duration_ms), "points": points, "children": children})
 }
 
@@ -277,7 +285,10 @@ pub fn normalize_topics(raw: &Value, segments: &[Segment], duration_ms: u64, ful
     // Keywords must really appear in the transcript (used to highlight it).
     let mut keywords: Vec<String> = Vec::new();
     for k in raw["keywords"].as_array().into_iter().flatten().map(s) {
-        if !k.is_empty() && lower.contains(&k.to_lowercase()) && !keywords.iter().any(|x| x.eq_ignore_ascii_case(&k)) {
+        if !k.is_empty()
+            && lower.contains(&k.to_lowercase())
+            && !keywords.iter().any(|x| x.eq_ignore_ascii_case(&k))
+        {
             keywords.push(k);
         }
     }
@@ -294,7 +305,8 @@ pub fn normalize_topics(raw: &Value, segments: &[Segment], duration_ms: u64, ful
 
 /// Joins normalized topics of consecutive parts (in order; nothing is rewritten).
 pub fn merge_topics(parts: &[Value]) -> Value {
-    let mut out = json!({"topics": [], "decisions": [], "actions": [], "dates": [], "numbers": [], "keywords": []});
+    let mut out =
+        json!({"topics": [], "decisions": [], "actions": [], "dates": [], "numbers": [], "keywords": []});
     for p in parts {
         for k in ["topics", "decisions", "actions", "dates", "numbers"] {
             let mut items = p[k].as_array().cloned().unwrap_or_default();
@@ -302,7 +314,9 @@ pub fn merge_topics(parts: &[Value]) -> Value {
         }
         for kw in p["keywords"].as_array().into_iter().flatten() {
             let list = out["keywords"].as_array_mut().unwrap();
-            if !list.iter().any(|x| x.as_str().map(str::to_lowercase) == kw.as_str().map(str::to_lowercase)) && list.len() < 12 {
+            if !list.iter().any(|x| x.as_str().map(str::to_lowercase) == kw.as_str().map(str::to_lowercase))
+                && list.len() < 12
+            {
                 list.push(kw.clone());
             }
         }
@@ -326,7 +340,11 @@ pub fn topics_markdown(v: &Value, labels: &Labels) -> String {
         if depth == 0 {
             out.push_str(&format!("\n## {}{time}\n", n["title"].as_str().unwrap_or("")));
         } else {
-            out.push_str(&format!("{}- **{}**{time}\n", "  ".repeat(depth - 1), n["title"].as_str().unwrap_or("")));
+            out.push_str(&format!(
+                "{}- **{}**{time}\n",
+                "  ".repeat(depth - 1),
+                n["title"].as_str().unwrap_or("")
+            ));
         }
         for p in n["points"].as_array().into_iter().flatten() {
             out.push_str(&format!("{}- {}\n", "  ".repeat(depth), p.as_str().unwrap_or("")));
@@ -339,14 +357,20 @@ pub fn topics_markdown(v: &Value, labels: &Labels) -> String {
     for t in v["topics"].as_array().into_iter().flatten() {
         node(&mut out, t, 0);
     }
-    for (key, title) in [("decisions", &labels.decisions), ("actions", &labels.actions), ("dates", &labels.dates), ("numbers", &labels.numbers)] {
+    for (key, title) in [
+        ("decisions", &labels.decisions),
+        ("actions", &labels.actions),
+        ("dates", &labels.dates),
+        ("numbers", &labels.numbers),
+    ] {
         let items = v[key].as_array().cloned().unwrap_or_default();
         if items.is_empty() {
             continue;
         }
         out.push_str(&format!("\n## {title}\n"));
         for i in items {
-            let time = i["ms"].as_u64().map(|m| format!("[{}] ", transcript::fmt_clock(m))).unwrap_or_default();
+            let time =
+                i["ms"].as_u64().map(|m| format!("[{}] ", transcript::fmt_clock(m))).unwrap_or_default();
             let mut line = format!("- {time}{}", i["text"].as_str().unwrap_or(""));
             for (k, l) in [("owner", &labels.owner), ("due", &labels.due)] {
                 if let Some(x) = i[k].as_str().filter(|x| !x.is_empty()) {
@@ -377,7 +401,15 @@ mod tests {
     use super::*;
 
     fn seg(a: u64, t: &str) -> Segment {
-        Segment { idx: 0, start_ms: a, end_ms: a + 4_000, text: t.into(), words: vec![], block: 0, edited: false }
+        Segment {
+            idx: 0,
+            start_ms: a,
+            end_ms: a + 4_000,
+            text: t.into(),
+            words: vec![],
+            block: 0,
+            edited: false,
+        }
     }
 
     #[test]
@@ -386,7 +418,8 @@ mod tests {
             if v["type"] == "object" {
                 assert_eq!(v["additionalProperties"], false);
                 let props: Vec<&String> = v["properties"].as_object().unwrap().keys().collect();
-                let req: Vec<&str> = v["required"].as_array().unwrap().iter().map(|r| r.as_str().unwrap()).collect();
+                let req: Vec<&str> =
+                    v["required"].as_array().unwrap().iter().map(|r| r.as_str().unwrap()).collect();
                 assert_eq!(props.len(), req.len(), "all required");
                 for p in v["properties"].as_object().unwrap().values() {
                     check(p);
@@ -415,7 +448,8 @@ mod tests {
 
     #[test]
     fn splits_long_transcripts_by_line() {
-        let lines: Vec<(u64, String)> = (0..100).map(|i| (i, format!("[00:{i:02}] {}", "palavra ".repeat(30)))).collect();
+        let lines: Vec<(u64, String)> =
+            (0..100).map(|i| (i, format!("[00:{i:02}] {}", "palavra ".repeat(30)))).collect();
         let parts = split_lines(&lines, 1_000);
         assert!(parts.len() > 3);
         assert!(parts.iter().all(|p| estimate_tokens(p) <= 1_100));
@@ -454,15 +488,29 @@ mod tests {
         let merged = merge_topics(&[t.clone(), t]);
         assert_eq!(merged["topics"].as_array().unwrap().len(), 2);
         assert_eq!(merged["keywords"].as_array().unwrap().len(), 1);
-        let labels = Labels { decisions: "Decisões".into(), actions: "Tarefas".into(), dates: "Datas".into(), numbers: "Números".into(), owner: "Responsável".into(), due: "Prazo".into() };
+        let labels = Labels {
+            decisions: "Decisões".into(),
+            actions: "Tarefas".into(),
+            dates: "Datas".into(),
+            numbers: "Números".into(),
+            owner: "Responsável".into(),
+            due: "Prazo".into(),
+        };
         let md = topics_markdown(&merged, &labels);
-        assert!(md.starts_with("## Lançamento [00:40]") && md.contains("## Decisões") && md.contains("Prazo: hoje"));
+        assert!(
+            md.starts_with("## Lançamento [00:40]")
+                && md.contains("## Decisões")
+                && md.contains("Prazo: hoje")
+        );
         assert!(summary_markdown(&n).contains("- [00:40] Data"));
     }
 
     #[test]
     fn reduce_prompt_keeps_times() {
-        let p = reduce_prompt(Detail::Balanced, &[json!({"overview": "A", "points": [{"text": "x", "ms": 65_000}]})]);
+        let p = reduce_prompt(
+            Detail::Balanced,
+            &[json!({"overview": "A", "points": [{"text": "x", "ms": 65_000}]})],
+        );
         assert!(p.contains("PART 1:\nA\n[01:05] x"));
     }
 }

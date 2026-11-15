@@ -17,7 +17,9 @@ fn to_tauri_theme(t: Theme) -> Option<tauri::Theme> {
 /// Main window size for a screen work area (logical points): most of the screen, so the library
 /// and transcripts have room, but never smaller than the classic size when the screen allows it.
 pub fn main_size(work_w: f64, work_h: f64) -> (f64, f64) {
-    let fit = |share: f64, base: f64, max: f64, avail: f64| (avail * share).max(base.min(avail)).min(max).min(avail);
+    let fit = |share: f64, base: f64, max: f64, avail: f64| {
+        (avail * share).max(base.min(avail)).min(max).min(avail)
+    };
     (fit(0.86, 1120.0, 1760.0, work_w), fit(0.88, 760.0, 1100.0, work_h))
 }
 

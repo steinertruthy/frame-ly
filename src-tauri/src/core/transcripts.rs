@@ -158,7 +158,8 @@ CREATE TABLE IF NOT EXISTS perf (
 CREATE INDEX IF NOT EXISTS perf_key ON perf(kind, model_id, backend);
 ";
 
-const SELECT: &str = "SELECT t.id, media_path, media_name, media_kind, media_size, media_mtime, duration_ms, language,
+const SELECT: &str =
+    "SELECT t.id, media_path, media_name, media_kind, media_size, media_mtime, duration_ms, language,
   detected_language, precision, model_id, status, done_ms, blocks_done, error, t.created_at, updated_at,
   EXISTS(SELECT 1 FROM generated g WHERE g.transcript_id = t.id AND g.kind = 'summary'),
   EXISTS(SELECT 1 FROM generated g WHERE g.transcript_id = t.id AND g.kind = 'topics'),
@@ -219,7 +220,10 @@ impl Transcripts {
     /// Jobs left "running" by a previous session become resumable.
     pub fn mark_interrupted(&self) -> AppResult<usize> {
         self.conn
-            .execute("UPDATE transcripts SET status = 'interrupted' WHERE status IN ('running', 'queued')", [])
+            .execute(
+                "UPDATE transcripts SET status = 'interrupted' WHERE status IN ('running', 'queued')",
+                [],
+            )
             .map_err(db_err)
     }
 
@@ -232,7 +236,10 @@ impl Transcripts {
     }
 
     pub fn find_by_path(&self, path: &str) -> AppResult<Option<Transcript>> {
-        self.conn.query_row(&format!("{SELECT} WHERE media_path = ?1"), [path], row).optional().map_err(db_err)
+        self.conn
+            .query_row(&format!("{SELECT} WHERE media_path = ?1"), [path], row)
+            .optional()
+            .map_err(db_err)
     }
 
     pub fn list(&self) -> AppResult<Vec<Transcript>> {
@@ -244,7 +251,13 @@ impl Transcripts {
     /// Starts (or restarts) the transcript of `media`. An existing finished transcript of the
     /// same file and settings is returned untouched (no duplicate work); a resumable one keeps
     /// its blocks; anything else starts over.
-    pub fn begin(&mut self, media: &MediaRef, language: &str, precision: &str, model_id: &str) -> AppResult<Transcript> {
+    pub fn begin(
+        &mut self,
+        media: &MediaRef,
+        language: &str,
+        precision: &str,
+        model_id: &str,
+    ) -> AppResult<Transcript> {
         let now = now_ms();
         if let Some(t) = self.find_by_path(&media.path)? {
             let same_media = t.media.size == media.size && t.media.mtime == media.mtime;
@@ -252,7 +265,11 @@ impl Transcripts {
             if same_media && same_settings {
                 match t.status {
                     Status::Done => return Ok(t),
-                    Status::Interrupted | Status::Cancelled | Status::Failed | Status::Queued | Status::Running => {
+                    Status::Interrupted
+                    | Status::Cancelled
+                    | Status::Failed
+                    | Status::Queued
+                    | Status::Running => {
                         self.conn
                             .execute("UPDATE transcripts SET status = 'queued', error = NULL, updated_at = ?2 WHERE id = ?1", params![t.id, now])
                             .map_err(db_err)?;
@@ -300,12 +317,22 @@ impl Transcripts {
 
     /// Persists one finished block atomically (segments + progress), so a crash never leaves a
     /// half-written block behind.
-    pub fn append_block(&mut self, id: i64, block: u32, segments: &[Segment], done_ms: u64, detected: Option<&str>) -> AppResult<()> {
+    pub fn append_block(
+        &mut self,
+        id: i64,
+        block: u32,
+        segments: &[Segment],
+        done_ms: u64,
+        detected: Option<&str>,
+    ) -> AppResult<()> {
         let tx = self.conn.transaction().map_err(db_err)?;
         // Re-running a block replaces it.
-        tx.execute("DELETE FROM segments WHERE transcript_id = ?1 AND block >= ?2", params![id, block]).map_err(db_err)?;
+        tx.execute("DELETE FROM segments WHERE transcript_id = ?1 AND block >= ?2", params![id, block])
+            .map_err(db_err)?;
         let base: i64 = tx
-            .query_row("SELECT COALESCE(MAX(idx) + 1, 0) FROM segments WHERE transcript_id = ?1", [id], |r| r.get(0))
+            .query_row("SELECT COALESCE(MAX(idx) + 1, 0) FROM segments WHERE transcript_id = ?1", [id], |r| {
+                r.get(0)
+            })
             .map_err(db_err)?;
         {
             let mut ins = tx
@@ -365,7 +392,9 @@ impl Transcripts {
         if n == 0 {
             return Err(AppError::NotFound);
         }
-        self.conn.execute("UPDATE transcripts SET updated_at = ?2 WHERE id = ?1", params![id, now_ms()]).map_err(db_err)?;
+        self.conn
+            .execute("UPDATE transcripts SET updated_at = ?2 WHERE id = ?1", params![id, now_ms()])
+            .map_err(db_err)?;
         Ok(())
     }
 
@@ -379,7 +408,9 @@ impl Transcripts {
                 params![id, kind, g.detail, g.provider, g.model, g.content.to_string(), g.created_at, g.edited],
             )
             .map_err(db_err)?;
-        self.conn.execute("UPDATE transcripts SET updated_at = ?2 WHERE id = ?1", params![id, now_ms()]).map_err(db_err)?;
+        self.conn
+            .execute("UPDATE transcripts SET updated_at = ?2 WHERE id = ?1", params![id, now_ms()])
+            .map_err(db_err)?;
         Ok(())
     }
 
@@ -408,7 +439,14 @@ impl Transcripts {
         Ok(())
     }
 
-    pub fn record_perf(&self, kind: &str, model_id: &str, backend: &str, work: f64, elapsed_ms: u64) -> AppResult<()> {
+    pub fn record_perf(
+        &self,
+        kind: &str,
+        model_id: &str,
+        backend: &str,
+        work: f64,
+        elapsed_ms: u64,
+    ) -> AppResult<()> {
         if work <= 0.0 || elapsed_ms == 0 {
             return Ok(());
         }
@@ -446,7 +484,14 @@ mod tests {
     use crate::core::transcript::Word;
 
     fn media(path: &str, size: u64) -> MediaRef {
-        MediaRef { path: path.into(), name: "a.mp4".into(), kind: "video".into(), size, mtime: 1, duration_ms: 600_000 }
+        MediaRef {
+            path: path.into(),
+            name: "a.mp4".into(),
+            kind: "video".into(),
+            size,
+            mtime: 1,
+            duration_ms: 600_000,
+        }
     }
 
     fn seg(a: u64, t: &str) -> Segment {
@@ -488,7 +533,19 @@ mod tests {
         let t = db.begin(&media("/m/a.mp4", 10), "auto", "balanced", "m").unwrap();
         db.append_block(t.id, 0, &[seg(0, "x")], 600_000, None).unwrap();
         db.set_status(t.id, Status::Done, None).unwrap();
-        db.set_generated(t.id, "summary", &Generated { detail: "balanced".into(), provider: "framely".into(), model: "q".into(), content: serde_json::json!({"overview": "x"}), created_at: 1, edited: false }).unwrap();
+        db.set_generated(
+            t.id,
+            "summary",
+            &Generated {
+                detail: "balanced".into(),
+                provider: "framely".into(),
+                model: "q".into(),
+                content: serde_json::json!({"overview": "x"}),
+                created_at: 1,
+                edited: false,
+            },
+        )
+        .unwrap();
         // Same file and settings: cached result.
         let same = db.begin(&media("/m/a.mp4", 10), "auto", "balanced", "m").unwrap();
         assert_eq!(same.status, Status::Done);
@@ -516,7 +573,14 @@ mod tests {
         assert!(db.get(t.id).unwrap().edited);
         assert_eq!(db.edit_segment(t.id, 9, "x").unwrap_err().code(), "not_found");
         assert!(db.generated(t.id, "topics").unwrap().is_none());
-        let g = Generated { detail: "detailed".into(), provider: "apple".into(), model: "system".into(), content: serde_json::json!({"topics": []}), created_at: 2, edited: false };
+        let g = Generated {
+            detail: "detailed".into(),
+            provider: "apple".into(),
+            model: "system".into(),
+            content: serde_json::json!({"topics": []}),
+            created_at: 2,
+            edited: false,
+        };
         db.set_generated(t.id, "topics", &g).unwrap();
         assert_eq!(db.generated(t.id, "topics").unwrap().unwrap(), g);
         db.delete(t.id).unwrap();

@@ -491,13 +491,15 @@ pub fn decode_audio(
             .SetCurrentMediaType(FIRST_AUDIO, None, &wanted)
             .map_err(|e| AppError::Unsupported(format!("audio decoder: {e}")))?;
         let current = reader.GetCurrentMediaType(FIRST_AUDIO).map_err(|e| win_err("current type", e))?;
-        let rate = current.GetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND).map_err(|e| win_err("sample rate", e))?;
+        let rate =
+            current.GetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND).map_err(|e| win_err("sample rate", e))?;
         let channels = current.GetUINT32(&MF_MT_AUDIO_NUM_CHANNELS).map_err(|e| win_err("channels", e))?;
 
         let mut opts = std::fs::OpenOptions::new();
         opts.write(true).create(true).truncate(true);
         let mut file = std::io::BufWriter::new(opts.open(dest)?);
-        let mut resampler = crate::core::resample::Resampler::new(rate, channels as u16, crate::core::resample::ASR_RATE);
+        let mut resampler =
+            crate::core::resample::Resampler::new(rate, channels as u16, crate::core::resample::ASR_RATE);
         let mut out: Vec<f32> = Vec::new();
         let mut written = 0u64;
         let mut last_report = 0i64;
@@ -517,7 +519,8 @@ pub fn decode_audio(
                 .ReadSample(FIRST_AUDIO, 0, None, Some(&mut flags), Some(&mut ts), Some(&mut sample))
                 .map_err(|e| win_err("ReadSample", e))?;
             if let Some(sample) = sample {
-                let buffer = sample.ConvertToContiguousBuffer().map_err(|e| win_err("contiguous buffer", e))?;
+                let buffer =
+                    sample.ConvertToContiguousBuffer().map_err(|e| win_err("contiguous buffer", e))?;
                 let (mut data, mut len) = (std::ptr::null_mut(), 0u32);
                 buffer.Lock(&mut data, None, Some(&mut len)).map_err(|e| win_err("Lock", e))?;
                 let floats = std::slice::from_raw_parts(data as *const f32, len as usize / 4);

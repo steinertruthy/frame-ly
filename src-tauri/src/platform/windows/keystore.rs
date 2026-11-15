@@ -6,7 +6,8 @@ use windows::{
     Win32::{
         Foundation::ERROR_NOT_FOUND,
         Security::Credentials::{
-            CredDeleteW, CredFree, CredReadW, CredWriteW, CREDENTIALW, CRED_PERSIST_LOCAL_MACHINE, CRED_TYPE_GENERIC,
+            CredDeleteW, CredFree, CredReadW, CredWriteW, CREDENTIALW, CRED_PERSIST_LOCAL_MACHINE,
+            CRED_TYPE_GENERIC,
         },
     },
 };

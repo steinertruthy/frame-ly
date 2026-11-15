@@ -100,7 +100,9 @@ fn provider_infos(app: &AppHandle) -> Vec<ProviderInfo> {
             consented: true,
         });
     }
-    for (id, model) in [(ProviderId::Anthropic, p.anthropic_model.clone()), (ProviderId::Openai, p.openai_model.clone())] {
+    for (id, model) in
+        [(ProviderId::Anthropic, p.anthropic_model.clone()), (ProviderId::Openai, p.openai_model.clone())]
+    {
         let key = crate::platform::keystore::exists(providers::key_account(id)).unwrap_or(false);
         let reason = providers::external_reason(&p, id, key);
         out.push(ProviderInfo {
@@ -122,7 +124,13 @@ fn provider_infos(app: &AppHandle) -> Vec<ProviderInfo> {
 
 fn storage(app: &AppHandle) -> Storage {
     let (models_bytes, temp_bytes) = ai::storage(app);
-    Storage { models_bytes, temp_bytes, free_bytes: crate::platform::disk::free_bytes(ai::models(app).dir().parent().unwrap_or(std::path::Path::new("/"))) }
+    Storage {
+        models_bytes,
+        temp_bytes,
+        free_bytes: crate::platform::disk::free_bytes(
+            ai::models(app).dir().parent().unwrap_or(std::path::Path::new("/")),
+        ),
+    }
 }
 
 #[tauri::command]
@@ -132,7 +140,10 @@ pub async fn ai_overview(app: AppHandle) -> AppResult<Overview> {
         Ok(Overview {
             hardware: ai::hardware(&app),
             profile,
-            default_precision: catalog::precision_name(catalog::precision_for(profile, crate::core::settings::Precision::Auto)),
+            default_precision: catalog::precision_name(catalog::precision_for(
+                profile,
+                crate::core::settings::Precision::Auto,
+            )),
             models: ai::models(&app).all(),
             providers: provider_infos(&app),
             storage: storage(&app),
@@ -187,7 +198,10 @@ pub struct Estimate {
 pub async fn ai_estimate(app: AppHandle, path: PathBuf, precision: Option<String>) -> AppResult<Estimate> {
     blocking(move || {
         let media = ai::probe(&app, &path)?;
-        let precision = catalog::precision_for(ai::profile(&app), catalog::parse_precision(precision.as_deref().unwrap_or("auto")));
+        let precision = catalog::precision_for(
+            ai::profile(&app),
+            catalog::parse_precision(precision.as_deref().unwrap_or("auto")),
+        );
         let spec = catalog::speech_model(precision);
         let hw = ai::hardware(&app);
         let history = ai::with_db(&app, |db| db.perf_rate("asr", spec.id, hw.accel))?;
@@ -234,10 +248,16 @@ pub struct GenerationEstimate {
 }
 
 #[tauri::command]
-pub async fn ai_generation_estimate(app: AppHandle, id: i64, task: String, provider: ProviderId) -> AppResult<GenerationEstimate> {
+pub async fn ai_generation_estimate(
+    app: AppHandle,
+    id: i64,
+    task: String,
+    provider: ProviderId,
+) -> AppResult<GenerationEstimate> {
     blocking(move || {
         let segments = ai::with_db(&app, |db| db.segments(id))?;
-        let text: String = transcript::to_prompt_lines(&segments).into_iter().map(|(_, l)| l + "\n").collect();
+        let text: String =
+            transcript::to_prompt_lines(&segments).into_iter().map(|(_, l)| l + "\n").collect();
         let chars = text.chars().count();
         let input_tokens = generation::estimate_tokens(&text) + 600;
         let task_name = if task == "topics" { "topics" } else { "summary" };
@@ -247,7 +267,9 @@ pub async fn ai_generation_estimate(app: AppHandle, id: i64, task: String, provi
             let history = ai::with_db(&app, |db| db.perf_rate(task_name, spec.id, hw.accel)).ok().flatten();
             estimate::generation(chars, task_name, spec.id, hw.accel, history)
         });
-        let cost_usd = (provider == ProviderId::Anthropic).then(|| anthropic_cost(&ai::prefs(&app).anthropic_model, input_tokens)).flatten();
+        let cost_usd = (provider == ProviderId::Anthropic)
+            .then(|| anthropic_cost(&ai::prefs(&app).anthropic_model, input_tokens))
+            .flatten();
         Ok(GenerationEstimate { time, input_tokens, cost_usd })
     })
     .await
@@ -295,13 +317,21 @@ pub struct Detailed {
 #[tauri::command]
 pub async fn transcript_get(app: AppHandle, id: i64) -> AppResult<Detailed> {
     blocking(move || {
-        let (transcript, segments, summary, topics) =
-            ai::with_db(&app, |db| Ok((db.get(id)?, db.segments(id)?, db.generated(id, "summary")?, db.generated(id, "topics")?)))?;
+        let (transcript, segments, summary, topics) = ai::with_db(&app, |db| {
+            Ok((db.get(id)?, db.segments(id)?, db.generated(id, "summary")?, db.generated(id, "topics")?))
+        })?;
         let media_available = std::path::Path::new(&transcript.media.path).exists();
         if media_available {
             let _ = app.asset_protocol_scope().allow_file(&transcript.media.path);
         }
-        Ok(Detailed { paragraphs: transcript::paragraphs(&segments), transcript, segments, summary, topics, media_available })
+        Ok(Detailed {
+            paragraphs: transcript::paragraphs(&segments),
+            transcript,
+            segments,
+            summary,
+            topics,
+            media_available,
+        })
     })
     .await
 }
@@ -339,7 +369,13 @@ pub async fn generated_save(app: AppHandle, id: i64, kind: String, content: Valu
 }
 
 #[tauri::command]
-pub async fn generation_start(app: AppHandle, id: i64, task: String, provider: ProviderId, detail: Detail) -> AppResult<u64> {
+pub async fn generation_start(
+    app: AppHandle,
+    id: i64,
+    task: String,
+    provider: ProviderId,
+    detail: Detail,
+) -> AppResult<u64> {
     blocking(move || {
         let task = if task == "topics" { Task::Topics } else { Task::Summary };
         ai::start_generation(&app, id, task, provider, detail)
@@ -386,7 +422,9 @@ fn markdown_to_blocks(md: &str) -> Vec<pdf::Block> {
         } else if let Some(item) = trimmed.strip_prefix("- ") {
             let item = item.replace("**", "");
             let (time, text) = match item.strip_prefix('[').and_then(|r| r.split_once("] ")) {
-                Some((t, rest)) if transcript::parse_clock(t).is_some() => (Some(t.to_string()), rest.to_string()),
+                Some((t, rest)) if transcript::parse_clock(t).is_some() => {
+                    (Some(t.to_string()), rest.to_string())
+                }
                 _ => (None, item),
             };
             out.push(pdf::Block::Bullet { level, time, text });
@@ -404,27 +442,39 @@ pub async fn transcript_export(app: AppHandle, request: ExportRequest) -> AppRes
         if !r.path.is_absolute() {
             return Err(AppError::InvalidName(r.path.display().to_string()));
         }
-        let (segments, summary, topics) =
-            ai::with_db(&app, |db| Ok((db.segments(r.id)?, db.generated(r.id, "summary")?, db.generated(r.id, "topics")?)))?;
+        let (segments, summary, topics) = ai::with_db(&app, |db| {
+            Ok((db.segments(r.id)?, db.generated(r.id, "summary")?, db.generated(r.id, "topics")?))
+        })?;
         let md_body = match r.what.as_str() {
             "transcript" => None,
             "summary" => Some(generation::summary_markdown(&summary.ok_or(AppError::NotFound)?.content)),
-            "topics" => Some(generation::topics_markdown(&topics.ok_or(AppError::NotFound)?.content, &r.labels)),
+            "topics" => {
+                Some(generation::topics_markdown(&topics.ok_or(AppError::NotFound)?.content, &r.labels))
+            }
             _ => return Err(AppError::NotFound),
         };
         let bytes: Vec<u8> = match (r.format.as_str(), &md_body) {
             ("srt", None) => transcript::to_srt(&segments).into_bytes(),
             ("vtt", None) => transcript::to_vtt(&segments).into_bytes(),
             ("txt", None) => transcript::to_txt(&segments, true).into_bytes(),
-            ("md", None) => transcript::to_markdown(&r.title, &segments).replacen('\n', &format!("\n\n_{}_\n", r.meta), 1).into_bytes(),
+            ("md", None) => transcript::to_markdown(&r.title, &segments)
+                .replacen('\n', &format!("\n\n_{}_\n", r.meta), 1)
+                .into_bytes(),
             ("txt", Some(md)) => format!("{}\n{}\n\n{}", r.title, r.meta, strip_markdown(md)).into_bytes(),
             ("md", Some(md)) => format!("# {}\n\n_{}_\n\n{md}", r.title, r.meta).into_bytes(),
             ("pdf", body) => {
                 let mut blocks = vec![pdf::Block::Title(r.title.clone()), pdf::Block::Meta(r.meta.clone())];
                 match body {
-                    None => blocks.extend(transcript::paragraphs(&segments).iter().map(|p| pdf::Block::Para {
-                        time: Some(transcript::fmt_clock(p.start_ms)),
-                        text: p.segments.iter().map(|&i| segments[i as usize].text.trim()).collect::<Vec<_>>().join(" "),
+                    None => blocks.extend(transcript::paragraphs(&segments).iter().map(|p| {
+                        pdf::Block::Para {
+                            time: Some(transcript::fmt_clock(p.start_ms)),
+                            text: p
+                                .segments
+                                .iter()
+                                .map(|&i| segments[i as usize].text.trim())
+                                .collect::<Vec<_>>()
+                                .join(" "),
+                        }
                     })),
                     Some(md) => blocks.extend(markdown_to_blocks(md)),
                 }
@@ -469,7 +519,10 @@ pub async fn provider_key_set(app: AppHandle, provider: ProviderId, key: String)
 
 /// Removes the key, the consent and the provider assignments that used it.
 #[tauri::command]
-pub async fn provider_remove(app: AppHandle, provider: ProviderId) -> AppResult<crate::core::settings::Settings> {
+pub async fn provider_remove(
+    app: AppHandle,
+    provider: ProviderId,
+) -> AppResult<crate::core::settings::Settings> {
     blocking(move || {
         if !provider.needs_key() {
             return Err(AppError::NotFound);
@@ -498,7 +551,8 @@ pub async fn provider_remove(app: AppHandle, provider: ProviderId) -> AppResult<
 pub async fn provider_test(app: AppHandle, provider: ProviderId) -> AppResult<Vec<String>> {
     blocking(move || {
         let agent = providers::external_agent(ai::prefs(&app).local_only)?;
-        let key = crate::platform::keystore::get(providers::key_account(provider))?.ok_or(AppError::MissingKey)?;
+        let key =
+            crate::platform::keystore::get(providers::key_account(provider))?.ok_or(AppError::MissingKey)?;
         match provider {
             ProviderId::Anthropic => providers::AnthropicRunner::list_models(&agent, &key),
             ProviderId::Openai => providers::OpenAiRunner::list_models(&agent, &key),
@@ -509,7 +563,11 @@ pub async fn provider_test(app: AppHandle, provider: ProviderId) -> AppResult<Ve
 }
 
 #[tauri::command]
-pub async fn ai_consent(app: AppHandle, provider: ProviderId, granted: bool) -> AppResult<crate::core::settings::Settings> {
+pub async fn ai_consent(
+    app: AppHandle,
+    provider: ProviderId,
+    granted: bool,
+) -> AppResult<crate::core::settings::Settings> {
     blocking(move || {
         let state = app.state::<AppState>();
         let mut s = state.settings.get();

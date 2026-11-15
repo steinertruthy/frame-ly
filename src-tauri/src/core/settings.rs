@@ -415,7 +415,8 @@ impl Settings {
             }
         }
         let lang = &self.intelligence.language;
-        let valid = lang == "auto" || ((2..=3).contains(&lang.len()) && lang.chars().all(|c| c.is_ascii_lowercase()));
+        let valid =
+            lang == "auto" || ((2..=3).contains(&lang.len()) && lang.chars().all(|c| c.is_ascii_lowercase()));
         if !valid {
             return Err(AppError::InvalidSettings("language must be \"auto\" or an ISO 639-1 code".into()));
         }
@@ -691,7 +692,11 @@ mod tests {
         assert!(i.summary_auto && i.topics_auto, "everything in one go by default");
         assert!(!i.external_enabled && i.consents.is_empty());
         // The first release saved them off: v3 turns them on once; a v3 file keeps the choice.
-        let v2 = Settings::from_json(r#"{"version":2,"intelligence":{"summaryAuto":false,"topicsAuto":false}}"#, &d).unwrap();
+        let v2 = Settings::from_json(
+            r#"{"version":2,"intelligence":{"summaryAuto":false,"topicsAuto":false}}"#,
+            &d,
+        )
+        .unwrap();
         assert!(v2.intelligence.summary_auto && v2.intelligence.topics_auto);
         let v3 = Settings::from_json(r#"{"version":3,"intelligence":{"summaryAuto":false}}"#, &d).unwrap();
         assert!(!v3.intelligence.summary_auto && v3.intelligence.topics_auto);

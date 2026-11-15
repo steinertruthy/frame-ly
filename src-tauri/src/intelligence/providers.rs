@@ -109,11 +109,23 @@ pub trait Runner {
     /// Context window (tokens) available for prompt + answer.
     fn context_tokens(&self) -> u32;
     fn model_name(&self) -> String;
-    fn run(&mut self, task: Task, system: &str, user: &str, max_tokens: u32, progress: &mut dyn FnMut(f64)) -> AppResult<String>;
+    fn run(
+        &mut self,
+        task: Task,
+        system: &str,
+        user: &str,
+        max_tokens: u32,
+        progress: &mut dyn FnMut(f64),
+    ) -> AppResult<String>;
 
     /// Builds the prompt and runs it. Services that build their own prompts (FrameLy Cloud)
     /// override this and send the structured request instead.
-    fn generate(&mut self, req: &Request<'_>, max_tokens: u32, progress: &mut dyn FnMut(f64)) -> AppResult<String> {
+    fn generate(
+        &mut self,
+        req: &Request<'_>,
+        max_tokens: u32,
+        progress: &mut dyn FnMut(f64),
+    ) -> AppResult<String> {
         let user = match req.input {
             Input::Part { text, part } => super::generation::user_prompt(req.task, req.detail, text, part),
             Input::Combine { partials } => super::generation::reduce_prompt(req.detail, partials),
@@ -134,7 +146,14 @@ impl Runner for FramelyRunner {
     fn model_name(&self) -> String {
         self.model.clone()
     }
-    fn run(&mut self, task: Task, system: &str, user: &str, max_tokens: u32, progress: &mut dyn FnMut(f64)) -> AppResult<String> {
+    fn run(
+        &mut self,
+        task: Task,
+        system: &str,
+        user: &str,
+        max_tokens: u32,
+        progress: &mut dyn FnMut(f64),
+    ) -> AppResult<String> {
         let schema = super::generation::schema(task);
         // Prompt evaluation is measurable; generation length isn't known in advance, so it
         // advances towards the token limit (and jumps to done when the model stops).
@@ -160,7 +179,14 @@ impl Runner for AppleRunner {
     fn model_name(&self) -> String {
         "apple-foundation-model".into()
     }
-    fn run(&mut self, task: Task, system: &str, user: &str, max_tokens: u32, progress: &mut dyn FnMut(f64)) -> AppResult<String> {
+    fn run(
+        &mut self,
+        task: Task,
+        system: &str,
+        user: &str,
+        max_tokens: u32,
+        progress: &mut dyn FnMut(f64),
+    ) -> AppResult<String> {
         progress(0.0);
         let r = crate::platform::apple_ai::generate(&json!({
             "task": task.as_str(), "instructions": system, "prompt": user, "maxTokens": max_tokens
@@ -222,7 +248,12 @@ impl AnthropicRunner {
             return Err(http_error("Anthropic", status, &text));
         }
         let v: Value = serde_json::from_str(&text)?;
-        Ok(v["data"].as_array().into_iter().flatten().filter_map(|m| m["id"].as_str().map(str::to_string)).collect())
+        Ok(v["data"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|m| m["id"].as_str().map(str::to_string))
+            .collect())
     }
 }
 
@@ -235,7 +266,14 @@ impl Runner for AnthropicRunner {
     fn model_name(&self) -> String {
         self.model.clone()
     }
-    fn run(&mut self, task: Task, system: &str, user: &str, max_tokens: u32, progress: &mut dyn FnMut(f64)) -> AppResult<String> {
+    fn run(
+        &mut self,
+        task: Task,
+        system: &str,
+        user: &str,
+        max_tokens: u32,
+        progress: &mut dyn FnMut(f64),
+    ) -> AppResult<String> {
         progress(0.0);
         let mut body = json!({
             "model": self.model,
@@ -286,11 +324,28 @@ impl OpenAiRunner {
             return Err(http_error("OpenAI", status, &text));
         }
         let v: Value = serde_json::from_str(&text)?;
-        let mut ids: Vec<String> = v["data"].as_array().into_iter().flatten().filter_map(|m| m["id"].as_str().map(str::to_string)).collect();
+        let mut ids: Vec<String> = v["data"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|m| m["id"].as_str().map(str::to_string))
+            .collect();
         // Chat models only (no embeddings, audio, images or moderation).
         ids.retain(|id| {
             (id.starts_with("gpt-") || id.starts_with('o'))
-                && !["embedding", "audio", "realtime", "tts", "transcribe", "image", "search", "moderation", "dall"].iter().any(|x| id.contains(x))
+                && ![
+                    "embedding",
+                    "audio",
+                    "realtime",
+                    "tts",
+                    "transcribe",
+                    "image",
+                    "search",
+                    "moderation",
+                    "dall",
+                ]
+                .iter()
+                .any(|x| id.contains(x))
         });
         ids.sort();
         Ok(ids)
@@ -304,7 +359,14 @@ impl Runner for OpenAiRunner {
     fn model_name(&self) -> String {
         self.model.clone()
     }
-    fn run(&mut self, task: Task, system: &str, user: &str, max_tokens: u32, progress: &mut dyn FnMut(f64)) -> AppResult<String> {
+    fn run(
+        &mut self,
+        task: Task,
+        system: &str,
+        user: &str,
+        max_tokens: u32,
+        progress: &mut dyn FnMut(f64),
+    ) -> AppResult<String> {
         progress(0.0);
         let body = json!({
             "model": self.model,
@@ -333,7 +395,10 @@ impl Runner for OpenAiRunner {
         if v["choices"][0]["finish_reason"] == "length" {
             return Err(AppError::Provider("response too long".into()));
         }
-        msg["content"].as_str().map(str::to_string).ok_or_else(|| AppError::Provider("OpenAI: empty response".into()))
+        msg["content"]
+            .as_str()
+            .map(str::to_string)
+            .ok_or_else(|| AppError::Provider("OpenAI: empty response".into()))
     }
 }
 
@@ -357,7 +422,11 @@ mod tests {
         s.consents.push(ProviderId::Anthropic);
         assert_eq!(external_reason(&s, ProviderId::Anthropic, true), None);
         s.local_only = true;
-        assert_eq!(external_reason(&s, ProviderId::Anthropic, true), Some("local_only"), "local-only wins over everything");
+        assert_eq!(
+            external_reason(&s, ProviderId::Anthropic, true),
+            Some("local_only"),
+            "local-only wins over everything"
+        );
         assert!(anthropic_price(ANTHROPIC_MODELS[0]).is_some());
     }
 
@@ -378,6 +447,8 @@ mod tests {
     #[test]
     fn http_errors_are_readable() {
         assert!(http_error("OpenAI", 401, "{}").to_string().contains("invalid API key"));
-        assert!(http_error("Anthropic", 400, r#"{"error":{"message":"bad schema"}}"#).to_string().contains("bad schema"));
+        assert!(http_error("Anthropic", 400, r#"{"error":{"message":"bad schema"}}"#)
+            .to_string()
+            .contains("bad schema"));
     }
 }

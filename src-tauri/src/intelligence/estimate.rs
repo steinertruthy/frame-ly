@@ -19,9 +19,27 @@ fn speech_reference(model_id: &str, accel: &str) -> f64 {
     let metal = accel == "metal";
     match model_id {
         // Measured on an M3 Pro (Metal): small 6.1 s and large-v3-turbo 12.9 s for 217 s of audio.
-        "speech-fast" => if metal { 30.0 } else { 250.0 },
-        "speech-max" => if metal { 350.0 } else { 3_000.0 },
-        _ => if metal { 60.0 } else { 800.0 },
+        "speech-fast" => {
+            if metal {
+                30.0
+            } else {
+                250.0
+            }
+        }
+        "speech-max" => {
+            if metal {
+                350.0
+            } else {
+                3_000.0
+            }
+        }
+        _ => {
+            if metal {
+                60.0
+            } else {
+                800.0
+            }
+        }
     }
 }
 
@@ -35,13 +53,26 @@ fn load_reference(model_id: &str) -> f64 {
     }
 }
 
-pub fn transcription(duration_ms: u64, model_id: &str, accel: &str, history: Option<(f64, usize)>) -> TimeEstimate {
+pub fn transcription(
+    duration_ms: u64,
+    model_id: &str,
+    accel: &str,
+    history: Option<(f64, usize)>,
+) -> TimeEstimate {
     let secs = duration_ms as f64 / 1000.0;
     // Decoding the audio is ~1 % of real time with the native decoders.
     let decode = secs * 10.0;
     match history {
-        Some((rate, runs)) => TimeEstimate { ms: (secs * rate + decode + load_reference(model_id) * 0.5) as u64, approximate: false, runs },
-        None => TimeEstimate { ms: (secs * speech_reference(model_id, accel) + decode + load_reference(model_id)) as u64, approximate: true, runs: 0 },
+        Some((rate, runs)) => TimeEstimate {
+            ms: (secs * rate + decode + load_reference(model_id) * 0.5) as u64,
+            approximate: false,
+            runs,
+        },
+        None => TimeEstimate {
+            ms: (secs * speech_reference(model_id, accel) + decode + load_reference(model_id)) as u64,
+            approximate: true,
+            runs: 0,
+        },
     }
 }
 
@@ -68,12 +99,23 @@ pub fn expected_chars(duration_ms: u64) -> usize {
     (duration_ms as f64 / 1000.0 * 15.0) as usize
 }
 
-pub fn generation(chars: usize, task: &str, model_id: &str, accel: &str, history: Option<(f64, usize)>) -> TimeEstimate {
+pub fn generation(
+    chars: usize,
+    task: &str,
+    model_id: &str,
+    accel: &str,
+    history: Option<(f64, usize)>,
+) -> TimeEstimate {
     match history {
         // Measured rates include loading the model, which short files can't amortize.
-        Some((rate, runs)) => TimeEstimate { ms: (chars as f64 * rate).max(load_reference(model_id)) as u64, approximate: false, runs },
+        Some((rate, runs)) => TimeEstimate {
+            ms: (chars as f64 * rate).max(load_reference(model_id)) as u64,
+            approximate: false,
+            runs,
+        },
         None => TimeEstimate {
-            ms: (chars as f64 * generation_reference(task, model_id, accel) + load_reference(model_id)) as u64,
+            ms: (chars as f64 * generation_reference(task, model_id, accel) + load_reference(model_id))
+                as u64,
             approximate: true,
             runs: 0,
         },
@@ -108,6 +150,10 @@ mod tests {
         assert!(b.ms > a.ms && a.approximate);
         assert!(generation(10_000, "topics", "language-balanced", "metal", None).ms > a.ms);
         assert_eq!(generation(10_000, "summary", "x", "metal", Some((2.0, 3))).ms, 20_000);
-        assert_eq!(generation(10, "summary", "x", "metal", Some((2.0, 3))).ms, 4_000, "never less than loading the model");
+        assert_eq!(
+            generation(10, "summary", "x", "metal", Some((2.0, 3))).ms,
+            4_000,
+            "never less than loading the model"
+        );
     }
 }

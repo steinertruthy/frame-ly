@@ -29,7 +29,18 @@ impl Resampler {
         let cutoff = 0.5 * (out_rate as f64 / in_rate as f64).min(1.0) * 0.95;
         let half = (ZEROS as f64 / (2.0 * cutoff)).ceil() as usize;
         // Start with `half` samples of silence so the first outputs have full history.
-        Self { in_rate, out_rate, channels: channels.max(1) as usize, buf: vec![0.0; half], pos: half as f64, step, cutoff, half, frames_in: 0, frames_out: 0 }
+        Self {
+            in_rate,
+            out_rate,
+            channels: channels.max(1) as usize,
+            buf: vec![0.0; half],
+            pos: half as f64,
+            step,
+            cutoff,
+            half,
+            frames_in: 0,
+            frames_out: 0,
+        }
     }
 
     fn kernel(&self, x: f64) -> f64 {
@@ -37,7 +48,8 @@ impl Resampler {
         if x.abs() >= span {
             return 0.0;
         }
-        let sinc = if x.abs() < 1e-9 { 2.0 * self.cutoff } else { (2.0 * PI * self.cutoff * x).sin() / (PI * x) };
+        let sinc =
+            if x.abs() < 1e-9 { 2.0 * self.cutoff } else { (2.0 * PI * self.cutoff * x).sin() / (PI * x) };
         let w = 0.42 + 0.5 * (PI * x / span).cos() + 0.08 * (2.0 * PI * x / span).cos();
         sinc * w
     }
@@ -99,7 +111,11 @@ mod tests {
 
     fn tone(rate: u32, hz: f64, secs: f64, channels: usize) -> Vec<f32> {
         let n = (rate as f64 * secs) as usize;
-        (0..n).flat_map(|i| std::iter::repeat((2.0 * PI * hz * i as f64 / rate as f64).sin() as f32 * 0.5).take(channels)).collect()
+        (0..n)
+            .flat_map(|i| {
+                std::iter::repeat((2.0 * PI * hz * i as f64 / rate as f64).sin() as f32 * 0.5).take(channels)
+            })
+            .collect()
     }
 
     fn convert(input: &[f32], rate: u32, ch: u16, chunk: usize) -> Vec<f32> {

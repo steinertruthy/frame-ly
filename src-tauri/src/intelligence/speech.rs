@@ -63,7 +63,11 @@ fn frame_energy(pcm: &Path) -> AppResult<Vec<f32>> {
             break;
         }
         let n = filled / 4;
-        let e = buf[..n * 4].chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]).powi(2)).sum::<f32>() / n as f32;
+        let e = buf[..n * 4]
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]).powi(2))
+            .sum::<f32>()
+            / n as f32;
         out.push(e);
         if filled < buf.len() {
             break;
@@ -200,7 +204,8 @@ pub fn run(
         for seg in state.as_iter() {
             let text = seg.to_str_lossy().map(|t| t.trim().to_string()).unwrap_or_default();
             // Skip silence the model filled with nothing, or with a likely hallucination.
-            if text.is_empty() || is_special(&text) || (seg.no_speech_probability() > 0.8 && text.len() < 40) {
+            if text.is_empty() || is_special(&text) || (seg.no_speech_probability() > 0.8 && text.len() < 40)
+            {
                 continue;
             }
             let a = offset_ms + seg.start_timestamp().max(0) as u64 * 10;
@@ -281,7 +286,11 @@ mod tests {
             },
         )
         .unwrap();
-        let text: String = blocks.iter().flat_map(|b| b.segments.iter().map(|s| s.text.clone())).collect::<Vec<_>>().join(" ");
+        let text: String = blocks
+            .iter()
+            .flat_map(|b| b.segments.iter().map(|s| s.text.clone()))
+            .collect::<Vec<_>>()
+            .join(" ");
         println!("{:?} {text}", blocks[0].language);
         assert!(!text.is_empty());
         assert!(blocks.iter().all(|b| b.segments.iter().all(|s| s.end_ms >= s.start_ms)));

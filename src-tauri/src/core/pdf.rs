@@ -11,8 +11,15 @@ pub enum Block {
     Meta(String),
     Heading(String),
     /// Paragraph with an optional time label in the margin.
-    Para { time: Option<String>, text: String },
-    Bullet { level: u8, time: Option<String>, text: String },
+    Para {
+        time: Option<String>,
+        text: String,
+    },
+    Bullet {
+        level: u8,
+        time: Option<String>,
+        text: String,
+    },
 }
 
 const PAGE_W: f32 = 595.0;
@@ -22,11 +29,11 @@ const TIME_COL: f32 = 46.0;
 
 /// Helvetica advance widths (1/1000 em) for ASCII 32..=126.
 const HELV: [u16; 95] = [
-    278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556,
-    556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833,
-    722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556,
-    556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334,
-    260, 334, 584,
+    278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556,
+    556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278,
+    500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469,
+    556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500,
+    278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,
 ];
 
 /// WinAnsi byte for a character, if the standard fonts can show it.
@@ -145,12 +152,23 @@ impl Layout {
         }
     }
     fn text(&mut self, x: f32, font: &str, size: f32, grey: f32, s: &str) {
-        self.cur.extend_from_slice(format!("BT /{font} {size} Tf {grey} g {x:.1} {:.1} Td ", self.y).as_bytes());
+        self.cur
+            .extend_from_slice(format!("BT /{font} {size} Tf {grey} g {x:.1} {:.1} Td ", self.y).as_bytes());
         self.cur.extend_from_slice(&pdf_string(s));
         self.cur.extend_from_slice(b" Tj ET\n");
     }
     #[allow(clippy::too_many_arguments)]
-    fn lines(&mut self, x: f32, max: f32, font: &str, size: f32, grey: f32, text: &str, label: Option<&str>, marker: Option<&str>) {
+    fn lines(
+        &mut self,
+        x: f32,
+        max: f32,
+        font: &str,
+        size: f32,
+        grey: f32,
+        text: &str,
+        label: Option<&str>,
+        marker: Option<&str>,
+    ) {
         let lead = size * 1.42;
         for (i, l) in wrap(text, max, size, font == "F2").into_iter().enumerate() {
             self.ensure(lead);
@@ -186,7 +204,8 @@ pub fn render(blocks: &[Block], doc_title: &str) -> Vec<u8> {
                 l.y -= 2.0;
             }
             Block::Para { time, text } => {
-                let (x, w) = if time.is_some() { (MARGIN + TIME_COL, full - TIME_COL) } else { (MARGIN, full) };
+                let (x, w) =
+                    if time.is_some() { (MARGIN + TIME_COL, full - TIME_COL) } else { (MARGIN, full) };
                 l.lines(x, w, "F1", 10.5, 0.12, text, time.as_deref(), None);
                 l.y -= 6.0;
             }
@@ -209,7 +228,9 @@ pub fn render(blocks: &[Block], doc_title: &str) -> Vec<u8> {
     objs.push(b"<< /Type /Catalog /Pages 2 0 R >>".to_vec());
     objs.push(format!("<< /Type /Pages /Kids [{}] /Count {n} >>", kids.join(" ")).into_bytes());
     objs.push(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>".to_vec());
-    objs.push(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>".to_vec());
+    objs.push(
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>".to_vec(),
+    );
     let mut info = b"<< /Producer (FrameLy) /Title ".to_vec();
     info.extend_from_slice(&pdf_string(doc_title));
     info.extend_from_slice(b" >>");
@@ -242,7 +263,11 @@ pub fn render(blocks: &[Block], doc_title: &str) -> Vec<u8> {
         out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
     }
     out.extend_from_slice(
-        format!("trailer\n<< /Size {} /Root 1 0 R /Info 5 0 R >>\nstartxref\n{xref}\n%%EOF\n", objs.len() + 1).as_bytes(),
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R /Info 5 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            objs.len() + 1
+        )
+        .as_bytes(),
     );
     out
 }
@@ -266,16 +291,30 @@ mod tests {
 
     #[test]
     fn renders_a_valid_multi_page_document() {
-        let mut blocks = vec![Block::Title("Reunião (planejamento)".into()), Block::Meta("12/11 · 03:37".into())];
+        let mut blocks =
+            vec![Block::Title("Reunião (planejamento)".into()), Block::Meta("12/11 · 03:37".into())];
         for i in 0..120 {
-            blocks.push(Block::Para { time: Some(format!("{i:02}:00")), text: "Texto com acentuação: ação, café, Ñ. ".repeat(4) });
+            blocks.push(Block::Para {
+                time: Some(format!("{i:02}:00")),
+                text: "Texto com acentuação: ação, café, Ñ. ".repeat(4),
+            });
             blocks.push(Block::Bullet { level: (i % 2) as u8, time: None, text: "Item".into() });
         }
         let pdf = render(&blocks, "Teste");
         let s = String::from_utf8_lossy(&pdf);
         assert!(s.starts_with("%PDF-1.4"));
         assert!(s.trim_end().ends_with("%%EOF"));
-        let count: usize = s.split("/Count ").nth(1).unwrap().split(' ').next().unwrap().trim_end_matches('>').trim().parse().unwrap();
+        let count: usize = s
+            .split("/Count ")
+            .nth(1)
+            .unwrap()
+            .split(' ')
+            .next()
+            .unwrap()
+            .trim_end_matches('>')
+            .trim()
+            .parse()
+            .unwrap();
         assert!(count > 1, "multiple pages");
         // Parentheses are escaped and accents are single WinAnsi bytes.
         assert!(s.contains("\\(planejamento\\)"));
@@ -283,9 +322,11 @@ mod tests {
         // xref offsets point at objects (byte offsets, so search the raw bytes).
         let tail = &pdf[pdf.len() - 40..];
         let tail = std::str::from_utf8(tail).unwrap();
-        let xref_at: usize = tail.rsplit("startxref\n").next().unwrap().lines().next().unwrap().parse().unwrap();
+        let xref_at: usize =
+            tail.rsplit("startxref\n").next().unwrap().lines().next().unwrap().parse().unwrap();
         assert!(pdf[xref_at..].starts_with(b"xref"));
-        let first = std::str::from_utf8(&pdf[xref_at..xref_at + 80]).unwrap().lines().nth(3).unwrap().to_string();
+        let first =
+            std::str::from_utf8(&pdf[xref_at..xref_at + 80]).unwrap().lines().nth(3).unwrap().to_string();
         let off: usize = first[..10].parse().unwrap();
         assert!(pdf[off..].starts_with(b"1 0 obj"));
     }

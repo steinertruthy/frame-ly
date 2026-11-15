@@ -212,7 +212,12 @@ pub fn decode_audio(
     let mut ctx = DecodeCtx { progress, cancel };
     // SAFETY: valid C strings; `ctx` outlives the synchronous call.
     let r: Decoded = unsafe {
-        take(fl_decode_audio(p.as_ptr(), d.as_ptr(), decode_progress, &mut ctx as *mut DecodeCtx<'_> as *mut _))?
+        take(fl_decode_audio(
+            p.as_ptr(),
+            d.as_ptr(),
+            decode_progress,
+            &mut ctx as *mut DecodeCtx<'_> as *mut _,
+        ))?
     };
     Ok(r.samples)
 }

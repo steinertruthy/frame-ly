@@ -20,10 +20,22 @@ use std::{
 #[serde(tag = "type", rename_all = "camelCase")]
 enum Event {
     #[serde(rename_all = "camelCase")]
-    Loaded { ctx: u32 },
-    Progress { phase: String, done: u32, total: u32 },
-    Done { text: String, truncated: bool },
-    Error { code: String, message: String },
+    Loaded {
+        ctx: u32,
+    },
+    Progress {
+        phase: String,
+        done: u32,
+        total: u32,
+    },
+    Done {
+        text: String,
+        truncated: bool,
+    },
+    Error {
+        code: String,
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -59,7 +71,13 @@ pub struct Worker {
 
 impl Worker {
     /// Starts the process and loads `model`. `cancel` kills the process at any moment.
-    pub fn start(worker: &Path, model: &Path, ctx: u32, gpu: bool, cancel: Arc<AtomicBool>) -> AppResult<Self> {
+    pub fn start(
+        worker: &Path,
+        model: &Path,
+        ctx: u32,
+        gpu: bool,
+        cancel: Arc<AtomicBool>,
+    ) -> AppResult<Self> {
         let mut cmd = Command::new(worker);
         cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
         #[cfg(windows)]
@@ -70,7 +88,9 @@ impl Worker {
         }
         let mut child = cmd.spawn().map_err(|e| AppError::Runtime(format!("framely-llm: {e}")))?;
         let stdin = child.stdin.take().ok_or_else(|| AppError::Runtime("framely-llm stdin".into()))?;
-        let stdout = BufReader::new(child.stdout.take().ok_or_else(|| AppError::Runtime("framely-llm stdout".into()))?);
+        let stdout = BufReader::new(
+            child.stdout.take().ok_or_else(|| AppError::Runtime("framely-llm stdout".into()))?,
+        );
         let child = Arc::new(Mutex::new(child));
         let watcher_stop = Arc::new(AtomicBool::new(false));
         {
@@ -89,7 +109,9 @@ impl Worker {
         w.send(json!({"op": "load", "model": model.to_string_lossy(), "ctx": ctx, "gpu": gpu}))?;
         match w.next(&mut |_, _, _| {})? {
             Event::Loaded { ctx } => w.ctx = ctx,
-            Event::Error { code, message } => return Err(AppError::Platform(format!("language model ({code}): {message}"))),
+            Event::Error { code, message } => {
+                return Err(AppError::Platform(format!("language model ({code}): {message}")))
+            }
             other => return Err(AppError::Runtime(format!("unexpected {other:?}"))),
         }
         Ok(w)
@@ -132,8 +154,12 @@ impl Worker {
         self.send(json!({"op": "generate", "system": system, "user": user, "schema": schema, "maxTokens": max_tokens, "temperature": 0.2}))?;
         match self.next(progress)? {
             Event::Done { text, truncated } => Ok(Output { text, truncated }),
-            Event::Error { code, .. } if code == "context_overflow" => Err(AppError::Provider("context_overflow".into())),
-            Event::Error { code, message } => Err(AppError::Platform(format!("language model ({code}): {message}"))),
+            Event::Error { code, .. } if code == "context_overflow" => {
+                Err(AppError::Provider("context_overflow".into()))
+            }
+            Event::Error { code, message } => {
+                Err(AppError::Platform(format!("language model ({code}): {message}")))
+            }
             other => Err(AppError::Runtime(format!("unexpected {other:?}"))),
         }
     }

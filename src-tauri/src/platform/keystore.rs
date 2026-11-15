@@ -45,7 +45,9 @@ pub fn delete(account: &str) -> AppResult<()> {
 
 #[cfg(target_os = "macos")]
 mod os {
-    pub use crate::platform::macos::{keychain_delete as delete, keychain_exists as exists, keychain_get as get, keychain_set as set};
+    pub use crate::platform::macos::{
+        keychain_delete as delete, keychain_exists as exists, keychain_get as get, keychain_set as set,
+    };
 }
 
 #[cfg(windows)]

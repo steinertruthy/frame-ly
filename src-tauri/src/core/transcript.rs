@@ -83,7 +83,13 @@ pub fn paragraphs(segments: &[Segment]) -> Vec<Paragraph> {
 /// quietest 100 ms frame within `search` samples of each nominal boundary so blocks don't end
 /// mid-word. `energy(start, end)` returns the mean energy of a range. Returns block starts
 /// (first is 0); the last block runs to `len`.
-pub fn block_starts(len: usize, target: usize, search: usize, frame: usize, energy: impl Fn(usize, usize) -> f32) -> Vec<usize> {
+pub fn block_starts(
+    len: usize,
+    target: usize,
+    search: usize,
+    frame: usize,
+    energy: impl Fn(usize, usize) -> f32,
+) -> Vec<usize> {
     let mut starts = vec![0usize];
     if target == 0 || frame == 0 {
         return starts;
@@ -159,7 +165,12 @@ pub fn to_txt(segments: &[Segment], timestamps: bool) -> String {
 }
 
 fn join(segments: &[Segment], p: &Paragraph) -> String {
-    p.segments.iter().map(|&i| segments[i as usize].text.trim()).filter(|t| !t.is_empty()).collect::<Vec<_>>().join(" ")
+    p.segments
+        .iter()
+        .map(|&i| segments[i as usize].text.trim())
+        .filter(|t| !t.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Subtitles: long segments are split at word or clause boundaries so cues stay readable.
@@ -195,7 +206,11 @@ fn cues(segments: &[Segment]) -> Vec<(u64, u64, String)> {
         let dur = s.end_ms - s.start_ms;
         let mut at = s.start_ms;
         for (i, l) in lines.iter().enumerate() {
-            let end = if i + 1 == lines.len() { s.end_ms } else { at + dur * l.chars().count() as u64 / total as u64 };
+            let end = if i + 1 == lines.len() {
+                s.end_ms
+            } else {
+                at + dur * l.chars().count() as u64 / total as u64
+            };
             out.push((at, end, l.clone()));
             at = end;
         }
@@ -262,7 +277,16 @@ mod tests {
         assert_eq!(p[0].segments, vec![0, 1]);
         assert_eq!((p[1].start_ms, p[1].end_ms), (7000, 9000));
         // Long runs without pauses are split at a sentence end.
-        let long: Vec<Segment> = (0..30).map(|i| seg(i, i as u64 * 1000, i as u64 * 1000 + 900, &"palavra ".repeat(6).trim_end().replace("palavra palavra", "palavra.").to_string())).collect();
+        let long: Vec<Segment> = (0..30)
+            .map(|i| {
+                seg(
+                    i,
+                    i as u64 * 1000,
+                    i as u64 * 1000 + 900,
+                    &"palavra ".repeat(6).trim_end().replace("palavra palavra", "palavra.").to_string(),
+                )
+            })
+            .collect();
         assert!(paragraphs(&long).len() > 1);
     }
 
@@ -280,7 +304,10 @@ mod tests {
     #[test]
     fn srt_and_vtt_use_their_own_formats() {
         let s = vec![seg(0, 1_500, 3_250, " Olá."), seg(1, 3_400, 5_000, "Tudo bem?")];
-        assert_eq!(to_srt(&s), "1\n00:00:01,500 --> 00:00:03,250\nOlá.\n\n2\n00:00:03,400 --> 00:00:05,000\nTudo bem?\n\n");
+        assert_eq!(
+            to_srt(&s),
+            "1\n00:00:01,500 --> 00:00:03,250\nOlá.\n\n2\n00:00:03,400 --> 00:00:05,000\nTudo bem?\n\n"
+        );
         assert!(to_vtt(&s).starts_with("WEBVTT\n\n00:00:01.500 --> 00:00:03.250\nOlá.\n"));
     }
 

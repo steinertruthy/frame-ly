@@ -38,7 +38,9 @@ pub fn respond(app: &AppHandle, path: &str) -> Response<Vec<u8>> {
             }
         };
     }
-    if let Some(id) = path.strip_prefix("transcript-thumb/").and_then(|s| s.split('?').next()?.parse::<i64>().ok()) {
+    if let Some(id) =
+        path.strip_prefix("transcript-thumb/").and_then(|s| s.split('?').next()?.parse::<i64>().ok())
+    {
         return match crate::intelligence::thumbnail(app, id) {
             Ok(bytes) => image("image/jpeg", bytes),
             Err(_) => not_found(),

@@ -38,7 +38,11 @@ pub fn base_url() -> Option<String> {
         .ok()
         .or_else(|| option_env!("FRAMELY_CLOUD_URL").map(str::to_string))
         .map(|u| u.trim_end_matches('/').to_string())
-        .filter(|u| u.starts_with("https://") || u.starts_with("http://127.0.0.1") || u.starts_with("http://localhost"))
+        .filter(|u| {
+            u.starts_with("https://")
+                || u.starts_with("http://127.0.0.1")
+                || u.starts_with("http://localhost")
+        })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -58,7 +62,14 @@ pub struct Status {
 
 impl Status {
     fn only(state: &str) -> Self {
-        Self { state: state.into(), data_use: None, max_input_chars: None, requests_per_day: None, used_today: None, resets_in: None }
+        Self {
+            state: state.into(),
+            data_use: None,
+            max_input_chars: None,
+            requests_per_day: None,
+            used_today: None,
+            resets_in: None,
+        }
     }
 }
 
@@ -76,7 +87,8 @@ pub fn status(local_only: bool) -> Status {
     if resp.status().as_u16() != 200 {
         return Status::only("unavailable");
     }
-    let Some(v) = resp.body_mut().read_to_string().ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) else {
+    let Some(v) = resp.body_mut().read_to_string().ok().and_then(|t| serde_json::from_str::<Value>(&t).ok())
+    else {
         return Status::only("unavailable");
     };
     let state = match (v["available"].as_bool(), v["reason"].as_str()) {
@@ -121,11 +133,15 @@ pub fn map_error(status: u16, body: &str) -> AppError {
         "region_blocked" => AppError::CloudRegion,
         "unauthorized" => AppError::Runtime("cloud_unauthorized".into()),
         "too_large" => AppError::Provider("context_overflow".into()),
-        "provider_error" | "invalid_request" => {
-            AppError::Provider(format!("FrameLy Cloud: {}", v["error"]["message"].as_str().unwrap_or("request failed")))
-        }
+        "provider_error" | "invalid_request" => AppError::Provider(format!(
+            "FrameLy Cloud: {}",
+            v["error"]["message"].as_str().unwrap_or("request failed")
+        )),
         _ if status >= 500 => AppError::CloudUnavailable,
-        _ => AppError::Provider(format!("FrameLy Cloud: {}", v["error"]["message"].as_str().unwrap_or("request failed"))),
+        _ => AppError::Provider(format!(
+            "FrameLy Cloud: {}",
+            v["error"]["message"].as_str().unwrap_or("request failed")
+        )),
     }
 }
 
@@ -201,12 +217,17 @@ pub fn device(agent: &ureq::Agent, base: &str, force_new: bool) -> AppResult<Dev
         return Err(map_error(r.status().as_u16(), &text));
     }
     let c: Value = serde_json::from_str(&text)?;
-    let challenge = c["challenge"].as_str().ok_or_else(|| AppError::Provider("FrameLy Cloud: bad challenge".into()))?.to_string();
+    let challenge = c["challenge"]
+        .as_str()
+        .ok_or_else(|| AppError::Provider("FrameLy Cloud: bad challenge".into()))?
+        .to_string();
     let nonce = solve_pow(&challenge, &public_key, c["bits"].as_u64().unwrap_or(20) as u32);
     let mut r = agent
         .post(&format!("{base}/v1/devices"))
         .header("content-type", "application/json")
-        .send(json!({"challenge": challenge, "publicKey": public_key, "nonce": nonce.to_string()}).to_string())
+        .send(
+            json!({"challenge": challenge, "publicKey": public_key, "nonce": nonce.to_string()}).to_string(),
+        )
         .map_err(net::net_err)?;
     let text = r.body_mut().read_to_string().map_err(net::net_err)?;
     if r.status().as_u16() != 200 {
@@ -222,7 +243,13 @@ pub fn device(agent: &ureq::Agent, base: &str, force_new: bool) -> AppResult<Dev
 }
 
 /// Sends one signed request; returns `(status, body)`.
-fn signed_post(agent: &ureq::Agent, base: &str, dev: &Device, path: &str, body: &str) -> AppResult<(u16, String)> {
+fn signed_post(
+    agent: &ureq::Agent,
+    base: &str,
+    dev: &Device,
+    path: &str,
+    body: &str,
+) -> AppResult<(u16, String)> {
     let timestamp = chrono::Utc::now().timestamp_millis().to_string();
     let request_id = hex(&random::<16>()?);
     let sig = dev.key.sign(signing_string("POST", path, &timestamp, &request_id, body).as_bytes());
@@ -308,7 +335,8 @@ impl CloudRunner {
         let mut retried = false;
         loop {
             let (tx, rx) = std::sync::mpsc::channel();
-            let (agent, base, path_s, body_c) = (self.agent.clone(), self.base.clone(), path.to_string(), body.clone());
+            let (agent, base, path_s, body_c) =
+                (self.agent.clone(), self.base.clone(), path.to_string(), body.clone());
             let dev = Device { id: self.device.id.clone(), key: self.device.key.clone() };
             std::thread::spawn(move || {
                 let _ = tx.send(signed_post(&agent, &base, &dev, &path_s, &body_c));
@@ -347,10 +375,22 @@ impl Runner for CloudRunner {
     fn model_name(&self) -> String {
         "framely-cloud".into()
     }
-    fn run(&mut self, _task: Task, _system: &str, _user: &str, _max: u32, _progress: &mut dyn FnMut(f64)) -> AppResult<String> {
+    fn run(
+        &mut self,
+        _task: Task,
+        _system: &str,
+        _user: &str,
+        _max: u32,
+        _progress: &mut dyn FnMut(f64),
+    ) -> AppResult<String> {
         Err(AppError::Runtime("FrameLy Cloud receives structured requests".into()))
     }
-    fn generate(&mut self, req: &Request<'_>, _max_tokens: u32, progress: &mut dyn FnMut(f64)) -> AppResult<String> {
+    fn generate(
+        &mut self,
+        req: &Request<'_>,
+        _max_tokens: u32,
+        progress: &mut dyn FnMut(f64),
+    ) -> AppResult<String> {
         progress(0.0);
         let path = if req.task == Task::Summary { "/v1/ai/summarize" } else { "/v1/ai/topics" };
         let out = self.send(path, request_body(req).to_string());
@@ -371,7 +411,13 @@ mod tests {
         assert!(leading_zero_bits(&Sha256::digest(format!("c:pk:{n}"))) >= 8);
         // Same layout as cloud/src/auth.ts signingString.
         let s = signing_string("POST", "/v1/ai/topics", "1700000000000", "abc", "{}");
-        assert_eq!(s, format!("POST\n/v1/ai/topics\n1700000000000\nabc\n{}", "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"));
+        assert_eq!(
+            s,
+            format!(
+                "POST\n/v1/ai/topics\n1700000000000\nabc\n{}",
+                "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+            )
+        );
     }
 
     #[test]
@@ -384,18 +430,40 @@ mod tests {
         assert_eq!(e(451, r#"{"error":{"code":"region_blocked"}}"#), "cloud_region");
         assert_eq!(e(502, r#"{"error":{"code":"provider_error","message":"x"}}"#), "provider");
         assert_eq!(e(500, "not json"), "cloud_unavailable");
-        assert!(matches!(map_error(413, r#"{"error":{"code":"too_large"}}"#), AppError::Provider(m) if m == "context_overflow"));
+        assert!(
+            matches!(map_error(413, r#"{"error":{"code":"too_large"}}"#), AppError::Provider(m) if m == "context_overflow")
+        );
     }
 
     #[test]
     fn requests_carry_structure_not_prompts() {
-        let req = Request { task: Task::Summary, detail: Detail::Brief, language: Some("pt"), system: "SYS", input: Input::Part { text: "[00:01] oi", part: Some((1, 3)) } };
+        let req = Request {
+            task: Task::Summary,
+            detail: Detail::Brief,
+            language: Some("pt"),
+            system: "SYS",
+            input: Input::Part { text: "[00:01] oi", part: Some((1, 3)) },
+        };
         let b = request_body(&req);
-        assert_eq!(b, json!({"language": "pt", "detail": "brief", "transcript": "[00:01] oi", "part": {"index": 1, "count": 3}}));
+        assert_eq!(
+            b,
+            json!({"language": "pt", "detail": "brief", "transcript": "[00:01] oi", "part": {"index": 1, "count": 3}})
+        );
         assert!(!b.to_string().contains("SYS"));
-        let partials = vec![json!({"overview": "A", "points": [{"text": "x", "ms": 65_000}, {"text": "y", "ms": null}]})];
-        let c = request_body(&Request { task: Task::Summary, detail: Detail::Balanced, language: None, system: "", input: Input::Combine { partials: &partials } });
-        assert_eq!(c["partials"][0]["points"], json!([{"text": "x", "time": "01:05"}, {"text": "y", "time": ""}]));
+        let partials = vec![
+            json!({"overview": "A", "points": [{"text": "x", "ms": 65_000}, {"text": "y", "ms": null}]}),
+        ];
+        let c = request_body(&Request {
+            task: Task::Summary,
+            detail: Detail::Balanced,
+            language: None,
+            system: "",
+            input: Input::Combine { partials: &partials },
+        });
+        assert_eq!(
+            c["partials"][0]["points"],
+            json!([{"text": "x", "time": "01:05"}, {"text": "y", "time": ""}])
+        );
     }
 
     /// Against a running service (`cd cloud && pnpm dev:mock`): registration, signed requests.
@@ -405,7 +473,13 @@ mod tests {
     fn cloud_round_trip() {
         let cancel = Arc::new(AtomicBool::new(false));
         let mut r = CloudRunner::open(false, cancel).unwrap();
-        let req = Request { task: Task::Summary, detail: Detail::Brief, language: Some("pt"), system: "", input: Input::Part { text: "[00:00] Bom dia.\n[00:05] Lançamento em dezembro.", part: None } };
+        let req = Request {
+            task: Task::Summary,
+            detail: Detail::Brief,
+            language: Some("pt"),
+            system: "",
+            input: Input::Part { text: "[00:00] Bom dia.\n[00:05] Lançamento em dezembro.", part: None },
+        };
         let out: Value = serde_json::from_str(&r.generate(&req, 1000, &mut |_| {}).unwrap()).unwrap();
         println!("{out}");
         assert!(!out["overview"].as_str().unwrap().is_empty());

@@ -151,9 +151,11 @@ impl ModelManager {
         let installed = self.manifest.lock().unwrap().get(spec.id).cloned();
         let dl = self.downloads.lock().unwrap().get(spec.id).cloned();
         let part = fs::metadata(part_path(&self.dir, spec)).map(|m| m.len()).unwrap_or(0);
-        let file_len = installed.as_ref().and_then(|i| fs::metadata(self.dir.join(&i.file)).ok()).map(|m| m.len());
+        let file_len =
+            installed.as_ref().and_then(|i| fs::metadata(self.dir.join(&i.file)).ok()).map(|m| m.len());
         let size_ok = installed.as_ref().zip(file_len).is_some_and(|(i, l)| i.size == l);
-        let corrupt = self.corrupt.lock().unwrap().contains(spec.id) || (installed.is_some() && !size_ok && file_len.is_some());
+        let corrupt = self.corrupt.lock().unwrap().contains(spec.id)
+            || (installed.is_some() && !size_ok && file_len.is_some());
         let state = if let Some(d) = &dl {
             if d.verifying.load(Ordering::Relaxed) {
                 State::Verifying
@@ -260,7 +262,12 @@ impl ModelManager {
                 416 if have > 0 => true,
                 _ => return Err(AppError::Network(format!("HTTP {status}"))),
             };
-            let mut file = fs::OpenOptions::new().create(true).append(append).write(true).truncate(!append).open(&part)?;
+            let mut file = fs::OpenOptions::new()
+                .create(true)
+                .append(append)
+                .write(true)
+                .truncate(!append)
+                .open(&part)?;
             if !append {
                 d.received.store(0, Ordering::Relaxed);
             }
@@ -350,7 +357,13 @@ impl ModelManager {
 
     /// Re-hashes an installed model; a mismatch marks it corrupt (download again to repair).
     pub fn verify(&self, spec: &'static ModelSpec) -> AppResult<bool> {
-        let inst = self.manifest.lock().unwrap().get(spec.id).cloned().ok_or_else(|| AppError::ModelMissing(spec.id.into()))?;
+        let inst = self
+            .manifest
+            .lock()
+            .unwrap()
+            .get(spec.id)
+            .cloned()
+            .ok_or_else(|| AppError::ModelMissing(spec.id.into()))?;
         let ok = sha256_file(&self.dir.join(&inst.file), None).map(|h| h == inst.sha256).unwrap_or(false);
         if ok {
             self.corrupt.lock().unwrap().remove(spec.id);
@@ -373,7 +386,9 @@ impl ModelManager {
 
     pub fn disk_usage(&self) -> u64 {
         fs::read_dir(&self.dir)
-            .map(|rd| rd.flatten().filter_map(|e| e.metadata().ok()).filter(|m| m.is_file()).map(|m| m.len()).sum())
+            .map(|rd| {
+                rd.flatten().filter_map(|e| e.metadata().ok()).filter(|m| m.is_file()).map(|m| m.len()).sum()
+            })
             .unwrap_or(0)
     }
 }
@@ -419,7 +434,11 @@ mod tests {
                     Some(from) => ("206 Partial Content", &body[from..]),
                     None => ("200 OK", &body[..]),
                 };
-                let _ = write!(s, "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", slice.len());
+                let _ = write!(
+                    s,
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    slice.len()
+                );
                 let _ = s.write_all(slice);
             }
         });

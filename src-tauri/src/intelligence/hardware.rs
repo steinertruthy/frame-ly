@@ -82,7 +82,9 @@ mod os {
         let mut v: u64 = 0;
         let mut len = std::mem::size_of::<u64>();
         // SAFETY: valid name and an out-buffer of the declared size.
-        let r = unsafe { libc::sysctlbyname(c.as_ptr(), &mut v as *mut u64 as *mut _, &mut len, std::ptr::null_mut(), 0) };
+        let r = unsafe {
+            libc::sysctlbyname(c.as_ptr(), &mut v as *mut u64 as *mut _, &mut len, std::ptr::null_mut(), 0)
+        };
         (r == 0).then_some(v)
     }
 
@@ -95,7 +97,9 @@ mod os {
                 return None;
             }
             let mut buf = vec![0u8; len];
-            if libc::sysctlbyname(c.as_ptr(), buf.as_mut_ptr() as *mut _, &mut len, std::ptr::null_mut(), 0) != 0 {
+            if libc::sysctlbyname(c.as_ptr(), buf.as_mut_ptr() as *mut _, &mut len, std::ptr::null_mut(), 0)
+                != 0
+            {
                 return None;
             }
             Some(String::from_utf8_lossy(&buf).trim_end_matches('\0').to_string())
@@ -142,7 +146,8 @@ mod os {
     }
 
     pub fn probe() -> (String, u64, Option<String>, Option<u64>) {
-        let mut mem = MEMORYSTATUSEX { dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32, ..Default::default() };
+        let mut mem =
+            MEMORYSTATUSEX { dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32, ..Default::default() };
         // SAFETY: struct with its size set, as the API requires.
         let ram = unsafe { GlobalMemoryStatusEx(&mut mem) }.map(|_| mem.ullTotalPhys).unwrap_or(0);
         // The largest hardware adapter (informational: models run on the CPU on Windows).
@@ -157,7 +162,8 @@ mod os {
                     if desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE.0 as u32 != 0 {
                         continue;
                     }
-                    let name = String::from_utf16_lossy(&desc.Description).trim_matches(char::from(0)).to_string();
+                    let name =
+                        String::from_utf16_lossy(&desc.Description).trim_matches(char::from(0)).to_string();
                     let vram = desc.DedicatedVideoMemory as u64;
                     if best.as_ref().map_or(true, |(_, v)| vram > *v) {
                         best = Some((name, vram));

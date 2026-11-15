@@ -56,7 +56,10 @@ pub fn importable_extensions() -> &'static [&'static str] {
 }
 
 fn is_video(path: &Path) -> bool {
-    matches!(path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).as_deref(), Some("mp4" | "mov" | "m4v"))
+    matches!(
+        path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).as_deref(),
+        Some("mp4" | "mov" | "m4v")
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -122,7 +125,10 @@ pub fn prefs<R: Runtime>(app: &AppHandle<R>) -> Prefs {
     st(app).settings.get().intelligence
 }
 
-pub fn with_db<R: Runtime, T>(app: &AppHandle<R>, f: impl FnOnce(&mut Transcripts) -> AppResult<T>) -> AppResult<T> {
+pub fn with_db<R: Runtime, T>(
+    app: &AppHandle<R>,
+    f: impl FnOnce(&mut Transcripts) -> AppResult<T>,
+) -> AppResult<T> {
     let state = st(app);
     let mut g = state.intelligence.db.lock().unwrap();
     let db = g.as_mut().ok_or_else(|| AppError::Runtime("transcripts not ready".into()))?;
@@ -188,7 +194,12 @@ pub fn probe<R: Runtime>(app: &AppHandle<R>, path: &Path) -> AppResult<MediaRef>
         return Err(AppError::Unsupported(ext));
     }
     let md = std::fs::metadata(path).map_err(|_| AppError::NotFound)?;
-    let mtime = md.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_millis() as i64).unwrap_or(0);
+    let mtime = md
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
     let meta = st(app).backend.video_info(path).unwrap_or_default();
     Ok(MediaRef {
         path: path.to_string_lossy().into_owned(),
@@ -276,17 +287,24 @@ fn worker_loop<R: Runtime>(app: AppHandle<R>) {
         *st(&app).intelligence.current.lock().unwrap() = Some(job.clone());
         let result = match &job.kind {
             JobKind::Transcribe { .. } => run_transcription(&app, &job),
-            JobKind::Generate { task, provider, detail } => run_generation(&app, &job, *task, *provider, *detail),
+            JobKind::Generate { task, provider, detail } => {
+                run_generation(&app, &job, *task, *provider, *detail)
+            }
         };
         *st(&app).intelligence.current.lock().unwrap() = None;
         match result {
-            Ok(()) => emit_status(&app, JobStatus { progress: Some(1.0), ..base_status(&job, "done", "saving") }),
+            Ok(()) => {
+                emit_status(&app, JobStatus { progress: Some(1.0), ..base_status(&job, "done", "saving") })
+            }
             Err(AppError::Cancelled) => emit_status(&app, base_status(&job, "cancelled", "queued")),
             Err(e) => {
                 tracing::warn!(job = job.id, error = %e, "AI job failed");
                 emit_status(
                     &app,
-                    JobStatus { error: Some(JobError { code: e.code().into(), message: e.to_string() }), ..base_status(&job, "failed", "queued") },
+                    JobStatus {
+                        error: Some(JobError { code: e.code().into(), message: e.to_string() }),
+                        ..base_status(&job, "failed", "queued")
+                    },
                 );
             }
         }
@@ -354,7 +372,10 @@ pub fn start_transcription<R: Runtime>(
     if !hardware(app).supported {
         return Err(AppError::Unsupported("cpu".into()));
     }
-    let precision = catalog::precision_for(profile(app), catalog::parse_precision(precision.as_deref().unwrap_or("auto")));
+    let precision = catalog::precision_for(
+        profile(app),
+        catalog::parse_precision(precision.as_deref().unwrap_or("auto")),
+    );
     let spec = catalog::speech_model(precision);
     if models(app).ready_path(spec).is_none() {
         return Err(AppError::ModelMissing(spec.id.into()));
@@ -363,15 +384,28 @@ pub fn start_transcription<R: Runtime>(
     let media = probe(app, path)?;
     let _ = app.asset_protocol_scope().allow_file(path);
     let t = with_db(app, |db| db.begin(&media, &language, catalog::precision_name(precision), spec.id))?;
-    let then = then.unwrap_or(Followups { summary: p.summary_auto, topics: p.topics_auto, ..Default::default() });
+    let then =
+        then.unwrap_or(Followups { summary: p.summary_auto, topics: p.topics_auto, ..Default::default() });
     if t.status == Status::Done {
         // Cached transcript: only what's still missing is generated.
-        queue_followups(app, &t, Followups { summary: then.summary && !t.has_summary, topics: then.topics && !t.has_topics, ..then });
+        queue_followups(
+            app,
+            &t,
+            Followups {
+                summary: then.summary && !t.has_summary,
+                topics: then.topics && !t.has_topics,
+                ..then
+            },
+        );
         return Ok((t, None));
     }
     let job = match busy(app, t.id, "transcribe") {
         Some(job) => job,
-        None => enqueue(app, t.id, JobKind::Transcribe { precision: catalog::precision_name(precision).into(), language }),
+        None => enqueue(
+            app,
+            t.id,
+            JobKind::Transcribe { precision: catalog::precision_name(precision).into(), language },
+        ),
     };
     // Queued right behind the transcription, so the whole result comes in one go.
     queue_followups(app, &t, then);
@@ -384,8 +418,18 @@ pub fn start_transcription<R: Runtime>(
 fn queue_followups<R: Runtime>(app: &AppHandle<R>, t: &Transcript, then: Followups) {
     let p = prefs(app);
     for (task, on, provider, detail) in [
-        (Task::Summary, then.summary, then.summary_provider.unwrap_or(p.summary_provider), then.summary_detail.unwrap_or(p.summary_detail)),
-        (Task::Topics, then.topics, then.topics_provider.unwrap_or(p.topics_provider), then.topics_detail.unwrap_or(p.topics_detail)),
+        (
+            Task::Summary,
+            then.summary,
+            then.summary_provider.unwrap_or(p.summary_provider),
+            then.summary_detail.unwrap_or(p.summary_detail),
+        ),
+        (
+            Task::Topics,
+            then.topics,
+            then.topics_provider.unwrap_or(p.topics_provider),
+            then.topics_detail.unwrap_or(p.topics_detail),
+        ),
     ] {
         if !on || busy(app, t.id, task.as_str()).is_some() {
             continue;
@@ -406,8 +450,9 @@ fn drop_followups<R: Runtime>(app: &AppHandle<R>, transcript_id: i64) {
     let dropped: Vec<Job> = {
         let state = st(app);
         let mut q = state.intelligence.queue.lock().unwrap();
-        let (drop, keep): (Vec<Job>, Vec<Job>) =
-            q.drain(..).partition(|j| j.transcript_id == transcript_id && matches!(j.kind, JobKind::Generate { .. }));
+        let (drop, keep): (Vec<Job>, Vec<Job>) = q
+            .drain(..)
+            .partition(|j| j.transcript_id == transcript_id && matches!(j.kind, JobKind::Generate { .. }));
         q.extend(keep);
         drop
     };
@@ -466,7 +511,13 @@ fn run_transcription<R: Runtime>(app: &AppHandle<R>, job: &Job) -> AppResult<()>
     result
 }
 
-fn transcribe_inner<R: Runtime>(app: &AppHandle<R>, job: &Job, t: &Transcript, precision: &str, language: &str) -> AppResult<()> {
+fn transcribe_inner<R: Runtime>(
+    app: &AppHandle<R>,
+    job: &Job,
+    t: &Transcript,
+    precision: &str,
+    language: &str,
+) -> AppResult<()> {
     let precision = catalog::parse_precision(precision);
     let spec = catalog::speech_model(precision);
     let mgr = models(app);
@@ -480,7 +531,14 @@ fn transcribe_inner<R: Runtime>(app: &AppHandle<R>, job: &Job, t: &Transcript, p
         _ => {
             let meter = Meter::new(0.0);
             let mut report = |f: f64| {
-                emit_status(app, JobStatus { progress: Some(f), eta_ms: meter.eta(f), ..base_status(job, "running", "preparing") });
+                emit_status(
+                    app,
+                    JobStatus {
+                        progress: Some(f),
+                        eta_ms: meter.eta(f),
+                        ..base_status(job, "running", "preparing")
+                    },
+                );
             };
             report(0.0);
             let n = crate::platform::decode_audio(Path::new(&t.media.path), &pcm, &mut report, &job.cancel)?;
@@ -496,11 +554,22 @@ fn transcribe_inner<R: Runtime>(app: &AppHandle<R>, job: &Job, t: &Transcript, p
     emit_status(app, base_status(job, "running", "loading"));
     let start_block = t.blocks_done;
     let previous_text = if start_block > 0 {
-        with_db(app, |db| db.segments(t.id))?.iter().rev().take(6).rev().map(|s| s.text.clone()).collect::<Vec<_>>().join(" ")
+        with_db(app, |db| db.segments(t.id))?
+            .iter()
+            .rev()
+            .take(6)
+            .rev()
+            .map(|s| s.text.clone())
+            .collect::<Vec<_>>()
+            .join(" ")
     } else {
         String::new()
     };
-    let lang = if language == "auto" { t.detected_language.clone().filter(|_| start_block > 0) } else { Some(language.to_string()) };
+    let lang = if language == "auto" {
+        t.detected_language.clone().filter(|_| start_block > 0)
+    } else {
+        Some(language.to_string())
+    };
     let hw = hardware(app);
     let started = Instant::now();
     let from = t.done_ms as f64 / t.media.duration_ms.max(1) as f64;
@@ -514,7 +583,10 @@ fn transcribe_inner<R: Runtime>(app: &AppHandle<R>, job: &Job, t: &Transcript, p
         }
         *l = Instant::now();
         let eta = meter2.lock().unwrap().eta(p);
-        emit_status(&app2, JobStatus { progress: Some(p), eta_ms: eta, ..base_status(&job2, "running", "transcribing") });
+        emit_status(
+            &app2,
+            JobStatus { progress: Some(p), eta_ms: eta, ..base_status(&job2, "running", "transcribing") },
+        );
     });
     let meter3 = meter.clone();
     let progress_loaded = on_progress.clone();
@@ -543,7 +615,9 @@ fn transcribe_inner<R: Runtime>(app: &AppHandle<R>, job: &Job, t: &Transcript, p
         },
     )?;
     let audio_secs = (samples as f64 / speech::RATE as f64) * (1.0 - from);
-    let _ = with_db(app, |db| db.record_perf("asr", spec.id, hw.accel, audio_secs, started.elapsed().as_millis() as u64));
+    let _ = with_db(app, |db| {
+        db.record_perf("asr", spec.id, hw.accel, audio_secs, started.elapsed().as_millis() as u64)
+    });
     Ok(())
 }
 
@@ -594,7 +668,13 @@ fn apple_reason(_: Option<&str>, _: &Prefs) -> Option<&'static str> {
     Some("unsupported")
 }
 
-pub fn start_generation<R: Runtime>(app: &AppHandle<R>, transcript_id: i64, task: Task, provider: ProviderId, detail: Detail) -> AppResult<u64> {
+pub fn start_generation<R: Runtime>(
+    app: &AppHandle<R>,
+    transcript_id: i64,
+    task: Task,
+    provider: ProviderId,
+    detail: Detail,
+) -> AppResult<u64> {
     let t = with_db(app, |db| db.get(transcript_id))?;
     if t.status != Status::Done {
         return Err(AppError::Runtime("transcription not finished".into()));
@@ -615,7 +695,11 @@ pub fn start_generation<R: Runtime>(app: &AppHandle<R>, transcript_id: i64, task
     Ok(enqueue(app, transcript_id, JobKind::Generate { task, provider, detail }))
 }
 
-fn open_runner<R: Runtime>(app: &AppHandle<R>, job: &Job, provider: ProviderId) -> AppResult<(Box<dyn providers::Runner>, Option<models::InUse>)> {
+fn open_runner<R: Runtime>(
+    app: &AppHandle<R>,
+    job: &Job,
+    provider: ProviderId,
+) -> AppResult<(Box<dyn providers::Runner>, Option<models::InUse>)> {
     let p = prefs(app);
     match provider {
         ProviderId::Framely => {
@@ -624,7 +708,13 @@ fn open_runner<R: Runtime>(app: &AppHandle<R>, job: &Job, provider: ProviderId) 
             let path = mgr.ready_path(spec).ok_or_else(|| AppError::ModelMissing(spec.id.into()))?;
             let guard = mgr.use_model(spec);
             let hw = hardware(app);
-            let worker = llm::Worker::start(&llm::worker_path()?, &path, spec.context, hw.accel == "metal", job.cancel.clone())?;
+            let worker = llm::Worker::start(
+                &llm::worker_path()?,
+                &path,
+                spec.context,
+                hw.accel == "metal",
+                job.cancel.clone(),
+            )?;
             Ok((Box::new(providers::FramelyRunner { worker, model: spec.id.into() }), Some(guard)))
         }
         #[cfg(target_os = "macos")]
@@ -642,7 +732,8 @@ fn open_runner<R: Runtime>(app: &AppHandle<R>, job: &Job, provider: ProviderId) 
             Ok((Box::new(cloud::CloudRunner::open(p.local_only, job.cancel.clone())?), None))
         }
         ext => {
-            let key = crate::platform::keystore::get(providers::key_account(ext))?.ok_or(AppError::MissingKey)?;
+            let key =
+                crate::platform::keystore::get(providers::key_account(ext))?.ok_or(AppError::MissingKey)?;
             if let Some(reason) = providers::external_reason(&p, ext, true) {
                 return Err(match reason {
                     "local_only" => AppError::LocalOnly,
@@ -660,7 +751,13 @@ fn open_runner<R: Runtime>(app: &AppHandle<R>, job: &Job, provider: ProviderId) 
     }
 }
 
-fn run_generation<R: Runtime>(app: &AppHandle<R>, job: &Job, task: Task, provider: ProviderId, detail: Detail) -> AppResult<()> {
+fn run_generation<R: Runtime>(
+    app: &AppHandle<R>,
+    job: &Job,
+    task: Task,
+    provider: ProviderId,
+    detail: Detail,
+) -> AppResult<()> {
     let t = with_db(app, |db| db.get(job.transcript_id))?;
     if t.status != Status::Done {
         return Err(AppError::Cancelled);
@@ -682,7 +779,21 @@ fn run_generation<R: Runtime>(app: &AppHandle<R>, job: &Job, task: Task, provide
         .max(600);
 
     let content = loop {
-        match generate_parts(app, job, runner.as_mut(), task, detail, language.as_deref(), &system, &lines, budget, max_out, &segments, t.media.duration_ms, &full_text) {
+        match generate_parts(
+            app,
+            job,
+            runner.as_mut(),
+            task,
+            detail,
+            language.as_deref(),
+            &system,
+            &lines,
+            budget,
+            max_out,
+            &segments,
+            t.media.duration_ms,
+            &full_text,
+        ) {
             // The estimate was optimistic for this model's tokenizer: smaller parts.
             Err(AppError::Provider(m)) if m == "context_overflow" && budget > 800 => budget = budget * 2 / 3,
             other => break other?,
@@ -700,7 +811,15 @@ fn run_generation<R: Runtime>(app: &AppHandle<R>, job: &Job, task: Task, provide
     with_db(app, |db| db.set_generated(t.id, task.as_str(), &g))?;
     if provider == ProviderId::Framely {
         let spec = catalog::language_model(profile(app));
-        let _ = with_db(app, |db| db.record_perf(task.as_str(), spec.id, hardware(app).accel, full_text.chars().count() as f64, started.elapsed().as_millis() as u64));
+        let _ = with_db(app, |db| {
+            db.record_perf(
+                task.as_str(),
+                spec.id,
+                hardware(app).accel,
+                full_text.chars().count() as f64,
+                started.elapsed().as_millis() as u64,
+            )
+        });
     }
     let _ = app.emit(TRANSCRIPT_EVENT, t.id);
     Ok(())
@@ -744,7 +863,12 @@ fn generate_parts<R: Runtime>(
             let p = (i as f64 + f) / total_steps;
             emit_status(
                 app,
-                JobStatus { progress: Some(p), eta_ms: meter.eta(p), part: (n > 1).then_some((i + 1, n)), ..base_status(job, "running", "generating") },
+                JobStatus {
+                    progress: Some(p),
+                    eta_ms: meter.eta(p),
+                    part: (n > 1).then_some((i + 1, n)),
+                    ..base_status(job, "running", "generating")
+                },
             );
         };
         report(0.0);
@@ -763,22 +887,37 @@ fn generate_parts<R: Runtime>(
         if job.cancel.load(Ordering::Relaxed) {
             return Err(AppError::Cancelled);
         }
-        emit_status(app, JobStatus { progress: Some(n as f64 / total_steps), ..base_status(job, "running", "combining") });
+        emit_status(
+            app,
+            JobStatus { progress: Some(n as f64 / total_steps), ..base_status(job, "running", "combining") },
+        );
         let mut next = Vec::new();
         let mut group: Vec<Value> = Vec::new();
-        let flush = |group: &mut Vec<Value>, runner: &mut dyn providers::Runner, next: &mut Vec<Value>| -> AppResult<()> {
+        let flush = |group: &mut Vec<Value>,
+                     runner: &mut dyn providers::Runner,
+                     next: &mut Vec<Value>|
+         -> AppResult<()> {
             if group.len() == 1 {
                 next.push(group.remove(0));
                 return Ok(());
             }
-            let req = providers::Request { task, detail, language, system, input: providers::Input::Combine { partials: group } };
+            let req = providers::Request {
+                task,
+                detail,
+                language,
+                system,
+                input: providers::Input::Combine { partials: group },
+            };
             let raw = generation::parse_json(&runner.generate(&req, max_out, &mut |_| {})?)?;
             next.push(generation::normalize_summary(&raw, segments, duration_ms));
             group.clear();
             Ok(())
         };
         for r in level {
-            let candidate = generation::estimate_tokens(&generation::reduce_prompt(detail, &[group.clone(), vec![r.clone()]].concat()));
+            let candidate = generation::estimate_tokens(&generation::reduce_prompt(
+                detail,
+                &[group.clone(), vec![r.clone()]].concat(),
+            ));
             if !group.is_empty() && candidate > budget {
                 flush(&mut group, runner, &mut next)?;
             }
@@ -855,7 +994,14 @@ mod tests {
         let mut last = String::new();
         wait("job", 1800, || {
             let s = jobs(app).into_iter().find(|j| j.id == id)?;
-            let line = format!("{} {} {:?} eta={:?} part={:?}", s.state, s.phase, s.progress.map(|p| (p * 100.0).round()), s.eta_ms, s.part);
+            let line = format!(
+                "{} {} {:?} eta={:?} part={:?}",
+                s.state,
+                s.phase,
+                s.progress.map(|p| (p * 100.0).round()),
+                s.eta_ms,
+                s.part
+            );
             if line != last {
                 println!("  job {id}: {line}");
                 last = line;
@@ -876,8 +1022,12 @@ mod tests {
         let app = tauri::test::mock_builder().build(ctx).expect("mock app");
         let handle = app.handle().clone();
         let tmp = tempfile::tempdir().unwrap();
-        let dirs = crate::core::settings::DefaultDirs { videos: tmp.path().join("v"), pictures: tmp.path().join("p") };
-        let settings = crate::core::settings::SettingsStore::load(tmp.path().join("settings.json"), &dirs).unwrap();
+        let dirs = crate::core::settings::DefaultDirs {
+            videos: tmp.path().join("v"),
+            pictures: tmp.path().join("p"),
+        };
+        let settings =
+            crate::core::settings::SettingsStore::load(tmp.path().join("settings.json"), &dirs).unwrap();
         handle.manage(AppState {
             settings,
             backend: Arc::from(crate::platform::backend()),
@@ -892,7 +1042,12 @@ mod tests {
         init(&handle).unwrap();
         let t = with_db(&handle, |db| db.find_by_path(&media)).unwrap().expect("transcribe the file first");
         // No consent yet: refused, nothing sent.
-        assert_eq!(start_generation(&handle, t.id, Task::Summary, ProviderId::Cloud, Detail::Brief).unwrap_err().code(), "consent_required");
+        assert_eq!(
+            start_generation(&handle, t.id, Task::Summary, ProviderId::Cloud, Detail::Brief)
+                .unwrap_err()
+                .code(),
+            "consent_required"
+        );
         let state = handle.state::<AppState>();
         let mut s = state.settings.get();
         s.intelligence.consents.push(ProviderId::Cloud);
@@ -908,7 +1063,12 @@ mod tests {
         // Local-only mode blocks FrameLy Cloud.
         s.intelligence.local_only = true;
         state.settings.replace(s).unwrap();
-        assert_eq!(start_generation(&handle, t.id, Task::Summary, ProviderId::Cloud, Detail::Brief).unwrap_err().code(), "local_only");
+        assert_eq!(
+            start_generation(&handle, t.id, Task::Summary, ProviderId::Cloud, Detail::Brief)
+                .unwrap_err()
+                .code(),
+            "local_only"
+        );
     }
 
     /// The whole FrameLy AI pipeline against the real services and runtimes: model downloads
@@ -925,8 +1085,12 @@ mod tests {
         let app = tauri::test::mock_builder().build(ctx).expect("mock app");
         let handle = app.handle().clone();
         let tmp = tempfile::tempdir().unwrap();
-        let dirs = crate::core::settings::DefaultDirs { videos: tmp.path().join("v"), pictures: tmp.path().join("p") };
-        let settings = crate::core::settings::SettingsStore::load(tmp.path().join("settings.json"), &dirs).unwrap();
+        let dirs = crate::core::settings::DefaultDirs {
+            videos: tmp.path().join("v"),
+            pictures: tmp.path().join("p"),
+        };
+        let settings =
+            crate::core::settings::SettingsStore::load(tmp.path().join("settings.json"), &dirs).unwrap();
         handle.manage(AppState {
             settings,
             backend: Arc::from(crate::platform::backend()),
@@ -944,7 +1108,10 @@ mod tests {
 
         // 1. Models: real downloads, verified.
         let mgr = models(&handle);
-        let speech = catalog::speech_model(catalog::precision_for(profile(&handle), crate::core::settings::Precision::Auto));
+        let speech = catalog::speech_model(catalog::precision_for(
+            profile(&handle),
+            crate::core::settings::Precision::Auto,
+        ));
         let language = catalog::language_model(profile(&handle));
         for spec in [speech, language] {
             if mgr.ready_path(spec).is_none() {
@@ -968,13 +1135,20 @@ mod tests {
         }
         let t = with_db(&handle, |db| db.get(t.id)).unwrap();
         let segments = with_db(&handle, |db| db.segments(t.id)).unwrap();
-        println!("transcribed {} ms of audio in {:?}: {} segments, language {:?}", t.media.duration_ms, started.elapsed(), segments.len(), t.detected_language);
+        println!(
+            "transcribed {} ms of audio in {:?}: {} segments, language {:?}",
+            t.media.duration_ms,
+            started.elapsed(),
+            segments.len(),
+            t.detected_language
+        );
         assert_eq!(t.status, Status::Done);
         assert!(!segments.is_empty());
         println!("{}", transcript::to_txt(&segments, true));
 
         // Same file + settings again: reused, no new job.
-        let (again, job) = start_transcription(&handle, &media, None, None, Some(Followups::default())).unwrap();
+        let (again, job) =
+            start_transcription(&handle, &media, None, None, Some(Followups::default())).unwrap();
         assert_eq!((again.id, job), (t.id, None));
 
         // 3. Summary and topics with FrameLy AI (framely-llm process).
@@ -984,7 +1158,12 @@ mod tests {
             let s = wait_job(&handle, job);
             assert_eq!(s.state, "done", "{:?}", s.error);
             let g = with_db(&handle, |db| db.generated(t.id, task.as_str())).unwrap().unwrap();
-            println!("{} ({:?}): {}", task.as_str(), started.elapsed(), serde_json::to_string_pretty(&g.content).unwrap());
+            println!(
+                "{} ({:?}): {}",
+                task.as_str(),
+                started.elapsed(),
+                serde_json::to_string_pretty(&g.content).unwrap()
+            );
         }
 
         // 4. Apple Intelligence, when this Mac has it.
@@ -999,7 +1178,8 @@ mod tests {
             }
             // Leave FrameLy AI's results in place for the app.
             for task in [Task::Summary, Task::Topics] {
-                let job = start_generation(&handle, t.id, task, ProviderId::Framely, Detail::Balanced).unwrap();
+                let job =
+                    start_generation(&handle, t.id, task, ProviderId::Framely, Detail::Balanced).unwrap();
                 assert_eq!(wait_job(&handle, job).state, "done");
             }
         }
@@ -1016,31 +1196,53 @@ mod tests {
             let both = Some(Followups { summary: true, topics: true, ..Default::default() });
             let (lt, job) = start_transcription(&handle, &long, None, None, both).unwrap();
             let job = job.unwrap();
-            let queued: Vec<JobStatus> = jobs(&handle).into_iter().filter(|j| j.transcript_id == lt.id && j.state == "queued" && j.kind != "transcribe").collect();
+            let queued: Vec<JobStatus> = jobs(&handle)
+                .into_iter()
+                .filter(|j| j.transcript_id == lt.id && j.state == "queued" && j.kind != "transcribe")
+                .collect();
             assert_eq!(queued.len(), 2, "summary and topics queued behind the transcription");
-            wait("first block", 600, || (with_db(&handle, |db| db.get(lt.id)).unwrap().blocks_done >= 1).then_some(()));
+            wait("first block", 600, || {
+                (with_db(&handle, |db| db.get(lt.id)).unwrap().blocks_done >= 1).then_some(())
+            });
             cancel(&handle, job);
             let s = wait_job(&handle, job);
             assert_eq!(s.state, "cancelled");
             let after = with_db(&handle, |db| db.get(lt.id)).unwrap();
             assert_eq!(after.status, Status::Cancelled);
-            assert!(jobs(&handle).iter().filter(|j| j.transcript_id == lt.id && j.kind != "transcribe").all(|j| j.state == "cancelled"), "follow-ups dropped");
+            assert!(
+                jobs(&handle)
+                    .iter()
+                    .filter(|j| j.transcript_id == lt.id && j.kind != "transcribe")
+                    .all(|j| j.state == "cancelled"),
+                "follow-ups dropped"
+            );
             println!("cancelled after {} block(s), {} ms", after.blocks_done, after.done_ms);
 
             let started = Instant::now();
             let (again, job) = start_transcription(&handle, &long, None, None, both).unwrap();
             assert_eq!(again.blocks_done, after.blocks_done, "resumes from the next block");
             assert_eq!(wait_job(&handle, job.unwrap()).state, "done");
-            let ids: Vec<u64> = jobs(&handle).into_iter().filter(|j| j.transcript_id == lt.id && j.state == "queued").map(|j| j.id).collect();
+            let ids: Vec<u64> = jobs(&handle)
+                .into_iter()
+                .filter(|j| j.transcript_id == lt.id && j.state == "queued")
+                .map(|j| j.id)
+                .collect();
             for id in ids {
                 let s = wait_job(&handle, id);
                 assert_eq!(s.state, "done", "{:?}", s.error);
             }
             let fin = with_db(&handle, |db| db.get(lt.id)).unwrap();
-            println!("long: {} ms of audio, resumed and finished with summary+topics in {:?}", fin.media.duration_ms, started.elapsed());
+            println!(
+                "long: {} ms of audio, resumed and finished with summary+topics in {:?}",
+                fin.media.duration_ms,
+                started.elapsed()
+            );
             assert!(fin.has_summary && fin.has_topics);
             let segs = with_db(&handle, |db| db.segments(lt.id)).unwrap();
-            assert!(segs.windows(2).all(|w| w[1].start_ms >= w[0].start_ms), "segments in order across blocks");
+            assert!(
+                segs.windows(2).all(|w| w[1].start_ms >= w[0].start_ms),
+                "segments in order across blocks"
+            );
             assert!(segs.last().unwrap().end_ms > fin.media.duration_ms - 30_000, "covers the whole file");
         }
 
@@ -1051,7 +1253,15 @@ mod tests {
         assert!(!md.trim().is_empty());
         let blocks: Vec<crate::core::pdf::Block> = transcript::paragraphs(&segments)
             .iter()
-            .map(|p| crate::core::pdf::Block::Para { time: Some(transcript::fmt_clock(p.start_ms)), text: p.segments.iter().map(|&i| segments[i as usize].text.clone()).collect::<Vec<_>>().join(" ") })
+            .map(|p| crate::core::pdf::Block::Para {
+                time: Some(transcript::fmt_clock(p.start_ms)),
+                text: p
+                    .segments
+                    .iter()
+                    .map(|&i| segments[i as usize].text.clone())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            })
             .collect();
         std::fs::write(&out, crate::core::pdf::render(&blocks, "test")).unwrap();
         assert!(std::fs::metadata(&out).unwrap().len() > 1000);
