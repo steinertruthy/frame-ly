@@ -12,6 +12,8 @@ export default defineConfig({
   trailingSlash: 'always',
   build: { format: 'directory', inlineStylesheets: 'always' },
   compressHTML: true,
+  // Pin the site's own tsconfig: otherwise Vite also looks up the app's tsconfig in the parent folder.
+  vite: { tsconfig: './tsconfig.json' },
   image: { responsiveStyles: false },
   integrations: [
     sitemap({
