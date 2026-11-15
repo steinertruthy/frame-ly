@@ -96,9 +96,53 @@ pub struct Capture {
     marker: Option<std::path::PathBuf>,
 }
 
-/// Bump when the all-apps capture changes, so a crash marker of an older build does not
-/// disable a fixed one.
-const APP_AUDIO_MARKER: &str = "framely-app-audio-2.attempt";
+#[derive(Clone, Copy)]
+enum AppAudioFormat {
+    Float48k { autoconvert: bool },
+    Pcm16At44k,
+}
+
+/// Ways of setting up the all-apps stream, tried in order. Each has its own crash marker: a
+/// setup that once took the app down is skipped for good and the next one is tried.
+#[derive(Clone, Copy)]
+struct AppAudioSetup {
+    name: &'static str,
+    marker: &'static str,
+    format: AppAudioFormat,
+    buffer_hns: i64,
+    /// Capture service before the event handle (Microsoft's sample order).
+    service_first: bool,
+}
+
+impl AppAudioSetup {
+    const ALL: [AppAudioSetup; 3] = [
+        // The first setup shipped (closed the app at Start on one PC); kept so its marker
+        // keeps it skipped there.
+        AppAudioSetup {
+            name: "A",
+            marker: "framely-app-audio-2.attempt",
+            format: AppAudioFormat::Float48k { autoconvert: true },
+            buffer_hns: BUFFER_HNS,
+            service_first: false,
+        },
+        // Microsoft's ApplicationLoopback sample: 16-bit 44.1 kHz, 20 ms buffer.
+        AppAudioSetup {
+            name: "B",
+            marker: "framely-app-audio-b.attempt",
+            format: AppAudioFormat::Pcm16At44k,
+            buffer_hns: 200_000,
+            service_first: true,
+        },
+        // Float at 48 kHz without Windows conversion.
+        AppAudioSetup {
+            name: "C",
+            marker: "framely-app-audio-c.attempt",
+            format: AppAudioFormat::Float48k { autoconvert: false },
+            buffer_hns: BUFFER_HNS,
+            service_first: true,
+        },
+    ];
+}
 
 /// `device_id` of the all-apps capture.
 pub const ALL_APPS: &str = "process-loopback";
@@ -132,39 +176,45 @@ impl Capture {
     /// down; this capture is then skipped (the caller falls back to output loopback) and the
     /// step it died at is reported.
     pub fn all_apps() -> AppResult<Capture> {
-        let marker = std::env::temp_dir().join(APP_AUDIO_MARKER);
-        if let Ok(step) = std::fs::read_to_string(&marker) {
-            return Err(AppError::Platform(format!(
-                "app audio capture closed FrameLy in an earlier recording (step: {step}); not used again"
-            )));
-        }
-        let trail = marker.clone();
-        // Its own thread: guaranteed multithreaded COM apartment, whatever the caller's.
-        let result = std::thread::Builder::new()
-            .name("framely-app-audio".into())
-            .spawn(move || {
-                let step = |s: &str| {
-                    let _ = std::fs::write(&trail, s);
-                };
-                Self::open_all_apps(&step)
-            })
-            .map_err(|e| AppError::Runtime(format!("app audio thread: {e}")))?
-            .join()
-            .map_err(|_| AppError::Runtime("app audio thread failed".into()))?;
-        match result {
-            Ok(mut c) => {
-                let _ = std::fs::write(&marker, "first packets");
-                c.marker = Some(marker);
-                Ok(c)
+        let mut skipped = Vec::new();
+        for setup in AppAudioSetup::ALL {
+            let marker = std::env::temp_dir().join(setup.marker);
+            if let Ok(step) = std::fs::read_to_string(&marker) {
+                skipped.push(format!("{} closed FrameLy at step '{step}'", setup.name));
+                continue;
             }
-            Err(e) => {
-                let _ = std::fs::remove_file(&marker);
-                Err(e)
+            if !skipped.is_empty() {
+                tracing::warn!(earlier = %skipped.join("; "), setup = setup.name, "app audio: trying another setup");
+            }
+            let trail = marker.clone();
+            // Its own thread: guaranteed multithreaded COM apartment, whatever the caller's.
+            let result = std::thread::Builder::new()
+                .name("framely-app-audio".into())
+                .spawn(move || {
+                    let step = |s: &str| {
+                        let _ = std::fs::write(&trail, s);
+                    };
+                    Self::open_all_apps(&step, setup)
+                })
+                .map_err(|e| AppError::Runtime(format!("app audio thread: {e}")))?
+                .join()
+                .map_err(|_| AppError::Runtime("app audio thread failed".into()))?;
+            match result {
+                Ok(mut c) => {
+                    let _ = std::fs::write(&marker, "first packets");
+                    c.marker = Some(marker);
+                    return Ok(c);
+                }
+                Err(e) => {
+                    let _ = std::fs::remove_file(&marker);
+                    skipped.push(format!("{} failed: {e}", setup.name));
+                }
             }
         }
+        Err(AppError::Platform(format!("app audio capture not used: {}", skipped.join("; "))))
     }
 
-    fn open_all_apps(step: &dyn Fn(&str)) -> AppResult<Capture> {
+    fn open_all_apps(step: &dyn Fn(&str), setup: AppAudioSetup) -> AppResult<Capture> {
         step("COM init");
         // SAFETY: COM activation with a parameter block that outlives the call (the operation
         // copies it), then standard WASAPI setup on the activated client.
@@ -218,36 +268,63 @@ impl Capture {
                 .map_err(|e| win_err("IAudioClient", e))?;
             step("Initialize");
             // No mix format exists for this virtual device: we choose ours.
-            let wanted = target_format();
+            let (format, conversion, autoconvert) = match setup.format {
+                AppAudioFormat::Float48k { autoconvert } => (target_format(), None, autoconvert),
+                AppAudioFormat::Pcm16At44k => (
+                    WAVEFORMATEX {
+                        wFormatTag: WAVE_FORMAT_PCM,
+                        nChannels: 2,
+                        nSamplesPerSec: 44_100,
+                        nAvgBytesPerSec: 44_100 * 4,
+                        nBlockAlign: 4,
+                        wBitsPerSample: 16,
+                        cbSize: 0,
+                    },
+                    Some(Conversion { channels: 2, rate: 44_100, sample: Sample::I16 }),
+                    true,
+                ),
+            };
+            let flags = AUDCLNT_STREAMFLAGS_LOOPBACK
+                | AUDCLNT_STREAMFLAGS_EVENTCALLBACK
+                | if autoconvert { AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM } else { 0 };
             client
-                .Initialize(
-                    AUDCLNT_SHAREMODE_SHARED,
-                    AUDCLNT_STREAMFLAGS_LOOPBACK
-                        | AUDCLNT_STREAMFLAGS_EVENTCALLBACK
-                        | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
-                    BUFFER_HNS,
-                    0,
-                    &wanted,
-                    None,
-                )
+                .Initialize(AUDCLNT_SHAREMODE_SHARED, flags, setup.buffer_hns, 0, &format, None)
                 .map_err(|e| win_err("process loopback Initialize", e))?;
-            step("event handle");
-            let event = CreateEventW(None, false, false, None).map_err(|e| win_err("CreateEvent", e))?;
-            if let Err(e) = client.SetEventHandle(event) {
-                let _ = CloseHandle(event);
-                return Err(win_err("SetEventHandle", e));
-            }
-            let capture: IAudioCaptureClient =
-                client.GetService().map_err(|e| win_err("IAudioCaptureClient", e))?;
+            let (event, capture) = if setup.service_first {
+                step("GetService");
+                let capture: IAudioCaptureClient =
+                    client.GetService().map_err(|e| win_err("IAudioCaptureClient", e))?;
+                step("event handle");
+                let event = CreateEventW(None, false, false, None).map_err(|e| win_err("CreateEvent", e))?;
+                if let Err(e) = client.SetEventHandle(event) {
+                    let _ = CloseHandle(event);
+                    return Err(win_err("SetEventHandle", e));
+                }
+                (event, capture)
+            } else {
+                step("event handle");
+                let event = CreateEventW(None, false, false, None).map_err(|e| win_err("CreateEvent", e))?;
+                if let Err(e) = client.SetEventHandle(event) {
+                    let _ = CloseHandle(event);
+                    return Err(win_err("SetEventHandle", e));
+                }
+                step("GetService");
+                let capture: IAudioCaptureClient =
+                    client.GetService().map_err(|e| win_err("IAudioCaptureClient", e))?;
+                (event, capture)
+            };
             step("Start");
             client.Start().map_err(|e| win_err("audio Start", e))?;
+            step("started");
+            let rate = format.nSamplesPerSec;
+            let kind = if format.wFormatTag == WAVE_FORMAT_PCM { "PCM 16-bit" } else { "float 32-bit" };
             Ok(Capture {
                 client,
                 capture,
-                conversion: None,
+                conversion,
                 device_id: ALL_APPS.into(),
                 name: "all apps".into(),
-                format: "48000 Hz, 2 ch, float 32-bit (every app except FrameLy)".into(),
+                format: format!("{rate} Hz, 2 ch, {kind}; setup {} (every app except FrameLy)", setup.name),
                 volume: None,
                 event: Some(event),
                 stamp_on_arrival: true,
