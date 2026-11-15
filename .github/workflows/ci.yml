@@ -3,7 +3,13 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore: ['website/**', 'docs/**', '**/*.md', '.github/workflows/site.yml']
   pull_request:
+    paths-ignore: ['website/**', 'docs/**', '**/*.md', '.github/workflows/site.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -21,6 +27,10 @@ jobs:
           - name: Windows (x64)
             os: windows-latest
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      # pnpm scripts (llm:build) are bash scripts; on Windows run them with Git Bash.
+      npm_config_script_shell: ${{ matrix.os == 'windows-latest' && 'C:\Program Files\Git\bin\bash.exe' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,7 +45,13 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: |
+            src-tauri
+            src-tauri/llm-worker
+
+      - name: Native build tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
 
       - run: pnpm install --frozen-lockfile
 
@@ -44,17 +60,25 @@ jobs:
           pnpm check
           pnpm test
 
+      - name: Version files agree
+        run: node scripts/release/check-version.mjs
+
       - name: Swift engine tests (FrameLyKit)
         if: runner.os == 'macOS'
         working-directory: native/macos/FrameLyKit
         run: swift test
 
+      - name: Local AI worker (sidecar)
+        shell: bash
+        run: ./scripts/build-llm-worker.sh
+
       - name: Rust checks
         working-directory: src-tauri
+        shell: bash
         run: |
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
-          cargo test
+          cargo test --lib
 
       - name: Bundle (unsigned)
         run: pnpm tauri build --no-bundle

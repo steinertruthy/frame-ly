@@ -1,0 +1,469 @@
+---
+import Icon from './Icon.astro';
+import { fill, t } from '../i18n';
+import type { Locale } from '../i18n/locales';
+import type { Os } from '../lib/platform';
+import { formatBytes, formatDate, latestFor, type Arch, type ReleaseData } from '../lib/releases';
+import { pageHref, REPO_URL } from '../lib/paths';
+
+interface Props {
+  locale: Locale;
+  data: ReleaseData;
+}
+const { locale, data } = Astro.props;
+const m = t(locale);
+const d = m.download;
+const oses: Os[] = ['macos', 'windows'];
+/** Architectures people may look for; the ones without a build are shown as "not available yet". */
+const expected: Record<Os, Arch[]> = { macos: ['arm64', 'x64'], windows: ['x64', 'arm64'] };
+const archLabel = (os: Os, a: Arch) => (os === 'macos' && a === 'x64' ? 'Intel (x86_64)' : d.archNames[a]);
+
+const panels = oses.map((os) => {
+  const latest = latestFor(data, os);
+  const have = new Set(latest?.installers.map((a) => a.arch) ?? []);
+  const missing = expected[os].filter((a) => !have.has(a) && !have.has('universal'));
+  const previous = data.releases.filter(
+    (r) => r !== latest?.release && r.assets.some((a) => a.os === os && a.kind === 'installer'),
+  );
+  return { os, latest, missing, previous };
+});
+---
+
+<section class="section download" id="download" aria-labelledby="download-title">
+  <div class="glow" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="section-head center">
+      <p class="eyebrow" data-reveal>{d.eyebrow}</p>
+      <h2 id="download-title" class="section-title gradient-text" data-reveal>{d.title}</h2>
+      <p class="lede" data-reveal>{d.subtitle}</p>
+    </div>
+
+    <div class="box card" data-reveal data-download>
+      <div class="switch-row">
+        <p class="hint" data-os-hint data-text-macos={fill(d.detectedHint, { os: m.os.macos })} data-text-windows={fill(d.detectedHint, { os: m.os.windows })} data-text-other={d.notDetectedHint}>
+          {d.notDetectedHint}
+        </p>
+        <div class="seg" role="radiogroup" aria-label={d.choose}>
+          {
+            oses.map((os) => (
+              <button type="button" role="radio" aria-checked="false" data-os-choice={os}>
+                <Icon name={os === 'macos' ? 'command' : 'windows'} size={16} />
+                {m.os[os]}
+              </button>
+            ))
+          }
+        </div>
+      </div>
+
+      {
+        panels.map(({ os, latest, missing, previous }) => (
+          <div class="panel" data-os-panel={os} role="region" aria-label={m.os[os]}>
+            <div class="main">
+              <h3 class="os-name">{m.os[os]}</h3>
+              {latest ? (
+                <>
+                  <div class="buttons">
+                    {latest.installers.map((a) => (
+                      <a class="btn btn-primary btn-lg" href={a.url} download>
+                        <Icon name="download" />
+                        {fill(d.button, { os: m.os[os] })}
+                        {latest.installers.length > 1 && <span class="arch-chip">{archLabel(os, a.arch)}</span>}
+                      </a>
+                    ))}
+                    {latest.portable.map((a) => (
+                      <a class="btn btn-ghost" href={a.url} download>
+                        {d.portable} · {formatBytes(a.size, locale)}
+                      </a>
+                    ))}
+                  </div>
+                  <dl class="facts">
+                    <div>
+                      <dt>{d.version}</dt>
+                      <dd>
+                        {latest.release.version}
+                        {latest.release.prerelease && <span class="pre">beta</span>}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{d.released}</dt>
+                      <dd>
+                        <time datetime={latest.release.date}>{formatDate(latest.release.date, locale)}</time>
+                      </dd>
+                    </div>
+                    {latest.installers.map((a) => (
+                      <>
+                        <div>
+                          <dt>{d.arch}</dt>
+                          <dd>{archLabel(os, a.arch)}</dd>
+                        </div>
+                        <div>
+                          <dt>{d.format}</dt>
+                          <dd>{d.formats[a.format]}</dd>
+                        </div>
+                        <div>
+                          <dt>{d.size}</dt>
+                          <dd>{formatBytes(a.size, locale)}</dd>
+                        </div>
+                        {a.sha256 && (
+                          <div class="wide">
+                            <dt>{d.checksum}</dt>
+                            <dd>
+                              <code class="hash">{a.sha256}</code>
+                            </dd>
+                          </div>
+                        )}
+                      </>
+                    ))}
+                    {missing.map((a) => (
+                      <div class="wide muted">
+                        <dt>{archLabel(os, a)}</dt>
+                        <dd>{d.unavailableArch}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p class="verify">{d.verify}</p>
+                </>
+              ) : (
+                <p class="none">{fill(d.none, { os: m.os[os] })}</p>
+              )}
+              {os === 'windows' && <p class="note">{d.windowsNote}</p>}
+            </div>
+
+            <div class="side">
+              <h4>{d.requirements}</h4>
+              <ul class="req">
+                {d.req[os].map((r) => (
+                  <li>{r}</li>
+                ))}
+              </ul>
+              <h4>{d.install}</h4>
+              <ol class="steps">
+                {d.steps[os].map((s) => (
+                  <li>{s}</li>
+                ))}
+              </ol>
+            </div>
+
+            <div class="foot">
+              <details class="prev">
+                <summary>
+                  {d.previous}
+                  <Icon name="chevron" size={16} class="chev" />
+                </summary>
+                {previous.length ? (
+                  <ul>
+                    {previous.map((r) => (
+                      <li>
+                        <a href={r.url}>{r.version}</a>
+                        <span>{formatDate(r.date, locale)}</span>
+                        {r.assets
+                          .filter((a) => a.os === os && a.kind === 'installer')
+                          .map((a) => (
+                            <a href={a.url} download>
+                              {a.name} · {formatBytes(a.size, locale)}
+                            </a>
+                          ))}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p class="muted">{d.noPrevious}</p>
+                )}
+              </details>
+              <div class="links">
+                <a href={pageHref('changelog', locale)}>{d.changelog}</a>
+                {latest?.release.checksumsUrl && <a href={latest.release.checksumsUrl}>{d.checksums}</a>}
+                <a href={`${REPO_URL}/releases`}>
+                  {d.allReleases}
+                  <Icon name="external" size={13} />
+                </a>
+              </div>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .download {
+    overflow: hidden;
+  }
+  .glow {
+    position: absolute;
+    left: 50%;
+    bottom: -200px;
+    width: 1200px;
+    height: 700px;
+    transform: translateX(-50%);
+    background: radial-gradient(50% 50% at 50% 50%, rgba(46, 98, 184, 0.2), transparent 70%);
+    pointer-events: none;
+  }
+  .box {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: clamp(22px, 4vw, 40px);
+  }
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding-bottom: 26px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .hint {
+    color: var(--text-2);
+    font-size: 15px;
+  }
+  .seg {
+    display: inline-flex;
+    padding: 4px;
+    gap: 4px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--hairline);
+  }
+  .seg button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 18px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-2);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 560;
+    cursor: pointer;
+    transition: all 200ms var(--ease);
+  }
+  .seg button:hover {
+    color: var(--text);
+  }
+  .seg button[aria-checked='true'] {
+    color: #fff;
+    background: linear-gradient(180deg, rgba(74, 124, 240, 0.32), rgba(47, 99, 212, 0.26));
+    border-color: rgba(130, 170, 255, 0.32);
+  }
+  .panel {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 40px 48px;
+    padding-top: 32px;
+  }
+  :global(.js) .panel:not(.active) {
+    display: none;
+  }
+  :global(.js) .box:not(.chosen) .panel {
+    /* Before a choice (no JS decision yet): show both, stacked. */
+    display: grid;
+  }
+  :global(.js) .box:not(.chosen) .panel + .panel {
+    margin-top: 32px;
+    border-top: 1px solid var(--hairline);
+  }
+  .os-name {
+    font-size: 30px;
+  }
+  .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+  }
+  .btn-lg {
+    --h: 52px;
+    padding: 0 24px;
+    font-size: 16px;
+  }
+  .arch-chip {
+    font-size: 12.5px;
+    opacity: 0.8;
+  }
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px 24px;
+    margin: 30px 0 0;
+  }
+  .facts > div {
+    min-width: 0;
+  }
+  .facts .wide {
+    grid-column: 1 / -1;
+  }
+  dt {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    font-weight: 600;
+  }
+  dd {
+    margin: 4px 0 0;
+    color: var(--text);
+    font-size: 15.5px;
+  }
+  .hash {
+    display: block;
+    font-size: 12.5px;
+    color: var(--text-2);
+    word-break: break-all;
+  }
+  .pre {
+    margin-left: 8px;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--hairline-strong);
+    color: var(--text-2);
+  }
+  .muted dd,
+  .muted dt,
+  p.muted {
+    color: var(--text-3);
+  }
+  .verify,
+  .note,
+  .none {
+    margin-top: 22px;
+    color: var(--text-2);
+    font-size: 14px;
+  }
+  .none {
+    font-size: 16px;
+    margin-top: 16px;
+    color: var(--text);
+  }
+  .note {
+    padding: 12px 14px;
+    border-radius: var(--r-md);
+    background: rgba(247, 178, 59, 0.06);
+    border: 1px solid rgba(247, 178, 59, 0.18);
+    color: #e8cf9d;
+  }
+  .side h4 {
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    font-family: var(--font);
+    font-weight: 600;
+  }
+  .side h4 + ul,
+  .side h4 + ol {
+    margin-top: 12px;
+  }
+  .side ul + h4 {
+    margin-top: 28px;
+  }
+  .req {
+    list-style: none;
+    display: grid;
+    gap: 8px;
+  }
+  .req li {
+    padding-left: 16px;
+    position: relative;
+    color: var(--text-2);
+    font-size: 15px;
+  }
+  .req li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.7em;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--blue-300);
+  }
+  .steps {
+    display: grid;
+    gap: 10px;
+    padding-left: 20px;
+    color: var(--text-2);
+    font-size: 15px;
+  }
+  .steps li::marker {
+    color: var(--blue-300);
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+  .foot {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px 24px;
+    flex-wrap: wrap;
+    padding-top: 24px;
+    border-top: 1px solid var(--hairline);
+  }
+  .prev summary {
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--text-2);
+    font-size: 15px;
+  }
+  .prev summary::-webkit-details-marker {
+    display: none;
+  }
+  .prev[open] :global(.chev) {
+    transform: rotate(180deg);
+  }
+  .prev ul {
+    list-style: none;
+    margin-top: 12px;
+    display: grid;
+    gap: 8px;
+    font-size: 14.5px;
+  }
+  .prev li {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    color: var(--text-3);
+  }
+  .prev p {
+    margin-top: 10px;
+    font-size: 14.5px;
+  }
+  .links {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    font-size: 15px;
+  }
+  .links a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  @media (max-width: 820px) {
+    .panel {
+      grid-template-columns: 1fr;
+    }
+    .facts {
+      grid-template-columns: 1fr 1fr;
+    }
+    .buttons .btn {
+      width: 100%;
+    }
+    .seg {
+      width: 100%;
+    }
+    .seg button {
+      flex: 1;
+      justify-content: center;
+    }
+  }
+</style>

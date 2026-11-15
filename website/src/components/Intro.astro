@@ -1,0 +1,109 @@
+---
+import Icon from './Icon.astro';
+import Shot from './Shot.astro';
+import { t } from '../i18n';
+import type { Locale } from '../i18n/locales';
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const m = t(locale);
+const icons = ['feather', 'keyboard', 'spark'];
+---
+
+<section class="section intro" id="overview" aria-labelledby="intro-title">
+  <div class="wrap grid">
+    <div class="text">
+      <p class="eyebrow" data-reveal>{m.intro.eyebrow}</p>
+      <h2 id="intro-title" class="section-title" data-reveal>{m.intro.title}</h2>
+      <p class="lede" data-reveal>{m.intro.body}</p>
+    </div>
+    <div class="panel" data-reveal style="--delay: 120ms">
+      <Shot locale={locale} name="panel" alt="" sizes="(max-width: 900px) 80vw, 340px" framed={false} />
+    </div>
+  </div>
+  <div class="wrap">
+    <ul class="points">
+      {
+        m.intro.points.map((p, i) => (
+          <li data-reveal style={`--delay: ${i * 80}ms`}>
+            <span class="ic">
+              <Icon name={icons[i] ?? 'check'} size={18} />
+            </span>
+            <h3>{p.title}</h3>
+            <p>{p.body}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: 1.25fr 0.75fr;
+    gap: clamp(40px, 7vw, 96px);
+    align-items: center;
+  }
+  .text {
+    display: grid;
+    gap: 22px;
+  }
+  .text .section-title {
+    margin-top: 0;
+  }
+  .panel {
+    justify-self: center;
+    width: min(340px, 100%);
+    filter: drop-shadow(0 30px 50px rgba(0, 0, 0, 0.6));
+  }
+  .points {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin-top: clamp(56px, 8vw, 88px);
+    border-top: 1px solid var(--hairline);
+  }
+  .points li {
+    padding: 32px 28px 0 0;
+  }
+  .points li + li {
+    padding-left: 28px;
+    border-left: 1px solid var(--hairline);
+  }
+  .ic {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    color: var(--blue-200);
+    background: var(--accent-soft);
+    border: 1px solid rgba(109, 151, 255, 0.18);
+  }
+  h3 {
+    margin-top: 18px;
+    font-size: 19px;
+  }
+  .points p {
+    margin-top: 10px;
+    color: var(--text-2);
+    font-size: 15.5px;
+  }
+  @media (max-width: 900px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+    .points {
+      grid-template-columns: 1fr;
+    }
+    .points li,
+    .points li + li {
+      padding: 28px 0;
+      border-left: none;
+      border-bottom: 1px solid var(--hairline);
+    }
+  }
+</style>

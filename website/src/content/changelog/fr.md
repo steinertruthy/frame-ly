@@ -1,0 +1,23 @@
+## [0.1.0] - 2026-11-15
+
+Première version publique.
+
+### Added
+
+- Captures de l’écran entier, d’une fenêtre ou d’une zone, avec annotation directement sur la sélection : flèches, formes, texte, surlignage, flou et recadrage, avec annuler et rétablir. Copie dans le presse-papiers ou enregistrement.
+- Enregistrement de l’écran entier, d’une fenêtre ou d’une zone, avec le son du système et le micro, pause et reprise, compte à rebours, H.264 ou HEVC et taille de fichier estimée avant de commencer.
+- Panneau rapide dans la barre des menus ou la zone de notification, raccourcis globaux pour chaque mode de capture et ligne de commande (`--capture`, `--record`, `--panel`, `--show`, `--edit`, `--transcribe`).
+- Bibliothèque des captures et enregistrements, et réglages par catégorie.
+- Interface en français, anglais, portugais (Brésil), espagnol et allemand.
+- Transcription des enregistrements et des fichiers audio ou vidéo importés sur votre ordinateur (whisper.cpp), avec détection automatique de la langue, minutage de chaque mot, modification et export en TXT, SRT, VTT, Markdown et PDF.
+- Résumés et sujets avec FrameLy AI sur votre ordinateur (llama.cpp), Apple Intelligence sous macOS 26 ou ultérieur, ou Anthropic et OpenAI avec votre propre clé d’API, après votre autorisation.
+- Gestionnaire de modèles avec téléchargements vérifiés par SHA-256, pause et reprise, et profil suggéré selon la mémoire de l’ordinateur.
+- Mode « Local uniquement », qui bloque toute connexion.
+
+### Known limitations
+
+- L’enregistreur Windows a été validé sur du matériel réel pour le plein écran ; l’enregistrement de fenêtre et de zone, la pause, l’audio et l’IA locale demandent encore des tests sur des PC Windows.
+- Les installeurs ne sont pas encore signés avec un Developer ID Apple ni avec un certificat de signature de code Windows.
+- Les versions ne concernent que les Mac avec puce Apple et Windows 64 bits Intel/AMD.
+- Les transcriptions n’identifient pas les intervenants.
+- Un enregistrement capture un seul écran à la fois.

@@ -1,0 +1,183 @@
+---
+import Icon from './Icon.astro';
+import Shot from './Shot.astro';
+import { fill, t } from '../i18n';
+import type { Locale } from '../i18n/locales';
+import { latestFor, type ReleaseData } from '../lib/releases';
+
+interface Props {
+  locale: Locale;
+  data: ReleaseData;
+}
+const { locale, data } = Astro.props;
+const m = t(locale);
+const mac = latestFor(data, 'macos');
+const win = latestFor(data, 'windows');
+// Per-OS download target, read by the client script after detection.
+const targets = {
+  macos: mac?.installers[0]?.url ?? '#download',
+  windows: win?.installers[0]?.url ?? '#download',
+};
+const versions = { macos: mac?.release.version ?? '', windows: win?.release.version ?? '' };
+const anyVersion = mac?.release.version ?? win?.release.version;
+const [line1, line2] = m.hero.title.split('\n');
+---
+
+<section class="hero" id="overview-top" aria-labelledby="hero-title">
+  <div class="wrap hero-text">
+    <p class="eyebrow" data-reveal>{m.hero.eyebrow}</p>
+    <h1 id="hero-title" class="gradient-text" data-reveal style="--delay: 60ms">
+      {line1}<br />{line2}
+    </h1>
+    <p class="lede sub" data-reveal style="--delay: 120ms">{m.hero.subtitle}</p>
+    <div class="ctas" data-reveal style="--delay: 180ms">
+      <a
+        class="btn btn-primary btn-lg"
+        href="#download"
+        data-hero-download
+        data-href-macos={targets.macos}
+        data-href-windows={targets.windows}
+        data-label-macos={fill(m.hero.ctaFor, { os: m.os.macos })}
+        data-label-windows={fill(m.hero.ctaFor, { os: m.os.windows })}
+      >
+        <Icon name="download" />
+        <span data-label>{m.hero.ctaGeneric}</span>
+      </a>
+      <a class="btn btn-ghost btn-lg" href="#how">{m.hero.ctaSecondary}<Icon name="arrow" /></a>
+    </div>
+    <ul class="meta" data-reveal style="--delay: 240ms">
+      <li data-detected data-text-macos={fill(m.hero.detected, { os: m.os.macos })} data-text-windows={fill(m.hero.detected, { os: m.os.windows })} data-text-other={m.hero.notDetected}>
+        {m.hero.notDetected}
+      </li>
+      <li data-hero-version data-version-macos={versions.macos} data-version-windows={versions.windows} data-template={m.hero.version}>
+        {anyVersion ? fill(m.hero.version, { version: anyVersion }) : m.hero.noRelease}
+      </li>
+      <li>{m.hero.compat}</li>
+      <li>{m.hero.free}</li>
+    </ul>
+  </div>
+  <div class="stage wrap" data-reveal style="--delay: 300ms">
+    <div class="horizon" aria-hidden="true"></div>
+    <div class="tilt" data-tilt>
+      <Shot locale={locale} name="topics" alt={m.features.items.topics.alt} eager sizes="(max-width: 1240px) 94vw, 1180px" />
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    padding-top: clamp(56px, 9vw, 112px);
+    overflow: hidden;
+  }
+  .hero-text {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+  }
+  h1 {
+    margin-top: 22px;
+    font-size: clamp(46px, 8.4vw, 98px);
+    line-height: 0.98;
+    letter-spacing: -0.04em;
+    word-spacing: 0.06em;
+    font-weight: 660;
+    padding-bottom: 0.06em;
+  }
+  .sub {
+    margin-top: 26px;
+    max-width: 640px;
+  }
+  .ctas {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 36px;
+  }
+  .btn-lg {
+    --h: 52px;
+    padding: 0 24px;
+    font-size: 16px;
+  }
+  .meta {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 22px;
+    margin-top: 28px;
+    color: var(--text-3);
+    font-size: 13.5px;
+  }
+  .meta li {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .meta li + li::before {
+    content: '';
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--text-3);
+    margin-right: 14px;
+    opacity: 0.6;
+  }
+  .meta li:first-child {
+    color: var(--blue-200);
+  }
+  .stage {
+    position: relative;
+    margin-top: clamp(56px, 8vw, 92px);
+    perspective: 2200px;
+  }
+  .horizon {
+    position: absolute;
+    left: 50%;
+    top: 6%;
+    width: 110%;
+    height: 80%;
+    transform: translateX(-50%);
+    background: radial-gradient(50% 50% at 50% 50%, rgba(58, 111, 224, 0.32), transparent 70%);
+    filter: blur(40px);
+    pointer-events: none;
+  }
+  .tilt {
+    position: relative;
+    transform-origin: 50% 0%;
+    transform: rotateX(var(--tilt, 14deg)) scale(var(--scale, 0.94));
+    transition: transform 120ms linear;
+    will-change: transform;
+  }
+  .tilt::after {
+    /* Fades the bottom into the page, like light falling off. */
+    content: '';
+    position: absolute;
+    inset: auto -2% -2% -2%;
+    height: 38%;
+    background: linear-gradient(180deg, transparent, var(--bg) 92%);
+    pointer-events: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tilt {
+      transform: none;
+    }
+  }
+  @media (max-width: 640px) {
+    .meta li + li::before {
+      display: none;
+    }
+    .meta {
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .ctas {
+      width: 100%;
+    }
+    .ctas .btn {
+      width: 100%;
+    }
+  }
+</style>

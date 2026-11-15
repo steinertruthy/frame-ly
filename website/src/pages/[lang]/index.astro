@@ -1,0 +1,59 @@
+---
+import Base from '../../layouts/Base.astro';
+import Hero from '../../components/Hero.astro';
+import Intro from '../../components/Intro.astro';
+import Features from '../../components/Features.astro';
+import Demo from '../../components/Demo.astro';
+import Ai from '../../components/Ai.astro';
+import How from '../../components/How.astro';
+import Uses from '../../components/Uses.astro';
+import Download from '../../components/Download.astro';
+import Faq from '../../components/Faq.astro';
+import { LOCALES, PREFIX, type Locale } from '../../i18n/locales';
+import { t } from '../../i18n';
+import { releases } from '../../lib/content';
+
+export function getStaticPaths() {
+  return LOCALES.map((locale) => ({ params: { lang: PREFIX[locale] }, props: { locale } }));
+}
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const m = t(locale);
+---
+
+<Base locale={locale} page="home" title={m.meta.title} description={m.meta.description}>
+  <Hero locale={locale} data={releases} />
+  <Intro locale={locale} />
+  <Features locale={locale} />
+  <Demo locale={locale} />
+  <Ai locale={locale} />
+  <How locale={locale} />
+  <Uses locale={locale} />
+  <Download locale={locale} data={releases} />
+  <section class="section" id="faq" aria-labelledby="faq-title">
+    <div class="wrap faq-grid">
+      <div class="section-head">
+        <p class="eyebrow">{m.faq.eyebrow}</p>
+        <h2 id="faq-title" class="section-title">{m.faq.title}</h2>
+      </div>
+      <Faq locale={locale} compact />
+    </div>
+  </section>
+</Base>
+
+<style>
+  .faq-grid {
+    display: grid;
+    grid-template-columns: 0.8fr 1.2fr;
+    gap: 48px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .faq-grid {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+  }
+</style>

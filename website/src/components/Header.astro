@@ -1,0 +1,274 @@
+---
+import Icon from './Icon.astro';
+import LogoMark from './LogoMark.astro';
+import { LOCALES, LOCALE_NAMES, type Locale, type PageId } from '../i18n/locales';
+import { t } from '../i18n';
+import { pageHref } from '../lib/paths';
+
+interface Props {
+  locale: Locale;
+  page: PageId;
+}
+const { locale, page } = Astro.props;
+const m = t(locale);
+const home = (hash: string) => (page === 'home' ? hash : pageHref('home', locale, hash));
+const links = [
+  { href: home('#overview'), label: m.nav.overview },
+  { href: home('#features'), label: m.nav.features },
+  { href: home('#ai'), label: m.nav.ai },
+  { href: home('#how'), label: m.nav.how },
+  { href: home('#download'), label: m.nav.download },
+];
+---
+
+<header class="site-header" data-header>
+  <div class="wrap bar">
+    <a class="brand" href={pageHref('home', locale)} aria-label={m.a11y.home}>
+      <LogoMark size={26} />
+      <span>FrameLy</span>
+    </a>
+
+    <nav class="nav" aria-label="FrameLy" id="site-nav" data-nav>
+      <ul>
+        {links.map((l) => <li><a href={l.href} data-navlink>{l.label}</a></li>)}
+      </ul>
+      <div class="nav-mobile-foot">
+        <a class="btn btn-primary" href={home('#download')} data-cta-download>
+          <Icon name="download" />{m.nav.cta}
+        </a>
+      </div>
+    </nav>
+
+    <div class="actions">
+      <details class="lang" data-lang>
+        <summary aria-label={m.a11y.language}>
+          <Icon name="globe" size={16} />
+          <span class="lang-code">{locale === 'pt-BR' ? 'PT' : locale.toUpperCase()}</span>
+          <Icon name="chevron" size={14} class="chev" />
+        </summary>
+        <ul role="list">
+          {
+            LOCALES.map((l) => (
+              <li>
+                <a href={pageHref(page, l)} hreflang={l} lang={l} aria-current={l === locale ? 'true' : undefined} data-set-lang={l}>
+                  {LOCALE_NAMES[l]}
+                  {l === locale && <Icon name="check" size={15} />}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </details>
+      <a class="btn btn-primary btn-sm cta" href={home('#download')} data-cta-download>{m.nav.cta}</a>
+      <button class="menu-btn" type="button" aria-controls="site-nav" aria-expanded="false" data-menu data-open={m.a11y.menu} data-close={m.a11y.close}>
+        <span class="sr-only" data-menu-label>{m.a11y.menu}</span>
+        <Icon name="menu" class="i-open" />
+        <Icon name="close" class="i-close" />
+      </button>
+    </div>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    height: var(--header-h);
+    transition:
+      background-color 300ms var(--ease),
+      border-color 300ms var(--ease),
+      backdrop-filter 300ms var(--ease);
+    border-bottom: 1px solid transparent;
+  }
+  .site-header.scrolled,
+  .site-header.open {
+    background: rgba(5, 8, 15, 0.72);
+    backdrop-filter: saturate(140%) blur(18px);
+    -webkit-backdrop-filter: saturate(140%) blur(18px);
+    border-bottom-color: var(--hairline);
+  }
+  .bar {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+    font-family: var(--font-display);
+    font-weight: 650;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+  }
+  .nav {
+    margin-left: auto;
+  }
+  .nav ul {
+    display: flex;
+    gap: 4px;
+    list-style: none;
+  }
+  .nav a {
+    display: block;
+    padding: 7px 12px;
+    border-radius: var(--r-sm);
+    color: var(--text-2);
+    font-size: 14.5px;
+    transition: color 160ms var(--ease);
+  }
+  .nav a:hover,
+  .nav a[aria-current='true'] {
+    color: var(--text);
+  }
+  .nav-mobile-foot {
+    display: none;
+  }
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .lang {
+    position: relative;
+  }
+  .lang summary {
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: var(--r-md);
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: color 160ms var(--ease), border-color 160ms var(--ease);
+  }
+  .lang summary::-webkit-details-marker {
+    display: none;
+  }
+  .lang summary:hover,
+  .lang[open] summary {
+    color: var(--text);
+    border-color: var(--hairline-strong);
+  }
+  .lang :global(.chev) {
+    transition: transform 200ms var(--ease);
+  }
+  .lang[open] :global(.chev) {
+    transform: rotate(180deg);
+  }
+  .lang ul {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    min-width: 210px;
+    padding: 6px;
+    list-style: none;
+    background: rgba(12, 17, 30, 0.96);
+    backdrop-filter: blur(18px);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--r-lg);
+    box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+  }
+  .lang li a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-radius: var(--r-sm);
+    color: var(--text-2);
+    font-size: 14px;
+  }
+  .lang li a:hover,
+  .lang li a[aria-current='true'] {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .menu-btn {
+    display: none;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--r-md);
+    background: transparent;
+    border: 1px solid var(--hairline-strong);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .menu-btn :global(.i-close) {
+    display: none;
+  }
+  .open .menu-btn :global(.i-open) {
+    display: none;
+  }
+  .open .menu-btn :global(.i-close) {
+    display: block;
+  }
+
+  @media (max-width: 920px) {
+    .menu-btn {
+      display: inline-flex;
+    }
+    .cta {
+      display: none;
+    }
+    .nav {
+      position: fixed;
+      inset: var(--header-h) 0 auto 0;
+      height: calc(100dvh - var(--header-h));
+      padding: 24px var(--gutter) 32px;
+      background: rgba(5, 8, 15, 0.97);
+      backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-8px);
+      transition:
+        opacity 260ms var(--ease),
+        transform 260ms var(--ease),
+        visibility 0s linear 260ms;
+    }
+    .open .nav {
+      opacity: 1;
+      visibility: visible;
+      transform: none;
+      transition:
+        opacity 260ms var(--ease),
+        transform 260ms var(--ease);
+    }
+    .nav ul {
+      flex-direction: column;
+      gap: 0;
+    }
+    .nav a {
+      padding: 16px 4px;
+      font-size: 22px;
+      font-family: var(--font-display);
+      color: var(--text);
+      border-bottom: 1px solid var(--hairline);
+      border-radius: 0;
+    }
+    .nav-mobile-foot {
+      display: block;
+    }
+    .nav-mobile-foot .btn {
+      width: 100%;
+      font-size: 16px;
+      padding: 0 20px;
+      border-bottom: none;
+      border-radius: var(--r-md);
+      font-family: var(--font);
+    }
+  }
+</style>

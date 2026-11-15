@@ -1,13 +1,44 @@
+<p align="center"><img src="assets/logo.svg" width="96" alt="FrameLy"></p>
+
 # FrameLy
 
-Gravação de tela e screenshots para macOS e Windows — simples, rápido e leve.
+Gravação de tela e screenshots para macOS e Windows, com transcrição, resumos e tópicos por IA que
+pode rodar inteiramente no seu computador.
 
-> Estado atual: **Etapa 8 + redesign**. Nova identidade visual escura, screenshot com edição
-> direto na seleção (setas, formas, texto, destaque, desfoque, recorte, desfazer/refazer), gravação
-> com áudio no macOS e no Windows, painel rápido, biblioteca, ajustes por categoria e interface em
-> cinco idiomas (pt-BR, en, es, fr, de). Transcrição, resumo e tópicos com a FrameLy AI, local e
-> offline (modelos abertos baixados pelo app), com Apple Intelligence e provedores externos opcionais. O gravador do Windows ainda não foi validado em hardware
-> real — veja [docs/roadmap.md](docs/roadmap.md).
+**[Site](https://steinertruthy.github.io/frame-ly/)** ·
+**[Download](https://github.com/steinertruthy/frame-ly/releases/latest)** ·
+**[Novidades](CHANGELOG.md)** · Licença [MIT](LICENSE)
+
+> *English:* FrameLy is a screen recorder and screenshot tool for macOS 14+ (Apple Silicon) and
+> Windows 10 22H2+ (x64) that transcribes recordings on-device and writes summaries and topics with
+> local models, Apple Intelligence or your own Anthropic/OpenAI key. See the
+> [website](https://steinertruthy.github.io/frame-ly/en/).
+
+## O que faz
+
+- **Screenshots** da tela, de uma janela ou de uma região, com edição direto na seleção (setas,
+  formas, texto, destaque, desfoque, recorte, desfazer/refazer).
+- **Gravação de tela** com áudio do sistema e microfone, pausa, contagem regressiva, H.264/HEVC.
+- **Transcrição** local (whisper.cpp) com detecção de idioma, tempo por palavra e exportação em
+  TXT, SRT, VTT, Markdown e PDF.
+- **Resumos e tópicos** com a FrameLy AI local (llama.cpp), o Apple Intelligence (macOS 26+) ou
+  Anthropic/OpenAI com a sua chave — sempre com autorização explícita para provedores externos.
+- Painel rápido, biblioteca, atalhos globais, linha de comando e interface em cinco idiomas
+  (pt-BR, en, es, fr, de).
+
+Limitações conhecidas e o estado de cada plataforma estão no [CHANGELOG](CHANGELOG.md) e em
+[docs/roadmap.md](docs/roadmap.md). Os instaladores ainda não têm assinatura Apple/Microsoft —
+veja [docs/signing.md](docs/signing.md).
+
+## Repositório
+
+| Pasta | Conteúdo |
+|---|---|
+| `src/`, `src-tauri/`, `native/` | O app (Svelte 5 + TypeScript, Rust/Tauri 2, Swift no macOS) |
+| `cloud/` | Serviço FrameLy Cloud (Cloudflare Worker) — ainda não publicado |
+| `website/` | Site oficial (Astro, GitHub Pages) |
+| `docs/` | Arquitetura, desenvolvimento, plataformas, [releases](docs/release.md), [assinatura](docs/signing.md) |
+| `.github/workflows/` | CI do app, site e release |
 
 ## Stack
 
@@ -37,6 +68,8 @@ cd src-tauri && cargo test && cargo clippy --all-targets -- -D warnings
 pnpm tauri build      # pacote de release
 ```
 
+Versões e releases: [docs/release.md](docs/release.md). Site: [website/README.md](website/README.md).
+
 Mais em [docs/development.md](docs/development.md).
 
 ## Atalhos padrão
@@ -60,6 +93,7 @@ Alfred, Atalhos do macOS ou AutoHotkey:
 /Applications/FrameLy.app/Contents/MacOS/framely --capture region   # region | window | screen | cancel
 /Applications/FrameLy.app/Contents/MacOS/framely --record screen     # region | window | screen | pause | stop
 /Applications/FrameLy.app/Contents/MacOS/framely --panel             # abre/fecha o painel rápido
-/Applications/FrameLy.app/Contents/MacOS/framely --show library      # home | library | settings
+/Applications/FrameLy.app/Contents/MacOS/framely --show library      # home | library | transcripts | settings[:<categoria>]
+/Applications/FrameLy.app/Contents/MacOS/framely --show transcript:3:summary   # transcrição 3, aba resumo/tópicos
 /Applications/FrameLy.app/Contents/MacOS/framely --edit ~/Pictures/FrameLy/shot.png
 ```

@@ -12,3 +12,8 @@ src-tauri/gen/schemas/
 dist-windows/
 src-tauri/binaries/
 src-tauri/llm-worker/target/
+.claude/
+website/.astro/
+*.dmg
+*.exe
+*.msi

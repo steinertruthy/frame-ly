@@ -1,0 +1,44 @@
+---
+import Base from '../layouts/Base.astro';
+import { t } from '../i18n';
+import { LOCALES, LOCALE_NAMES } from '../i18n/locales';
+import { pageHref } from '../lib/paths';
+
+const m = t('en');
+---
+
+<Base locale="en" page="home" title={`${m.pages.notFound.title} — FrameLy`} description={m.pages.notFound.body}>
+  <meta slot="head" name="robots" content="noindex" />
+  <section class="wrap nf">
+    <p class="eyebrow">404</p>
+    <h1 class="gradient-text">{m.pages.notFound.title}</h1>
+    <p class="lede">{m.pages.notFound.body}</p>
+    <ul>
+      {LOCALES.map((l) => <li><a href={pageHref('home', l)} lang={l} hreflang={l}>{LOCALE_NAMES[l]}</a></li>)}
+    </ul>
+  </section>
+</Base>
+
+<style>
+  .nf {
+    min-height: 60vh;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    text-align: center;
+    gap: 18px;
+    padding-top: 80px;
+    padding-bottom: 80px;
+  }
+  h1 {
+    font-size: clamp(40px, 6vw, 64px);
+  }
+  ul {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    justify-content: center;
+    margin-top: 12px;
+  }
+</style>

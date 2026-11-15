@@ -1,0 +1,309 @@
+---
+import Base from '../../layouts/Base.astro';
+import DocHeader from '../../components/DocHeader.astro';
+import Faq from '../../components/Faq.astro';
+import Icon from '../../components/Icon.astro';
+import { LOCALES, PREFIX, SLUGS, type Locale, type PageId } from '../../i18n/locales';
+import { t } from '../../i18n';
+import { changelog, LEGAL_UPDATED, releases } from '../../lib/content';
+import { inline } from '../../lib/changelog';
+import { formatBytes, formatDate } from '../../lib/releases';
+import { REPO_URL } from '../../lib/paths';
+
+type DocPage = Exclude<PageId, 'home'>;
+
+export function getStaticPaths() {
+  const pages: DocPage[] = ['privacy', 'terms', 'license', 'changelog', 'faq'];
+  return LOCALES.flatMap((locale) =>
+    pages.map((page) => ({ params: { lang: PREFIX[locale], slug: SLUGS[page][locale] }, props: { locale, page } })),
+  );
+}
+interface Props {
+  locale: Locale;
+  page: DocPage;
+}
+const { locale, page } = Astro.props;
+const m = t(locale);
+const p = m.pages;
+const meta = {
+  privacy: { title: p.privacy.title, description: p.privacy.description },
+  terms: { title: p.terms.title, description: p.terms.description },
+  license: { title: p.license.title, description: p.license.description },
+  changelog: { title: p.changelog.title, description: p.changelog.description },
+  faq: { title: p.faq.title, description: p.faq.description },
+}[page];
+const entries = page === 'changelog' ? changelog(locale) : [];
+const sectionTitle = (kind: string, fallback: string) =>
+  ({ added: p.changelog.added, changed: p.changelog.changed, fixed: p.changelog.fixed, known: p.changelog.known })[kind] ?? fallback;
+const legal = page === 'privacy' ? p.privacy.sections : page === 'terms' ? p.terms.sections : [];
+const slug = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+---
+
+<Base locale={locale} page={page} title={`${meta.title} — FrameLy`} description={meta.description}>
+  <div class="wrap doc">
+    {(page === 'privacy' || page === 'terms') && (
+      <>
+        <DocHeader locale={locale} title={meta.title} legal updated={LEGAL_UPDATED} />
+        <div class="legal">
+          <nav class="toc" aria-label={p.toc}>
+            <p>{p.toc}</p>
+            <ol>
+              {legal.map((s) => (
+                <li>
+                  <a href={`#${slug(s.h)}`}>{s.h}</a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+          <div class="prose">
+            {legal.map((s) => (
+              <section id={slug(s.h)}>
+                <h2>{s.h}</h2>
+                {s.p.map((para) => (
+                  <p>{para}</p>
+                ))}
+              </section>
+            ))}
+          </div>
+        </div>
+      </>
+    )}
+
+    {page === 'license' && (
+      <>
+        <DocHeader locale={locale} title={meta.title} intro={p.license.intro} legal />
+        <div class="prose narrow">
+          <section>
+            <h2>MIT License</h2>
+            <pre class="license-text">{`MIT License
+
+Copyright (c) 2026 FrameLy
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`}</pre>
+            <p><a href={`${REPO_URL}/blob/main/LICENSE`}>{p.license.full} <Icon name="external" size={13} /></a></p>
+          </section>
+          <section>
+            <h2>{p.license.models}</h2>
+            <p>{p.license.modelsBody}</p>
+          </section>
+          <section>
+            <h2>{p.license.thirdParty}</h2>
+            <p>{p.license.thirdPartyBody}</p>
+          </section>
+        </div>
+      </>
+    )}
+
+    {page === 'faq' && (
+      <>
+        <DocHeader locale={locale} title={meta.title} />
+        <div class="narrow">
+          <Faq locale={locale} />
+        </div>
+      </>
+    )}
+
+    {page === 'changelog' && (
+      <>
+        <DocHeader locale={locale} title={meta.title} intro={p.changelog.intro} />
+        <div class="timeline">
+          {entries.length === 0 && <p class="muted">{p.changelog.empty}</p>}
+          {entries.map((e) => {
+            const rel = releases.releases.find((r) => r.version === e.version);
+            return (
+              <article class="entry" id={`v${e.version}`} lang={e.translated ? locale : 'en'}>
+                <div class="when">
+                  <h2>{e.version}</h2>
+                  {e.date && <time datetime={e.date}>{formatDate(e.date, locale)}</time>}
+                </div>
+                <div class="what prose">
+                  {e.intro.map((para) => (
+                    <p set:html={inline(para)} />
+                  ))}
+                  {e.sections.map((s) => (
+                    <section>
+                      <h3>{sectionTitle(s.kind, s.title)}</h3>
+                      <ul>
+                        {s.items.map((it) => (
+                          <li set:html={inline(it)} />
+                        ))}
+                      </ul>
+                    </section>
+                  ))}
+                  {rel && (
+                    <section>
+                      <h3>{p.changelog.assets}</h3>
+                      <ul class="assets">
+                        {rel.assets.map((a) => (
+                          <li>
+                            <a href={a.url}>{a.name}</a> <span class="muted">· {formatBytes(a.size, locale)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+                  <p>
+                    <a href={rel?.url ?? `${REPO_URL}/releases/tag/v${e.version}`}>
+                      {p.changelog.release} <Icon name="external" size={13} />
+                    </a>
+                  </p>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </>
+    )}
+  </div>
+</Base>
+
+<style>
+  .doc {
+    padding-bottom: clamp(80px, 10vw, 140px);
+  }
+  .narrow {
+    max-width: 780px;
+  }
+  .legal {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 56px;
+    align-items: start;
+  }
+  .toc {
+    position: sticky;
+    top: calc(var(--header-h) + 24px);
+    font-size: 14px;
+  }
+  .toc p {
+    color: var(--text-3);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .toc ol {
+    list-style: none;
+    display: grid;
+    gap: 8px;
+  }
+  .toc a {
+    color: var(--text-2);
+  }
+  .toc a:hover {
+    color: var(--text);
+  }
+  .prose {
+    max-width: 72ch;
+  }
+  .prose section + section {
+    margin-top: 40px;
+  }
+  .prose h2 {
+    font-size: 24px;
+  }
+  .prose h3 {
+    font-size: 15px;
+    font-family: var(--font);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--blue-300);
+    font-weight: 600;
+  }
+  .prose p,
+  .prose li {
+    color: var(--text-2);
+  }
+  .prose h2 + p,
+  .prose p + p,
+  .prose h3 + ul {
+    margin-top: 14px;
+  }
+  .prose ul {
+    padding-left: 20px;
+    display: grid;
+    gap: 8px;
+  }
+  .prose li::marker {
+    color: var(--blue-300);
+  }
+  .prose :global(code) {
+    color: var(--blue-200);
+  }
+  .license-text {
+    margin: 16px 0;
+    padding: 20px;
+    border-radius: var(--r-lg);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--hairline);
+    color: var(--text-2);
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-x: auto;
+  }
+  .timeline {
+    display: grid;
+    gap: 56px;
+  }
+  .entry {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 40px;
+  }
+  .when {
+    position: sticky;
+    top: calc(var(--header-h) + 24px);
+    align-self: start;
+  }
+  .when h2 {
+    font-size: 30px;
+    font-family: var(--font-display);
+  }
+  .when time {
+    color: var(--text-3);
+    font-size: 14px;
+  }
+  .what section {
+    margin-top: 28px;
+  }
+  .what > p:first-child {
+    color: var(--text);
+    font-size: 18px;
+  }
+  .assets {
+    list-style: none;
+    padding-left: 0 !important;
+  }
+  .muted {
+    color: var(--text-3);
+  }
+  @media (max-width: 860px) {
+    .legal,
+    .entry {
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+    .toc,
+    .when {
+      position: static;
+    }
+  }
+</style>

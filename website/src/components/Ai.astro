@@ -1,0 +1,256 @@
+---
+import Icon from './Icon.astro';
+import Shot from './Shot.astro';
+import { t } from '../i18n';
+import type { Locale } from '../i18n/locales';
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const m = t(locale);
+const a = m.ai;
+const modes = [
+  { key: 'local', icon: 'chip', data: a.modes.local },
+  { key: 'cloud', icon: 'cloud', data: a.modes.cloud },
+  { key: 'apple', icon: 'spark', data: a.modes.apple },
+] as const;
+const rows = ['where', 'connection', 'platforms', 'hardware', 'cost', 'setup'] as const;
+---
+
+<section class="section ai" id="ai" aria-labelledby="ai-title">
+  <div class="glow" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="section-head center">
+      <p class="eyebrow" data-reveal>{a.eyebrow}</p>
+      <h2 id="ai-title" class="section-title gradient-text" data-reveal>{a.title}</h2>
+      <p class="lede" data-reveal>{a.subtitle}</p>
+    </div>
+
+    <div class="modes">
+      {
+        modes.map((md, i) => (
+          <article class:list={['card', 'mode', md.key]} data-reveal style={`--delay: ${i * 90}ms`} aria-labelledby={`mode-${md.key}`}>
+            <div class="mode-top">
+              <span class="ic">
+                <Icon name={md.icon} size={20} />
+              </span>
+              <span class="tag">{md.data.tag}</span>
+            </div>
+            <h3 id={`mode-${md.key}`}>{md.data.name}</h3>
+            <p class="label">{md.data.label}</p>
+            <p class="body">{md.data.body}</p>
+            <ul>
+              {md.data.points.map((p) => (
+                <li>
+                  <Icon name="check" size={15} />
+                  <span>{p}</span>
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))
+      }
+    </div>
+
+    <div class="table-wrap card" data-reveal tabindex="0" role="region" aria-labelledby="ai-table-caption">
+      <table>
+        <caption id="ai-table-caption">{a.table.caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{a.table.feature}</th>
+            {modes.map((md) => <th scope="col">{md.data.name}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {
+            rows.map((r) => (
+              <tr>
+                <th scope="row">{a.table.rows[r]}</th>
+                <td>{a.table.local[r]}</td>
+                <td>{a.table.cloud[r]}</td>
+                <td>{a.table.apple[r]}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="note" data-reveal><Icon name="lock" size={15} />{a.table.note}</p>
+
+    <figure class="figure" data-reveal>
+      <Shot locale={locale} name="models" alt={a.figureAlt} sizes="(max-width: 1000px) 94vw, 920px" />
+      <figcaption>{a.figure}</figcaption>
+    </figure>
+  </div>
+</section>
+
+<style>
+  .ai {
+    overflow: hidden;
+  }
+  .glow {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 1100px;
+    height: 600px;
+    transform: translateX(-50%);
+    background: radial-gradient(50% 50% at 50% 30%, rgba(46, 98, 184, 0.2), transparent 70%);
+    pointer-events: none;
+  }
+  .modes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+  .mode {
+    padding: 28px 26px 30px;
+    display: flex;
+    flex-direction: column;
+  }
+  .mode.local {
+    background:
+      radial-gradient(120% 70% at 0% 0%, rgba(58, 111, 224, 0.2), transparent 60%),
+      linear-gradient(180deg, rgba(20, 30, 56, 0.75), rgba(12, 17, 30, 0.7));
+    border-color: rgba(109, 151, 255, 0.24);
+  }
+  .mode-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .ic {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 11px;
+    color: var(--blue-200);
+    background: var(--accent-soft);
+    border: 1px solid rgba(109, 151, 255, 0.2);
+  }
+  .tag {
+    font-size: 12px;
+    color: var(--text-2);
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--hairline-strong);
+    text-align: right;
+  }
+  .local .tag {
+    color: var(--blue-200);
+    border-color: rgba(109, 151, 255, 0.3);
+  }
+  h3 {
+    margin-top: 24px;
+    font-size: 26px;
+  }
+  .label {
+    margin-top: 4px;
+    color: var(--blue-300);
+    font-size: 14.5px;
+  }
+  .body {
+    margin-top: 16px;
+    color: var(--text-2);
+    font-size: 15.5px;
+  }
+  ul {
+    list-style: none;
+    display: grid;
+    gap: 10px;
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid var(--hairline);
+  }
+  li {
+    display: grid;
+    grid-template-columns: 16px 1fr;
+    gap: 10px;
+    font-size: 14.5px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  li :global(svg) {
+    margin-top: 3px;
+    color: var(--blue-300);
+  }
+  .table-wrap {
+    margin-top: 40px;
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    min-width: 760px;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 15px;
+  }
+  caption {
+    text-align: left;
+    padding: 20px 24px 8px;
+    color: var(--text-3);
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  th,
+  td {
+    text-align: left;
+    vertical-align: top;
+    padding: 15px 24px;
+    border-top: 1px solid var(--hairline);
+    line-height: 1.5;
+  }
+  thead th {
+    color: var(--text);
+    font-family: var(--font-display);
+    font-weight: 620;
+    font-size: 16px;
+    border-top: none;
+  }
+  thead th:first-child {
+    width: 16%;
+  }
+  tbody th {
+    color: var(--text-3);
+    font-weight: 500;
+  }
+  td {
+    color: var(--text-2);
+  }
+  td:nth-of-type(1) {
+    color: var(--text);
+  }
+  .note {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 18px;
+    color: var(--text-2);
+    font-size: 14.5px;
+  }
+  .note :global(svg) {
+    margin-top: 4px;
+    color: var(--blue-300);
+    flex: none;
+  }
+  .figure {
+    margin: clamp(64px, 8vw, 96px) auto 0;
+    max-width: 920px;
+  }
+  figcaption {
+    margin-top: 18px;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 14px;
+  }
+  @media (max-width: 960px) {
+    .modes {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

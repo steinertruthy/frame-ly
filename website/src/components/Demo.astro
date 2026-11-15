@@ -1,0 +1,89 @@
+---
+import Icon from './Icon.astro';
+import { t } from '../i18n';
+import type { Locale } from '../i18n/locales';
+import { href } from '../lib/paths';
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const m = t(locale);
+---
+
+<section class="section demo" aria-labelledby="demo-title">
+  <div class="wrap">
+    <div class="section-head center">
+      <p class="eyebrow" data-reveal>{m.demo.eyebrow}</p>
+      <h2 id="demo-title" class="section-title" data-reveal>{m.demo.title}</h2>
+    </div>
+    <figure class="player" data-reveal data-player>
+      <video
+        muted
+        playsinline
+        loop
+        preload="none"
+        poster={href('/media/framely-demo-poster.webp')}
+        width="1280"
+        height="764"
+        aria-describedby="demo-caption"
+        data-video
+      >
+        <source src={href('/media/framely-demo.mp4')} type="video/mp4" />
+      </video>
+      <button class="toggle" type="button" aria-label={m.a11y.playPause} aria-pressed="false" data-toggle hidden>
+        <Icon name="play" size={18} class="i-play" />
+        <Icon name="pause" size={18} class="i-pause" />
+      </button>
+      <figcaption id="demo-caption">{m.demo.caption}</figcaption>
+    </figure>
+  </div>
+</section>
+
+<style>
+  .player {
+    position: relative;
+    margin: 0 auto;
+    max-width: 1040px;
+  }
+  video {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1280 / 764;
+    border-radius: 12px;
+    background: #0b0e14;
+    box-shadow:
+      0 0 0 1px rgba(160, 190, 240, 0.14),
+      0 50px 90px -30px rgba(0, 0, 0, 0.75);
+  }
+  .toggle {
+    position: absolute;
+    right: 16px;
+    top: 16px;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    color: #fff;
+    cursor: pointer;
+    background: rgba(8, 12, 22, 0.66);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(10px);
+  }
+  .toggle :global(.i-pause) {
+    display: none;
+  }
+  .toggle[aria-pressed='true'] :global(.i-pause) {
+    display: block;
+  }
+  .toggle[aria-pressed='true'] :global(.i-play) {
+    display: none;
+  }
+  figcaption {
+    margin-top: 18px;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 14px;
+  }
+</style>

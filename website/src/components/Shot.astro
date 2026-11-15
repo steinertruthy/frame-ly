@@ -1,0 +1,48 @@
+---
+import { Picture } from 'astro:assets';
+import { shot, type ShotName } from '../lib/shots';
+import type { Locale } from '../i18n/locales';
+
+interface Props {
+  locale: Locale;
+  name: ShotName;
+  alt: string;
+  sizes?: string;
+  eager?: boolean;
+  class?: string;
+  /** A window capture: frame it like a window (macOS captures already include rounded corners). */
+  framed?: boolean;
+}
+const { locale, name, alt, sizes = '(max-width: 760px) 100vw, 640px', eager = false, class: cls, framed = true } = Astro.props;
+const img = shot(locale, name);
+const widths = [480, 800, 1200, 1600, 2000].filter((w) => w <= img.width);
+---
+
+<div class:list={['shot', framed && 'framed', cls]}>
+  <Picture
+    src={img}
+    alt={alt}
+    formats={['avif']}
+    fallbackFormat="webp"
+    widths={widths}
+    sizes={sizes}
+    quality={82}
+    loading={eager ? 'eager' : 'lazy'}
+    decoding={eager ? 'sync' : 'async'}
+    fetchpriority={eager ? 'high' : 'auto'}
+  />
+</div>
+
+<style>
+  .shot {
+    position: relative;
+  }
+  .shot :global(img) {
+    width: 100%;
+    height: auto;
+  }
+  .framed {
+    border-radius: 12px;
+    filter: drop-shadow(0 40px 60px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 1px rgba(160, 190, 240, 0.25));
+  }
+</style>

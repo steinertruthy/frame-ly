@@ -1,0 +1,68 @@
+---
+import '../styles/global.css';
+import LogoMark from '../components/LogoMark.astro';
+import { LOCALES, LOCALE_NAMES, PREFIX } from '../i18n/locales';
+import { href, pageHref } from '../lib/paths';
+
+const site = Astro.site!;
+const prefixes = Object.fromEntries(LOCALES.map((l) => [l, PREFIX[l]]));
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FrameLy</title>
+    <meta name="robots" content="noindex, follow" />
+    <meta name="description" content="FrameLy — screen recording, screenshots and on-device transcription for macOS and Windows." />
+    <link rel="canonical" href={new URL(pageHref('home', 'en'), site).toString()} />
+    {LOCALES.map((l) => <link rel="alternate" hreflang={l} href={new URL(pageHref('home', l), site).toString()} />)}
+    <link rel="alternate" hreflang="x-default" href={new URL(pageHref('home', 'en'), site).toString()} />
+    <link rel="icon" href={href('/favicon.svg')} type="image/svg+xml" />
+    <meta name="theme-color" content="#04060c" />
+    <script is:inline define:vars={{ prefixes, base: href('/') }}>
+      // Saved choice first, then the browser's languages (same rule as the app), then English.
+      var pick = null;
+      try {
+        pick = localStorage.getItem('framely.lang');
+      } catch (e) {}
+      if (!pick || !prefixes[pick]) {
+        pick = 'en';
+        var langs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'en'];
+        for (var i = 0; i < langs.length; i++) {
+          var l = String(langs[i]).toLowerCase().slice(0, 2);
+          if (l === 'pt') { pick = 'pt-BR'; break; }
+          if (l === 'en' || l === 'es' || l === 'fr' || l === 'de') { pick = l; break; }
+        }
+      }
+      location.replace(base + prefixes[pick] + '/' + location.hash);
+    </script>
+  </head>
+  <body>
+    <main class="pick">
+      <LogoMark size={48} />
+      <h1>FrameLy</h1>
+      <ul>
+        {LOCALES.map((l) => <li><a href={pageHref('home', l)} hreflang={l} lang={l}>{LOCALE_NAMES[l]}</a></li>)}
+      </ul>
+    </main>
+    <style>
+      .pick {
+        min-height: 100vh;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 20px;
+        text-align: center;
+      }
+      .pick ul {
+        list-style: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 20px;
+        justify-content: center;
+      }
+    </style>
+  </body>
+</html>

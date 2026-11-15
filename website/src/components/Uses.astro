@@ -1,0 +1,59 @@
+---
+import { t } from '../i18n';
+import type { Locale } from '../i18n/locales';
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const m = t(locale);
+---
+
+<section class="section uses" aria-labelledby="uses-title">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow" data-reveal>{m.uses.eyebrow}</p>
+      <h2 id="uses-title" class="section-title" data-reveal>{m.uses.title}</h2>
+    </div>
+    <ul class="grid">
+      {
+        m.uses.items.map((u, i) => (
+          <li class="card" data-reveal style={`--delay: ${(i % 3) * 80}ms`}>
+            <h3>{u.title}</h3>
+            <p>{u.body}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<style>
+  .grid {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  li {
+    padding: 26px 26px 28px;
+  }
+  h3 {
+    font-size: 19px;
+  }
+  p {
+    margin-top: 10px;
+    color: var(--text-2);
+    font-size: 15.5px;
+  }
+  @media (max-width: 900px) {
+    .grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 600px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

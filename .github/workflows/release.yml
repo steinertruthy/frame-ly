@@ -1,0 +1,185 @@
+name: Release
+
+# Push a tag vX.Y.Z (matching package.json, Cargo.toml, tauri.conf.json and CHANGELOG.md) to build
+# the installers on macOS and Windows runners and publish a GitHub Release with checksums.
+# "Run workflow" (manual) builds the same installers as artifacts without publishing anything.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - id: version
+        name: Tag, version files and changelog agree
+        run: node scripts/release/check-version.mjs ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+      - name: The release must not exist yet (never overwritten)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release $GITHUB_REF_NAME already exists; bump the version instead."
+            exit 1
+          fi
+      - name: Release notes
+        run: node scripts/release/notes.mjs "${{ steps.version.outputs.version }}" > release-notes.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+
+  build:
+    needs: validate
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: macOS (Apple Silicon)
+            os: macos-15
+            target: aarch64-apple-darwin
+            bundles: dmg
+            pattern: dmg/*.dmg
+          - name: Windows (x64)
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+            pattern: nsis/*-setup.exe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    env:
+      npm_config_script_shell: ${{ matrix.os == 'windows-latest' && 'C:\Program Files\Git\bin\bash.exe' || '' }}
+      HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
+      HAS_WINDOWS_CERT: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri
+            src-tauri/llm-worker
+          key: release-${{ matrix.target }}
+      - name: Native build tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+      - run: pnpm install --frozen-lockfile
+
+      # Signing is optional and only used when the secrets exist (see docs/signing.md). Without
+      # them the macOS app is signed ad hoc ("-") and the Windows installer is unsigned.
+      - name: Import Apple certificate
+        if: runner.os == 'macOS' && env.HAS_APPLE_CERT == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > cert.p12
+          security create-keychain -p ci build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p ci build.keychain
+          security import cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci build.keychain
+          rm cert.p12
+
+      - name: Build installer
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY || (runner.os == 'macOS' && '-' || '') }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          FRAMELY_CLOUD_URL: ${{ vars.FRAMELY_CLOUD_URL }}
+        run: |
+          [ -n "$APPLE_SIGNING_IDENTITY" ] || unset APPLE_SIGNING_IDENTITY
+          [ -n "$APPLE_ID" ] || unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+          [ -n "$FRAMELY_CLOUD_URL" ] || unset FRAMELY_CLOUD_URL
+          pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Sign Windows installer
+        if: runner.os == 'Windows' && env.HAS_WINDOWS_CERT == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object FullName -like "*x64*" | Select-Object -Last 1
+          Get-ChildItem "src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe" | ForEach-Object {
+            & $signtool.FullName sign /f cert.pfx /p $env:WINDOWS_CERTIFICATE_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 $_.FullName
+          }
+          Remove-Item cert.pfx
+
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          cp src-tauri/target/${{ matrix.target }}/release/bundle/${{ matrix.pattern }} out/
+          ls -la out
+          test "$(find out -type f | wc -l)" -ge 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.target }}
+          path: out/*
+          if-no-files-found: error
+
+  publish:
+    needs: [validate, build]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Check every platform is present
+        run: |
+          v="${{ needs.validate.outputs.version }}"
+          mkdir -p files
+          cp dist/installer-*/* files/
+          test -f "files/FrameLy_${v}_aarch64.dmg" || { echo "::error::macOS installer missing"; exit 1; }
+          test -f "files/FrameLy_${v}_x64-setup.exe" || { echo "::error::Windows installer missing"; exit 1; }
+          (cd files && sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+      - name: Create the release (fails if it already exists)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=()
+          [ "${{ needs.validate.outputs.prerelease }}" = "true" ] && flags+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" files/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "FrameLy ${{ needs.validate.outputs.version }}" \
+            --notes-file dist/release-notes/release-notes.md \
+            --verify-tag "${flags[@]}"
+
+  site:
+    needs: publish
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/site.yml

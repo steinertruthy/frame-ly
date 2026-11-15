@@ -1,0 +1,74 @@
+---
+import { t } from '../i18n';
+import type { Locale } from '../i18n/locales';
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const m = t(locale);
+---
+
+<section class="section how" id="how" aria-labelledby="how-title">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow" data-reveal>{m.how.eyebrow}</p>
+      <h2 id="how-title" class="section-title" data-reveal>{m.how.title}</h2>
+    </div>
+    <ol class="steps">
+      {
+        m.how.steps.map((s, i) => (
+          <li data-reveal style={`--delay: ${(i % 3) * 80}ms`}>
+            <span class="n" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+            <h3>{s.title}</h3>
+            <p>{s.body}</p>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>
+
+<style>
+  .steps {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: 1px solid var(--hairline);
+    border-left: 1px solid var(--hairline);
+  }
+  li {
+    padding: 32px 30px 36px;
+    border-right: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+    transition: background-color 300ms var(--ease);
+  }
+  li:hover {
+    background: rgba(91, 140, 255, 0.035);
+  }
+  .n {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--blue-300);
+    letter-spacing: 0.06em;
+  }
+  h3 {
+    margin-top: 28px;
+    font-size: 21px;
+  }
+  p {
+    margin-top: 10px;
+    color: var(--text-2);
+    font-size: 15.5px;
+  }
+  @media (max-width: 900px) {
+    .steps {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 600px) {
+    .steps {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

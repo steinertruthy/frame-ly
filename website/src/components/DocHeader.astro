@@ -1,0 +1,63 @@
+---
+import Icon from './Icon.astro';
+import { fill, t } from '../i18n';
+import type { Locale } from '../i18n/locales';
+import { pageHref } from '../lib/paths';
+import { formatDate } from '../lib/releases';
+
+interface Props {
+  locale: Locale;
+  title: string;
+  intro?: string | undefined;
+  legal?: boolean;
+  updated?: string | undefined;
+}
+const { locale, title, intro, legal = false, updated } = Astro.props;
+const m = t(locale);
+---
+
+<header class="doc-head">
+  <a class="back" href={pageHref('home', locale)}><Icon name="arrow" size={15} class="flip" />{m.pages.back}</a>
+  <h1 class="gradient-text">{title}</h1>
+  {intro && <p class="lede">{intro}</p>}
+  {updated && <p class="updated">{fill(m.pages.updated, { date: formatDate(updated, locale) })}</p>}
+  {legal && <p class="pending" role="note">{m.pages.pending}</p>}
+</header>
+
+<style>
+  .doc-head {
+    padding: clamp(48px, 8vw, 96px) 0 40px;
+    display: grid;
+    gap: 18px;
+    border-bottom: 1px solid var(--hairline);
+    margin-bottom: 48px;
+  }
+  .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14.5px;
+    color: var(--text-2);
+    justify-self: start;
+  }
+  .back :global(.flip) {
+    transform: rotate(180deg);
+  }
+  h1 {
+    font-size: clamp(38px, 6vw, 64px);
+    letter-spacing: -0.035em;
+  }
+  .updated {
+    color: var(--text-3);
+    font-size: 14px;
+  }
+  .pending {
+    padding: 12px 16px;
+    border-radius: var(--r-md);
+    background: rgba(247, 178, 59, 0.06);
+    border: 1px solid rgba(247, 178, 59, 0.2);
+    color: #e8cf9d;
+    font-size: 14.5px;
+    max-width: 72ch;
+  }
+</style>
