@@ -135,10 +135,10 @@
       {#if rec.audio}
         <div class="meters">
           {#if rec.audio.microphone}
-            <MuteMeter source="microphone" level={rec.audio.levels.microphone} muted={rec.audio.microphoneMuted} segments={16} />
+            <MuteMeter source="microphone" level={rec.audio.levels.microphone} muted={rec.audio.microphoneMuted} segments={16} labeled />
           {/if}
           {#if rec.audio.system}
-            <MuteMeter source="system" level={rec.audio.levels.system} muted={rec.audio.systemMuted} segments={16} />
+            <MuteMeter source="system" level={rec.audio.levels.system} muted={rec.audio.systemMuted} segments={16} labeled />
           {/if}
         </div>
       {/if}

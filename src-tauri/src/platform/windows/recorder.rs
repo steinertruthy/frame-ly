@@ -955,8 +955,10 @@ impl Engine {
         if let Some(m) = a.mixer.as_ref() {
             for (i, name) in a.names.iter().enumerate() {
                 let s = &m.sources[i];
+                let muted = if a.mic == Some(i) { a.muted.1 } else { a.muted.0 };
                 tracing::info!(
                     source = %name,
+                    muted_at_end = muted,
                     frames = s.pushed_frames,
                     late = s.late_frames,
                     max_peak = format!("{:.3}", s.max_peak),

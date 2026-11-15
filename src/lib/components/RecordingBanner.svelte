@@ -28,8 +28,8 @@
   </div>
   {#if s.audio}
     <div class="levels">
-      {#if s.audio.microphone}<MuteMeter source="microphone" level={s.audio.levels.microphone} muted={s.audio.microphoneMuted} segments={10} />{/if}
-      {#if s.audio.system}<MuteMeter source="system" level={s.audio.levels.system} muted={s.audio.systemMuted} segments={10} />{/if}
+      {#if s.audio.microphone}<MuteMeter source="microphone" level={s.audio.levels.microphone} muted={s.audio.microphoneMuted} segments={10} labeled />{/if}
+      {#if s.audio.system}<MuteMeter source="system" level={s.audio.levels.system} muted={s.audio.systemMuted} segments={10} labeled />{/if}
     </div>
   {/if}
   <div class="controls">

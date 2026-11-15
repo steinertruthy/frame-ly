@@ -80,7 +80,8 @@ pub struct MixSource {
     /// Diagnostics: frames received, and frames that arrived too late to be mixed.
     pub pushed_frames: i64,
     pub late_frames: i64,
-    /// Highest peak seen (after gain): tells a silent source from a working one.
+    /// Highest peak received (before gain, so a muted source still shows whether its device
+    /// delivered sound): tells a silent source from a working one.
     pub max_peak: f32,
 }
 
@@ -154,8 +155,9 @@ impl AudioMixer {
         }
         let gain = src.gain;
         let src = &mut self.sources[index];
-        src.peak = samples.iter().fold(0.0f32, |m, s| m.max(s.abs())) * gain;
-        src.max_peak = src.max_peak.max(src.peak);
+        let raw = samples.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+        src.peak = raw * gain;
+        src.max_peak = src.max_peak.max(raw);
         src.written_until = Some(src.written_until.unwrap_or(0).max(start + frames));
 
         let skip = if start < self.read_index { (self.read_index - start).min(frames) } else { 0 };

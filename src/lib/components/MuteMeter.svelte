@@ -16,6 +16,7 @@
     segments = 8,
     size = 13,
     compact = false,
+    labeled = false,
   }: {
     source: 'system' | 'microphone';
     level: number;
@@ -24,6 +25,8 @@
     size?: number;
     /** Smaller button, for the floating pill. */
     compact?: boolean;
+    /** Shows the source's name on the button, so it is clear which one gets muted. */
+    labeled?: boolean;
   } = $props();
 
   const name = $derived(t(source === 'microphone' ? 'audio.microphone' : 'audio.system'));
@@ -34,11 +37,12 @@
   }
 </script>
 
-<span class="source" class:muted class:compact>
+<span class="source" class:muted class:compact class:labeled>
   <button class="toggle" onclick={toggle} aria-pressed={muted} aria-label={action} title={action}>
     {#if source === 'microphone'}
       {#if muted}<MicOff {size} />{:else}<Mic {size} />{/if}
     {:else if muted}<VolumeX {size} />{:else}<Volume2 {size} />{/if}
+    {#if labeled}<span class="name">{name}</span>{/if}
   </button>
   <LevelMeter level={muted ? 0 : level} {segments} label={name} />
 </span>
@@ -77,6 +81,22 @@
   .muted .toggle {
     background: color-mix(in srgb, var(--rec-500, #d94656) 18%, transparent);
     color: var(--rec-icon, #e26d7a);
+  }
+  .labeled .toggle {
+    display: inline-flex;
+    gap: 6px;
+    width: auto;
+    min-width: 0;
+    padding: 0 8px 0 6px;
+    font-size: var(--text-xs, 12px);
+    white-space: nowrap;
+  }
+  .labeled .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .muted .name {
+    text-decoration: line-through;
   }
   .muted :global(.meter) {
     opacity: 0.35;
