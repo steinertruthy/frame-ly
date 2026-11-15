@@ -17,12 +17,26 @@ tag = "v1"
 new_sqlite_classes = ["Limiter"]
 
 [vars]
-# Active AI provider: "gemini" (production) or "mock" (local development and tests).
-PROVIDER = "gemini"
+# Active AI provider: "deepseek" (default), "gemini", or "mock" (local development and tests).
+# The desktop app never learns which provider or model is in use.
+PROVIDER = "deepseek"
+
+# DeepSeek (https://api-docs.deepseek.com). Secret: DEEPSEEK_API_KEY.
+DEEPSEEK_MODEL = "deepseek-flash"
+# Reasoning before answering: "disabled" keeps summaries fast and cheap.
+DEEPSEEK_THINKING = "disabled"
+# How the provider may use content, shown (without naming it) before people agree:
+# "may_train" or "no_training". DeepSeek's terms allow de-identified use to improve services.
+DEEPSEEK_DATA_USE = "may_train"
+DEEPSEEK_BLOCKED_COUNTRIES = ""
+
+# Google Gemini (https://aistudio.google.com/docs). Secret: GEMINI_API_KEY.
 GEMINI_MODEL = "gemini-3.5-flash-lite"
-# How the processor uses data, shown to people before they agree: "may_train" (Gemini free tier)
-# or "no_training" (paid tier). Must match the plan of the key in use.
-DATA_USE = "may_train"
+# Free tier: Google may use content and humans may review it ("may_train"); paid tier: "no_training".
+GEMINI_DATA_USE = "may_train"
+# The Gemini free tier may not be offered to users in the EEA, Switzerland or the UK.
+GEMINI_BLOCKED_COUNTRIES = "AT,BE,BG,HR,CY,CZ,DK,EE,FI,FR,DE,GR,HU,IE,IT,LV,LT,LU,MT,NL,PL,PT,RO,SK,SI,ES,SE,IS,LI,NO,CH,GB"
+
 PROVIDER_TIMEOUT_MS = "60000"
 MAX_INPUT_CHARS = "120000"
 MAX_OUTPUT_TOKENS = "6000"
@@ -31,11 +45,9 @@ REGISTRATION_POW_BITS = "20"
 DEVICE_REQUESTS_PER_MINUTE = "6"
 DEVICE_REQUESTS_PER_DAY = "60"
 IP_REGISTRATIONS_PER_DAY = "5"
-# Global ceilings: keep them below the provider's free quota so it is never exceeded.
+# Global ceilings: keep them below the provider's quota or the budget you set.
 GLOBAL_REQUESTS_PER_MINUTE = "12"
 GLOBAL_REQUESTS_PER_DAY = "900"
 GLOBAL_TOKENS_PER_MINUTE = "200000"
-# The Gemini free tier may not be offered to users in the EEA, Switzerland or the UK.
-BLOCKED_COUNTRIES = "AT,BE,BG,HR,CY,CZ,DK,EE,FI,FR,DE,GR,HU,IE,IT,LV,LT,LU,MT,NL,PL,PT,RO,SK,SI,ES,SE,IS,LI,NO,CH,GB"
 
-# Secrets (never in this file): GEMINI_API_KEY, TOKEN_SECRET — `wrangler secret put <NAME>`.
+# Secrets (never in this file): DEEPSEEK_API_KEY, GEMINI_API_KEY, TOKEN_SECRET — `wrangler secret put <NAME>`.

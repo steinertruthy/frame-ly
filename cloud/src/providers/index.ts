@@ -4,6 +4,7 @@
  * Anthropic later means adding a file here and a case in `providerFor` — nothing in the app.
  */
 import type { Config } from '../config';
+import { deepseek } from './deepseek';
 import { gemini } from './gemini';
 import { mock } from './mock';
 
@@ -34,5 +35,12 @@ export class ProviderFailure extends Error {
 export type Provider = (req: GenerateRequest, cfg: Config, fetchImpl: typeof fetch) => Promise<GenerateResult>;
 
 export function providerFor(cfg: Config): Provider {
-  return cfg.provider === 'mock' ? mock : gemini;
+  switch (cfg.provider) {
+    case 'deepseek':
+      return deepseek;
+    case 'gemini':
+      return gemini;
+    default:
+      return mock;
+  }
 }

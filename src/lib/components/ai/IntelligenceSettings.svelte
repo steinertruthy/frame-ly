@@ -159,17 +159,12 @@
 
   {@const cloud = aiStore.cloud}
   <Section title={t('ai.provider.cloud')}>
-    <SettingRow title={t('ai.provider.cloud')} hint={t('ai.cloud.description')}>
+    <SettingRow
+      title={t('ai.provider.cloud')}
+      hint={cloud?.dataUse ? `${t('ai.cloud.description')} ${cloud.dataUse === 'no_training' ? t('ai.cloud.noTraining') : t('ai.cloud.mayTrain')}` : t('ai.cloud.description')}
+    >
       <CloudState />
     </SettingRow>
-    {#if cloud?.processor}
-      <SettingRow
-        title={t('ai.cloud.processedBy')}
-        hint={cloud.dataUse === 'no_training' ? t('ai.cloud.noTraining', { processor: cloud.processor }) : t('ai.cloud.mayTrain', { processor: cloud.processor })}
-      >
-        <span class="value">{cloud.processor}</span>
-      </SettingRow>
-    {/if}
     <SettingRow
       title={t('ai.set.consent')}
       hint={s.consents.includes('cloud') ? t('ai.set.consent.on', { provider: t('ai.provider.cloud') }) : t('ai.set.consent.off')}
@@ -244,10 +239,6 @@
 {/if}
 
 <style>
-  .value {
-    color: var(--text-2);
-    font-weight: 600;
-  }
   .ok {
     display: grid;
     place-items: center;

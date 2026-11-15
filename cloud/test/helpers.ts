@@ -5,13 +5,22 @@ import { leadingZeroBits, sha256, toBase64 } from '../src/crypto';
 import { signingString } from '../src/auth';
 
 export const SECRET_KEY = 'AIza-test-secret-key-never-exposed';
+export const DEEPSEEK_KEY = 'sk-deepseek-test-key-never-exposed';
 
 export function env(overrides: Partial<Env> = {}): Env {
   return {
     LIMITER: undefined as unknown as DurableObjectNamespace,
     PROVIDER: 'mock',
+    MOCK_DATA_USE: 'may_train',
+    MOCK_BLOCKED_COUNTRIES: 'DE,GB,CH',
     GEMINI_MODEL: 'gemini-test-flash',
-    DATA_USE: 'may_train',
+    GEMINI_DATA_USE: 'may_train',
+    GEMINI_BLOCKED_COUNTRIES: 'DE,GB,CH',
+    DEEPSEEK_MODEL: 'deepseek-test',
+    DEEPSEEK_DATA_USE: 'may_train',
+    DEEPSEEK_BLOCKED_COUNTRIES: '',
+    DEEPSEEK_THINKING: 'disabled',
+    DEEPSEEK_API_KEY: DEEPSEEK_KEY,
     PROVIDER_TIMEOUT_MS: '5000',
     MAX_INPUT_CHARS: '20000',
     MAX_OUTPUT_TOKENS: '1000',
@@ -22,7 +31,6 @@ export function env(overrides: Partial<Env> = {}): Env {
     GLOBAL_REQUESTS_PER_MINUTE: '100',
     GLOBAL_REQUESTS_PER_DAY: '1000',
     GLOBAL_TOKENS_PER_MINUTE: '1000000',
-    BLOCKED_COUNTRIES: 'DE,GB,CH',
     GEMINI_API_KEY: SECRET_KEY,
     TOKEN_SECRET: 'test-token-secret-0123456789',
     ...overrides,

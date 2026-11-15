@@ -258,7 +258,7 @@
               <p class="hint">
                 <Globe size={13} />
                 <span>
-                  {t('ai.cloud.privacy', { tokens: estimate.inputTokens.toLocaleString(locale()), processor: aiStore.cloud?.processor ?? t('ai.cloud.processorUnknown') })}
+                  {t('ai.cloud.privacy', { tokens: estimate.inputTokens.toLocaleString(locale()) })}
                   {#if !aiStore.cloud}<CloudState />{/if}
                 </span>
               </p>

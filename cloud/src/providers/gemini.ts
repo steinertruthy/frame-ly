@@ -45,7 +45,7 @@ export const gemini: Provider = async (req, cfg: Config, fetchImpl) => {
     try {
       res = await fetchImpl(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': cfg.geminiApiKey ?? '' },
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': cfg.apiKey ?? '' },
         body,
         signal: ctl.signal,
       });

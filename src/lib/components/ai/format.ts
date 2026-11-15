@@ -41,10 +41,9 @@ export function offeredProvider(p: { id: ProviderId; local: boolean }, externalE
   return p.local || p.id === 'cloud' || !!externalEnabled;
 }
 
-/** Consent text: what is sent, to whom, and how the processor may use it. */
+/** Consent text: what is sent, to whom, and how it may be used. The app never names the cloud's AI provider or model. */
 export function consentBody(provider: ProviderId, cloud: CloudStatus | null): string {
   if (provider !== 'cloud') return t('ai.consent.body', { provider: providerName(provider), host: PROVIDER_HOSTS[provider] });
-  const processor = cloud?.processor ?? t('ai.cloud.processorUnknown');
-  const use = cloud?.dataUse === 'no_training' ? t('ai.cloud.noTraining', { processor }) : t('ai.cloud.mayTrain', { processor });
-  return `${t('ai.cloud.consentBody', { processor })} ${use}`;
+  const use = cloud?.dataUse === 'no_training' ? t('ai.cloud.noTraining') : t('ai.cloud.mayTrain');
+  return `${t('ai.cloud.consentBody')} ${use}`;
 }

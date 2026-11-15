@@ -1,11 +1,13 @@
 /**
  * FrameLy Cloud API (Cloudflare Worker): summaries and topics for the FrameLy desktop app.
  *
- *   GET  /v1/status              availability, who processes the text, public limits
+ *   GET  /v1/status              availability, data-use policy, public limits
  *   GET  /v1/devices/challenge   proof-of-work challenge for registration
  *   POST /v1/devices             register an anonymous device (Ed25519 public key)
  *   POST /v1/ai/summarize        summary of a transcript (or of one part; or combine parts)
  *   POST /v1/ai/topics           topics, decisions, tasks, dates, numbers, keywords
+ *
+ * The app never learns which AI provider or model is behind the service.
  *
  * Privacy: transcripts exist only in memory for the duration of a request. Nothing is stored
  * besides usage counters and device public keys; logs carry no content.
@@ -65,7 +67,6 @@ function status(req: Request, d: Deps): Response {
     service: 'framely-cloud',
     available: !blocked,
     reason: blocked ? 'region_blocked' : null,
-    processor: c.processor,
     dataUse: c.dataUse,
     limits: { maxInputChars: c.maxInputChars, requestsPerMinute: c.limits.deviceMinute, requestsPerDay: c.limits.deviceDay },
     registrationBits: c.powBits,
@@ -108,7 +109,7 @@ async function generate(task: Task, req: Request, d: Deps): Promise<Response> {
     throw new ApiError(gate.code, message, gate.retryAfter);
   }
 
-  const log = { event: task, device: headers.deviceId.slice(0, 8), inChars: user.length, part: input.part?.index ?? null };
+  const log = { event: task, provider: d.config.provider, device: headers.deviceId.slice(0, 8), inChars: user.length, part: input.part?.index ?? null };
   try {
     const result = await providerFor(d.config)({ system, user, schema: schemaFor(task), maxOutputTokens }, d.config, d.fetch);
     let output: Record<string, unknown>;
@@ -119,7 +120,7 @@ async function generate(task: Task, req: Request, d: Deps): Promise<Response> {
     }
     await d.limiter.recordTokens(estimated, result.inputTokens + result.outputTokens, d.now());
     d.log({ ...log, status: 200, ms: d.now() - started, inTokens: result.inputTokens, outTokens: result.outputTokens });
-    return json({ result: output, model: d.config.model });
+    return json({ result: output });
   } catch (e) {
     if (e instanceof ProviderFailure) {
       d.log({ ...log, status: 'provider_failure', kind: e.kind, ms: d.now() - started });

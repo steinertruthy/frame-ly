@@ -44,8 +44,6 @@ pub fn base_url() -> Option<String> {
 pub struct Status {
     /// "available" | "offline" | "unavailable" | "region_blocked" | "not_configured" | "local_only"
     pub state: String,
-    /// Who processes the text behind FrameLy Cloud (e.g. "Google Gemini").
-    pub processor: Option<String>,
     /// "may_train" (provider may use content to improve its products) | "no_training".
     pub data_use: Option<String>,
     pub max_input_chars: Option<u64>,
@@ -54,7 +52,7 @@ pub struct Status {
 
 impl Status {
     fn only(state: &str) -> Self {
-        Self { state: state.into(), processor: None, data_use: None, max_input_chars: None, requests_per_day: None }
+        Self { state: state.into(), data_use: None, max_input_chars: None, requests_per_day: None }
     }
 }
 
@@ -82,7 +80,6 @@ pub fn status(local_only: bool) -> Status {
     };
     Status {
         state: state.into(),
-        processor: v["processor"].as_str().map(str::to_string),
         data_use: v["dataUse"].as_str().map(str::to_string),
         max_input_chars: v["limits"]["maxInputChars"].as_u64(),
         requests_per_day: v["limits"]["requestsPerDay"].as_u64(),

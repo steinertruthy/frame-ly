@@ -184,9 +184,7 @@ export type CloudState = 'available' | 'offline' | 'unavailable' | 'region_block
 
 export interface CloudStatus {
   state: CloudState;
-  /** Who processes the text behind FrameLy Cloud (e.g. "Google Gemini"). */
-  processor: string | null;
-  /** "may_train": the processor may use content to improve its products. */
+  /** "may_train": the AI provider behind FrameLy Cloud may use content to improve its products. */
   dataUse: 'may_train' | 'no_training' | null;
   maxInputChars: number | null;
   requestsPerDay: number | null;

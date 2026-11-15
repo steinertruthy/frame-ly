@@ -111,7 +111,7 @@
       <span><Cpu size={13} />{t('ai.gen.privacy.local')}</span>
     {:else if provider === 'cloud'}
       <CloudState />
-      <span><Globe size={13} />{t('ai.cloud.privacy', { tokens: (estimate?.inputTokens ?? 0).toLocaleString(locale()), processor: aiStore.cloud?.processor ?? t('ai.cloud.processorUnknown') })}</span>
+      <span><Globe size={13} />{t('ai.cloud.privacy', { tokens: (estimate?.inputTokens ?? 0).toLocaleString(locale()) })}</span>
     {:else if info}
       <span><Globe size={13} />{t('ai.gen.privacy.external', { tokens: (estimate?.inputTokens ?? 0).toLocaleString(locale()), provider: providerName(provider) })}</span>
       <span>
