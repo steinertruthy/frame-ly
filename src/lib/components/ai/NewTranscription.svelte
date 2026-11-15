@@ -1,20 +1,21 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Video, AudioLines, Clock, WifiOff, Info, Download, Users, FileText, ListTree } from '@lucide/svelte';
-  import Toggle from '$lib/components/Toggle.svelte';
+  import { Video, AudioLines, Clock, Cpu, Globe, Download, FileText, ListTree, AlertTriangle, ShieldCheck } from '@lucide/svelte';
   import Button from '$lib/components/Button.svelte';
   import Segmented from '$lib/components/Segmented.svelte';
   import Select from '$lib/components/Select.svelte';
-  import { t, type MessageKey } from '$lib/i18n/index.svelte';
-  import { ai, type Estimate, type Precision } from '$lib/ipc/ai';
+  import Toggle from '$lib/components/Toggle.svelte';
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import { t, locale, type MessageKey } from '$lib/i18n/index.svelte';
+  import { ai, type Detail, type Estimate, type Precision, type ProviderId, type TimeEstimate } from '$lib/ipc/ai';
   import { isAppError } from '$lib/ipc/commands';
   import { formatBytes, formatDuration } from '$lib/stores/format';
   import { aiStore } from '$lib/stores/ai.svelte';
   import { settings } from '$lib/stores/settings.svelte';
   import { toast } from '$lib/stores/toasts.svelte';
-  import { isReady, TRANSCRIPTION_LANGUAGES } from '$lib/ai';
+  import { isReady, needsConsent, TRANSCRIPTION_LANGUAGES } from '$lib/ai';
   import Sheet from './Sheet.svelte';
-  import { languageName, modelName, pct, providerName, roughTime } from './format';
+  import { languageName, modelName, pct, PROVIDER_HOSTS, providerName, roughTime } from './format';
 
   interface Props {
     path: string;
@@ -23,20 +24,33 @@
   }
   let { path, onclose, onopen }: Props = $props();
 
+  type Task = 'summary' | 'topics';
+  interface Step {
+    on: boolean;
+    provider: ProviderId;
+    detail: Detail;
+  }
   let precision = $state<Exclude<Precision, 'auto'>>('balanced');
   let language = $state('auto');
+  let steps = $state<Record<Task, Step>>({
+    summary: { on: true, provider: 'framely', detail: 'balanced' },
+    topics: { on: true, provider: 'framely', detail: 'balanced' },
+  });
   let estimate = $state<Estimate | null>(null);
   let failed = $state<string | null>(null);
   let starting = $state(false);
-  let wantSummary = $state(true);
-  let wantTopics = $state(true);
+  let consentFor = $state<ProviderId | null>(null);
 
   onMount(() => {
     const s = settings.value?.intelligence;
-    wantSummary = s?.summaryAuto ?? true;
-    wantTopics = s?.topicsAuto ?? true;
     precision = s && s.precision !== 'auto' ? s.precision : (aiStore.overview?.defaultPrecision ?? 'balanced');
     language = s?.language ?? 'auto';
+    if (s) {
+      steps = {
+        summary: { on: s.summaryAuto, provider: s.summaryProvider, detail: s.summaryDetail },
+        topics: { on: s.topicsAuto, provider: s.topicsProvider, detail: s.topicsDetail },
+      };
+    }
   });
 
   $effect(() => {
@@ -49,7 +63,18 @@
 
   // Live model state (downloads progress through the store).
   const model = $derived(estimate ? (aiStore.model(estimate.model.id) ?? estimate.model) : null);
-  const ready = $derived(isReady(model ?? undefined));
+  const speechReady = $derived(isReady(model ?? undefined));
+  const unsupported = $derived(aiStore.overview ? !aiStore.overview.hardware.supported : false);
+  const s = $derived(settings.value?.intelligence);
+  const providers = $derived((aiStore.overview?.providers ?? []).filter((p) => p.local || s?.externalEnabled));
+  const info = (id: ProviderId) => aiStore.overview?.providers.find((p) => p.id === id);
+  /** Why a step can't run as configured ("no_consent" is resolved by asking at start). */
+  function blocker(task: Task): string | null {
+    const st = steps[task];
+    if (!st.on) return null;
+    const i = info(st.provider);
+    return i && !i.available && i.reason !== 'no_consent' ? i.reason : null;
+  }
   const reused = $derived(
     !!estimate?.existing &&
       estimate.existing.status === 'done' &&
@@ -58,31 +83,51 @@
       estimate.existing.media.size === estimate.media.size &&
       estimate.existing.media.mtime === estimate.media.mtime,
   );
-  const unsupported = $derived(aiStore.overview ? !aiStore.overview.hardware.supported : false);
 
-  // What will generate the summary and topics, and whether it can run without asking.
-  const followups = $derived(
-    (['summary', 'topics'] as const).map((task) => {
-      const id = task === 'summary' ? settings.value?.intelligence.summaryProvider : settings.value?.intelligence.topicsProvider;
-      const info = aiStore.overview?.providers.find((p) => p.id === id);
-      return { task, provider: id ?? 'framely', info, ready: !!info?.available };
-    }),
-  );
+  function stepTime(task: Task): TimeEstimate | null {
+    if (!estimate || !steps[task].on || steps[task].provider !== 'framely') return null;
+    if (reused && (task === 'summary' ? estimate.existing?.hasSummary : estimate.existing?.hasTopics)) return null;
+    return task === 'summary' ? estimate.summaryLocal : estimate.topicsLocal;
+  }
+  const total = $derived.by(() => {
+    if (!estimate) return null;
+    const parts = [reused ? null : estimate.time, stepTime('summary'), stepTime('topics')].filter((x): x is TimeEstimate => !!x);
+    return { ms: parts.reduce((n, p) => n + p.ms, 0), approximate: parts.some((p) => p.approximate) };
+  });
+  const external = $derived((['summary', 'topics'] as const).filter((k) => steps[k].on && !info(steps[k].provider)?.local).map((k) => steps[k].provider));
+  const money = (n: number) => n.toLocaleString(locale(), { minimumFractionDigits: n < 0.1 ? 3 : 2, maximumFractionDigits: n < 0.1 ? 3 : 2 });
+  const anyBlocked = $derived(!!blocker('summary') || !!blocker('topics'));
+  const willGenerate = $derived(steps.summary.on || steps.topics.on);
 
   async function start() {
-    const then = { summary: wantSummary, topics: wantTopics };
-    // Remember the choice for next time (Settings › Intelligence › Generate automatically).
-    const s = settings.value?.intelligence;
-    if (s && (s.summaryAuto !== then.summary || s.topicsAuto !== then.topics)) {
-      await settings.update((d) => {
-        d.intelligence.summaryAuto = then.summary;
-        d.intelligence.topicsAuto = then.topics;
-      });
+    if (!s) return;
+    // Consent first for any external provider not yet allowed.
+    const ask = [...new Set(external)].find((p) => needsConsent(p, s));
+    if (ask) {
+      consentFor = ask;
+      return;
     }
+    // Remember the choices as the new defaults.
+    await settings.update((d) => {
+      const i = d.intelligence;
+      i.summaryAuto = steps.summary.on;
+      i.summaryProvider = steps.summary.provider;
+      i.summaryDetail = steps.summary.detail;
+      i.topicsAuto = steps.topics.on;
+      i.topicsProvider = steps.topics.provider;
+      i.topicsDetail = steps.topics.detail;
+    });
     starting = true;
     try {
       // A finished transcript of the same file and settings is reused; only missing parts run.
-      const r = await ai.transcribe(path, precision, language, then);
+      const r = await ai.transcribe(path, precision, language, {
+        summary: steps.summary.on,
+        topics: steps.topics.on,
+        summaryProvider: steps.summary.provider,
+        summaryDetail: steps.summary.detail,
+        topicsProvider: steps.topics.provider,
+        topicsDetail: steps.topics.detail,
+      });
       onopen(r.transcript.id);
     } catch (e) {
       toast('error', t(`error.${isAppError(e) ? e.code : 'generic'}` as MessageKey) || t('error.generic'), 5000);
@@ -90,9 +135,20 @@
       starting = false;
     }
   }
+
+  async function allow() {
+    const p = consentFor!;
+    consentFor = null;
+    if (await settings.update((d) => void (d.intelligence.consents.includes(p) || d.intelligence.consents.push(p)))) {
+      await aiStore.loadOverview();
+      await start();
+    }
+  }
+
+  const detailOptions = $derived((['brief', 'balanced', 'detailed'] as const).map((d) => ({ value: d, label: t(`ai.detail.${d}` as MessageKey) })));
 </script>
 
-<Sheet title={t('ai.new.title')} {onclose}>
+<Sheet title={t('ai.new.title')} width={640} {onclose}>
   {#if failed}
     <p class="error">{t(`error.${failed}` as MessageKey) || t('error.generic')}</p>
   {:else if !estimate}
@@ -105,104 +161,153 @@
       </span>
       <div class="meta">
         <div class="name" title={m.path}>{m.name}</div>
-        <div class="facts">
-          {t(m.kind === 'video' ? 'ai.kind.video' : 'ai.kind.audio')} · {formatDuration(m.durationMs)} · {formatBytes(m.size)}
-        </div>
+        <div class="sub">{t(m.kind === 'video' ? 'ai.kind.video' : 'ai.kind.audio')} · {formatDuration(m.durationMs)} · {formatBytes(m.size)}</div>
       </div>
     </div>
 
-    <div class="field">
-      <div class="label">{t('ai.new.precision')}</div>
-      <Segmented
-        label={t('ai.new.precision')}
-        stretch
-        value={precision}
-        options={(['fast', 'balanced', 'max'] as const).map((p) => ({ value: p, label: t(`ai.precision.${p}` as MessageKey) }))}
-        onchange={(v) => (precision = v)}
-      />
-      <div class="hint">{t(`ai.precision.${precision}.hint` as MessageKey)}</div>
-    </div>
-
-    <div class="field row">
-      <div class="label">{t('ai.new.language')}</div>
-      <Select
-        label={t('ai.new.language')}
-        value={language}
-        options={[{ value: 'auto', label: t('ai.language.auto') }, ...TRANSCRIPTION_LANGUAGES.map((c) => ({ value: c, label: languageName(c) }))]}
-        onchange={(v) => (language = v)}
-      />
-    </div>
-
-    <div class="field">
-      <div class="label">{t('ai.new.also')}</div>
-      <div class="also">
-        {#each followups as f (f.task)}
-          <div class="also-row">
-            <span class="also-icon">{#if f.task === 'summary'}<FileText size={15} />{:else}<ListTree size={15} />{/if}</span>
-            <span class="also-text">
-              <span>{t(f.task === 'summary' ? 'ai.new.alsoSummary' : 'ai.new.alsoTopics')}</span>
-              <span class="hint">
-                {providerName(f.provider)} · {f.info?.local ? t('ai.provider.local') : t('ai.provider.external')}{#if !f.ready && f.info?.reason} — {t(`ai.reason.${f.info.reason}` as MessageKey)}{/if}
-              </span>
-            </span>
-            <Toggle
-              checked={f.task === 'summary' ? wantSummary : wantTopics}
-              label={t(f.task === 'summary' ? 'ai.new.alsoSummary' : 'ai.new.alsoTopics')}
-              onchange={(v) => (f.task === 'summary' ? (wantSummary = v) : (wantTopics = v))}
-            />
+    <!-- 1 · Transcription -->
+    <section class="step">
+      <header>
+        <span class="num">1</span>
+        <span class="icon"><AudioLines size={15} /></span>
+        <span class="title">{t('ai.tab.transcript')}</span>
+        <span class="when">
+          {#if reused}{t('ai.new.reused')}{:else}<Clock size={12} />~{roughTime(estimate.time.ms)}{/if}
+        </span>
+      </header>
+      <div class="rows">
+        <div class="row">
+          <span class="label">{t('ai.new.precision')}</span>
+          <Segmented
+            label={t('ai.new.precision')}
+            size="sm"
+            value={precision}
+            options={(['fast', 'balanced', 'max'] as const).map((p) => ({ value: p, label: t(`ai.precision.${p}` as MessageKey) }))}
+            onchange={(v) => (precision = v)}
+          />
+        </div>
+        <p class="hint">{t(`ai.precision.${precision}.hint` as MessageKey)}</p>
+        <div class="row">
+          <span class="label">{t('ai.new.language')}</span>
+          <Select
+            label={t('ai.new.language')}
+            value={language}
+            options={[{ value: 'auto', label: t('ai.language.auto') }, ...TRANSCRIPTION_LANGUAGES.map((c) => ({ value: c, label: languageName(c) }))]}
+            onchange={(v) => (language = v)}
+          />
+        </div>
+        {#if model && !speechReady}
+          <div class="need">
+            <Download size={15} />
+            <div class="need-text">
+              <div>{t('ai.new.modelNeeded', { name: modelName(model.id), size: formatBytes(model.size) })}</div>
+              {#if model.state === 'downloading' || model.state === 'verifying' || model.state === 'paused'}
+                <div class="bar"><span style:width="{pct(model)}%"></span></div>
+              {/if}
+            </div>
+            {#if model.state === 'missing' || model.state === 'paused' || model.state === 'corrupt'}
+              <Button size="sm" variant="primary" disabled={s?.localOnly} onclick={() => aiStore.modelAction(model.id, model.state === 'corrupt' ? 'repair' : 'download')}>
+                {t('ai.new.download', { size: formatBytes(model.size - (model.state === 'paused' ? model.received : 0)) })}
+              </Button>
+            {/if}
           </div>
-        {/each}
+        {/if}
       </div>
-    </div>
+    </section>
 
-    {#if model && !ready}
-      <div class="need">
-        <Download size={16} />
-        <div class="need-text">
-          <div>{t('ai.new.modelNeeded', { name: modelName(model.id), size: formatBytes(model.size) })}</div>
-          {#if model.state === 'downloading' || model.state === 'verifying' || model.state === 'paused'}
-            <div class="bar"><span style:width="{pct(model)}%"></span></div>
-          {/if}
+    <!-- 2 · Summary, 3 · Topics -->
+    {#each ['summary', 'topics'] as const as task, i (task)}
+      {@const st = steps[task]}
+      {@const pi = info(st.provider)}
+      {@const time = stepTime(task)}
+      {@const block = blocker(task)}
+      <section class="step" class:off={!st.on}>
+        <header>
+          <span class="num">{i + 2}</span>
+          <span class="icon">{#if task === 'summary'}<FileText size={15} />{:else}<ListTree size={15} />{/if}</span>
+          <span class="title">{t(task === 'summary' ? 'ai.new.alsoSummary' : 'ai.new.alsoTopics')}</span>
+          <span class="when">
+            {#if st.on && time}<Clock size={12} />~{roughTime(time.ms)}{/if}
+          </span>
+          <Toggle checked={st.on} label={t(task === 'summary' ? 'ai.new.alsoSummary' : 'ai.new.alsoTopics')} onchange={(v) => (steps[task].on = v)} />
+        </header>
+        {#if st.on}
+          <div class="rows">
+            <div class="row">
+              <span class="label">{t('ai.gen.provider')}</span>
+              <Select
+                label={t('ai.gen.provider')}
+                icon={pi?.local ? Cpu : Globe}
+                value={st.provider}
+                options={providers.map((p) => ({ value: p.id, label: providerName(p.id) }))}
+                onchange={(v) => (steps[task].provider = v)}
+              />
+            </div>
+            <div class="row">
+              <span class="label">{t(task === 'summary' ? 'ai.gen.detail' : 'ai.new.organization')}</span>
+              <Segmented label={t('ai.gen.detail')} size="sm" value={st.detail} options={detailOptions} onchange={(v) => (steps[task].detail = v)} />
+            </div>
+            {#if block}
+              <p class="warn"><AlertTriangle size={13} />{t(`ai.reason.${block}` as MessageKey)}</p>
+            {:else if pi?.local}
+              <p class="hint"><Cpu size={13} />{t('ai.gen.privacy.local')}</p>
+            {:else if pi}
+              <p class="hint">
+                <Globe size={13} />
+                <span>
+                  {t('ai.gen.privacy.external', { tokens: estimate.inputTokens.toLocaleString(locale()), provider: providerName(st.provider) })}
+                  {#if st.provider === 'anthropic' && estimate.anthropicCostUsd}{t('ai.gen.cost', { min: money(estimate.anthropicCostUsd[0]), max: money(estimate.anthropicCostUsd[1]) })}.{:else}{t('ai.gen.costUnknown')}{/if}
+                </span>
+              </p>
+            {/if}
+          </div>
+        {/if}
+      </section>
+    {/each}
+
+    <div class="totals">
+      <div class="total">
+        <Clock size={16} />
+        <div>
+          <strong>{t('ai.new.total', { time: total ? roughTime(total.ms) : '—' })}</strong>
+          <div class="hint">{total?.approximate ? t('ai.new.approx') : t('ai.new.measuredShort')}</div>
         </div>
-        {#if model.state === 'missing' || model.state === 'paused' || model.state === 'corrupt'}
-          <Button size="sm" variant="primary" disabled={settings.value?.intelligence.localOnly} onclick={() => aiStore.modelAction(model.id, model.state === 'corrupt' ? 'repair' : 'download')}>
-            {t('ai.new.download', { size: formatBytes(model.size - (model.state === 'paused' ? model.received : 0)) })}
-          </Button>
-        {/if}
       </div>
-    {/if}
-
-    <div class="estimate">
-      <Clock size={15} />
-      <div>
-        {#if reused}
-          <div>{t('ai.new.existing')}</div>
-        {:else}
-          <div><strong>{t('ai.new.estimate')}: ~{roughTime(estimate.time.ms)}</strong></div>
-          <div class="hint">{estimate.time.approximate ? t('ai.new.approx') : t('ai.new.measured', { n: estimate.time.runs })}</div>
-        {/if}
+      <div class="total">
+        {#if external.length}<Globe size={16} />{:else}<ShieldCheck size={16} />{/if}
+        <div>
+          <strong>{external.length ? t('ai.new.privacyExternal', { providers: [...new Set(external)].map(providerName).join(', ') }) : t('ai.new.privacyLocal')}</strong>
+          <div class="hint">{t('ai.new.privacyMedia')}</div>
+        </div>
       </div>
     </div>
 
-    <ul class="notes">
-      <li><WifiOff size={13} />{t('ai.new.where')}</li>
-      <li><Users size={13} />{t('ai.new.speakers')}</li>
-      <li><Info size={13} />{t('ai.new.disclaimer')}</li>
-    </ul>
+    <p class="fine">{t('ai.new.speakers')} {t('ai.new.disclaimer')}</p>
     {#if unsupported}<p class="error">{t('ai.new.unsupportedCpu')}</p>{/if}
   {/if}
 
   {#snippet footer()}
     <Button variant="ghost" onclick={onclose}>{t('library.cancel')}</Button>
-    <Button variant="primary" busy={starting} disabled={!estimate || (!ready && !reused) || unsupported} onclick={start}>
-      {reused ? t('ai.new.open') : t('ai.new.start')}
+    <Button variant="primary" busy={starting} disabled={!estimate || (!speechReady && !reused) || unsupported || anyBlocked} onclick={start}>
+      {willGenerate ? t('ai.new.startAll') : t('ai.new.start')}
     </Button>
   {/snippet}
 </Sheet>
 
+{#if consentFor}
+  <ConfirmDialog
+    title={t('ai.consent.title', { provider: providerName(consentFor) })}
+    body={t('ai.consent.body', { provider: providerName(consentFor), host: PROVIDER_HOSTS[consentFor] })}
+    confirm={t('ai.consent.allow')}
+    cancel={t('ai.consent.cancel')}
+    onconfirm={allow}
+    oncancel={() => (consentFor = null)}
+  />
+{/if}
+
 <style>
   .loading {
-    height: 180px;
+    height: 220px;
   }
   .error {
     color: var(--warn-500);
@@ -239,67 +344,108 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .facts,
+  .sub,
   .hint {
     color: var(--text-2);
     font-size: var(--text-sm);
   }
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 18px;
-  }
-  .field.row {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .label {
-    font-weight: 600;
-  }
-  .also {
+  .step {
+    margin-top: 12px;
     border-radius: var(--radius-lg);
     background: var(--bg-2);
     box-shadow: inset 0 0 0 1px var(--border);
+    transition: opacity var(--dur-fast);
   }
-  .also-row {
+  .step header {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 12px;
+    padding: 12px 14px;
   }
-  .also-row + .also-row {
-    box-shadow: inset 0 1px 0 var(--border);
+  .step.off header {
+    opacity: 0.7;
   }
-  .also-icon {
+  .num {
     display: grid;
     place-items: center;
     flex-shrink: 0;
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    background: var(--icon-tile);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--link);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+  .icon {
+    display: grid;
+    place-items: center;
     color: var(--icon-accent);
   }
-  .also-text {
+  .title {
     flex: 1;
     min-width: 0;
+    font-weight: 650;
+  }
+  .when {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-3);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  .rows {
     display: flex;
     flex-direction: column;
-    gap: 1px;
-    font-weight: 600;
+    gap: 10px;
+    padding: 2px 14px 14px 44px;
+    animation: open var(--dur-med) var(--ease-out);
   }
-  .also-text .hint {
-    font-weight: 400;
+  @keyframes open {
+    from {
+      opacity: 0;
+      transform: translateY(-3px);
+    }
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .row :global(.seg) {
+    min-width: 0;
+  }
+  .label {
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .rows .hint,
+  .warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    margin: 0;
+    line-height: 1.45;
+  }
+  .rows .hint :global(svg),
+  .warn :global(svg) {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .warn {
+    color: var(--warn-500);
+    font-size: var(--text-sm);
   }
   .need {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-top: 18px;
-    padding: 12px;
-    border-radius: var(--radius-lg);
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
     background: var(--accent-soft);
     font-size: var(--text-sm);
   }
@@ -326,38 +472,34 @@
     background: var(--accent);
     transition: width var(--dur-med) var(--ease-out);
   }
-  .estimate {
+  .totals {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  @media (max-width: 620px) {
+    .totals {
+      grid-template-columns: 1fr;
+    }
+  }
+  .total {
     display: flex;
     gap: 10px;
-    margin-top: 18px;
     padding: 12px;
     border-radius: var(--radius-lg);
-    background: var(--bg-2);
+    background: var(--surface-raised);
     box-shadow: inset 0 0 0 1px var(--border);
   }
-  .estimate > :global(svg) {
+  .total > :global(svg) {
     flex-shrink: 0;
-    margin-top: 2px;
+    margin-top: 1px;
+    color: var(--icon-accent);
+  }
+  .fine {
+    margin: 12px 0 0;
     color: var(--text-3);
-  }
-  .notes {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 14px 0 0;
-    padding: 0;
-    list-style: none;
-    color: var(--text-2);
-    font-size: var(--text-sm);
-    line-height: 1.45;
-  }
-  .notes li {
-    display: flex;
-    gap: 8px;
-  }
-  .notes :global(svg) {
-    flex-shrink: 0;
-    margin-top: 3px;
-    color: var(--text-3);
+    font-size: var(--text-xs);
+    line-height: 1.5;
   }
 </style>

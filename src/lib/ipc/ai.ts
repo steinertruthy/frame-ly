@@ -174,6 +174,19 @@ export interface Estimate {
   time: TimeEstimate;
   accel: 'metal' | 'cpu';
   existing: Transcript | null;
+  summaryLocal: TimeEstimate;
+  topicsLocal: TimeEstimate;
+  inputTokens: number;
+  anthropicCostUsd: [number, number] | null;
+}
+
+export interface Followups {
+  summary: boolean;
+  topics: boolean;
+  summaryProvider?: ProviderId;
+  summaryDetail?: Detail;
+  topicsProvider?: ProviderId;
+  topicsDetail?: Detail;
 }
 
 export interface GenerationEstimate {
@@ -217,7 +230,7 @@ export const ai = {
   generationEstimate: (id: number, task: Task, provider: ProviderId) =>
     invoke<GenerationEstimate>('ai_generation_estimate', { id, task, provider }),
   /** `then`: also generate these right after (same run); omitted = the automatic-generation settings. */
-  transcribe: (path: string, precision: Precision, language: string, then?: { summary: boolean; topics: boolean }) =>
+  transcribe: (path: string, precision: Precision, language: string, then?: Followups) =>
     invoke<{ transcript: Transcript; jobId: number | null }>('transcription_start', { path, precision, language, then: then ?? null }),
   list: () => invoke<Transcript[]>('transcripts_list'),
   get: (id: number) => invoke<Detailed>('transcript_get', { id }),

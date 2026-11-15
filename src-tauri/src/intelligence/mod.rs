@@ -331,9 +331,15 @@ fn busy<R: Runtime>(app: &AppHandle<R>, transcript_id: i64, kind: &str) -> Optio
 /// What to generate right after the transcription, in the same run. `None` follows the
 /// "generate automatically" settings.
 #[derive(Debug, Clone, Copy, Default, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct Followups {
     pub summary: bool,
     pub topics: bool,
+    /// Per-run choices; `None` uses the preferences.
+    pub summary_provider: Option<ProviderId>,
+    pub summary_detail: Option<Detail>,
+    pub topics_provider: Option<ProviderId>,
+    pub topics_detail: Option<Detail>,
 }
 
 pub fn start_transcription<R: Runtime>(
@@ -356,10 +362,10 @@ pub fn start_transcription<R: Runtime>(
     let media = probe(app, path)?;
     let _ = app.asset_protocol_scope().allow_file(path);
     let t = with_db(app, |db| db.begin(&media, &language, catalog::precision_name(precision), spec.id))?;
-    let then = then.unwrap_or(Followups { summary: p.summary_auto, topics: p.topics_auto });
+    let then = then.unwrap_or(Followups { summary: p.summary_auto, topics: p.topics_auto, ..Default::default() });
     if t.status == Status::Done {
         // Cached transcript: only what's still missing is generated.
-        queue_followups(app, &t, Followups { summary: then.summary && !t.has_summary, topics: then.topics && !t.has_topics });
+        queue_followups(app, &t, Followups { summary: then.summary && !t.has_summary, topics: then.topics && !t.has_topics, ..then });
         return Ok((t, None));
     }
     let job = match busy(app, t.id, "transcribe") {
@@ -376,9 +382,10 @@ pub fn start_transcription<R: Runtime>(
 /// replaced by another one.
 fn queue_followups<R: Runtime>(app: &AppHandle<R>, t: &Transcript, then: Followups) {
     let p = prefs(app);
-    for (task, on, provider, detail) in
-        [(Task::Summary, then.summary, p.summary_provider, p.summary_detail), (Task::Topics, then.topics, p.topics_provider, p.topics_detail)]
-    {
+    for (task, on, provider, detail) in [
+        (Task::Summary, then.summary, then.summary_provider.unwrap_or(p.summary_provider), then.summary_detail.unwrap_or(p.summary_detail)),
+        (Task::Topics, then.topics, then.topics_provider.unwrap_or(p.topics_provider), then.topics_detail.unwrap_or(p.topics_detail)),
+    ] {
         if !on || busy(app, t.id, task.as_str()).is_some() {
             continue;
         }
@@ -939,7 +946,7 @@ mod tests {
             if let Some(old) = with_db(&handle, |db| db.find_by_path(&long.to_string_lossy())).unwrap() {
                 with_db(&handle, |db| db.delete(old.id)).unwrap();
             }
-            let both = Some(Followups { summary: true, topics: true });
+            let both = Some(Followups { summary: true, topics: true, ..Default::default() });
             let (lt, job) = start_transcription(&handle, &long, None, None, both).unwrap();
             let job = job.unwrap();
             let queued: Vec<JobStatus> = jobs(&handle).into_iter().filter(|j| j.transcript_id == lt.id && j.state == "queued" && j.kind != "transcribe").collect();

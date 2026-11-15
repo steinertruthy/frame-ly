@@ -158,6 +158,12 @@ pub struct Estimate {
     pub accel: &'static str,
     /// Existing transcript of this file, if any (finished ones are reused).
     pub existing: Option<Transcript>,
+    /// Before the transcript exists: what generating a summary/topics locally takes, and
+    /// what sending it out would roughly cost (tokens, and US$ for providers with known prices).
+    pub summary_local: estimate::TimeEstimate,
+    pub topics_local: estimate::TimeEstimate,
+    pub input_tokens: usize,
+    pub anthropic_cost_usd: Option<(f64, f64)>,
 }
 
 #[tauri::command]
@@ -169,7 +175,18 @@ pub async fn ai_estimate(app: AppHandle, path: PathBuf, precision: Option<String
         let hw = ai::hardware(&app);
         let history = ai::with_db(&app, |db| db.perf_rate("asr", spec.id, hw.accel))?;
         let existing = ai::with_db(&app, |db| db.find_by_path(&media.path))?;
+        let chars = estimate::expected_chars(media.duration_ms);
+        let lm = catalog::language_model(ai::profile(&app));
+        let local = |task: &str| {
+            let history = ai::with_db(&app, |db| db.perf_rate(task, lm.id, hw.accel)).ok().flatten();
+            estimate::generation(chars, task, lm.id, hw.accel, history)
+        };
+        let input_tokens = chars / 3 + 600;
         Ok(Estimate {
+            summary_local: local("summary"),
+            topics_local: local("topics"),
+            input_tokens,
+            anthropic_cost_usd: anthropic_cost(&ai::prefs(&app).anthropic_model, input_tokens),
             time: estimate::transcription(media.duration_ms, spec.id, hw.accel, history),
             precision: catalog::precision_name(precision),
             model: ai::models(&app).status_of(spec),
@@ -179,6 +196,14 @@ pub async fn ai_estimate(app: AppHandle, path: PathBuf, precision: Option<String
         })
     })
     .await
+}
+
+/// Input plus 1k–12k output tokens (the model's reasoning included) at the listed prices.
+fn anthropic_cost(model: &str, input_tokens: usize) -> Option<(f64, f64)> {
+    providers::anthropic_price(model).map(|(inp, out)| {
+        let i = input_tokens as f64 / 1e6 * inp;
+        (i + 1_000.0 / 1e6 * out, i + 12_000.0 / 1e6 * out)
+    })
 }
 
 #[derive(Serialize)]
@@ -205,14 +230,7 @@ pub async fn ai_generation_estimate(app: AppHandle, id: i64, task: String, provi
             let history = ai::with_db(&app, |db| db.perf_rate(task_name, spec.id, hw.accel)).ok().flatten();
             estimate::generation(chars, task_name, spec.id, hw.accel, history)
         });
-        let cost_usd = (provider == ProviderId::Anthropic)
-            .then(|| providers::anthropic_price(&ai::prefs(&app).anthropic_model))
-            .flatten()
-            .map(|(inp, out)| {
-                let i = input_tokens as f64 / 1e6 * inp;
-                // Output (with the model's reasoning) between 1k and 12k tokens.
-                (i + 1_000.0 / 1e6 * out, i + 12_000.0 / 1e6 * out)
-            });
+        let cost_usd = (provider == ProviderId::Anthropic).then(|| anthropic_cost(&ai::prefs(&app).anthropic_model, input_tokens)).flatten();
         Ok(GenerationEstimate { time, input_tokens, cost_usd })
     })
     .await

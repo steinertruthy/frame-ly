@@ -62,9 +62,16 @@ fn generation_reference(task: &str, model_id: &str, accel: &str) -> f64 {
     }
 }
 
+/// Characters a transcript of `duration_ms` usually has (speech averages ~15 characters per
+/// second; silence makes real transcripts shorter, so this errs on the long side).
+pub fn expected_chars(duration_ms: u64) -> usize {
+    (duration_ms as f64 / 1000.0 * 15.0) as usize
+}
+
 pub fn generation(chars: usize, task: &str, model_id: &str, accel: &str, history: Option<(f64, usize)>) -> TimeEstimate {
     match history {
-        Some((rate, runs)) => TimeEstimate { ms: (chars as f64 * rate) as u64, approximate: false, runs },
+        // Measured rates include loading the model, which short files can't amortize.
+        Some((rate, runs)) => TimeEstimate { ms: (chars as f64 * rate).max(load_reference(model_id)) as u64, approximate: false, runs },
         None => TimeEstimate {
             ms: (chars as f64 * generation_reference(task, model_id, accel) + load_reference(model_id)) as u64,
             approximate: true,
@@ -90,11 +97,17 @@ mod tests {
     }
 
     #[test]
+    fn expected_transcript_length() {
+        assert_eq!(expected_chars(60_000), 900);
+    }
+
+    #[test]
     fn generation_scales_with_length_and_model() {
         let a = generation(10_000, "summary", "language-balanced", "metal", None);
         let b = generation(20_000, "summary", "language-balanced", "metal", None);
         assert!(b.ms > a.ms && a.approximate);
         assert!(generation(10_000, "topics", "language-balanced", "metal", None).ms > a.ms);
-        assert_eq!(generation(1_000, "summary", "x", "metal", Some((2.0, 3))).ms, 2_000);
+        assert_eq!(generation(10_000, "summary", "x", "metal", Some((2.0, 3))).ms, 20_000);
+        assert_eq!(generation(10, "summary", "x", "metal", Some((2.0, 3))).ms, 4_000, "never less than loading the model");
     }
 }
