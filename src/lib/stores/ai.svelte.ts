@@ -120,12 +120,16 @@ class AiStore {
     return live.find((j) => j.state === 'running') ?? live.sort((a, b) => a.id - b.id)[0];
   }
 
-  async modelAction(id: string, action: Parameters<typeof ai.modelAction>[1]): Promise<void> {
+  /** Runs a model action; returns the model's new status, or null after showing the error. */
+  async modelAction(id: string, action: Parameters<typeof ai.modelAction>[1]): Promise<ModelStatus | null> {
     try {
-      this.patchModel(await ai.modelAction(id, action));
+      const m = await ai.modelAction(id, action);
+      this.patchModel(m);
+      return m;
     } catch (e) {
       const code = (e as { code?: string }).code;
       toast('error', (code && t(`error.${code}` as MessageKey)) || t('error.generic'), 5000);
+      return null;
     }
   }
 }

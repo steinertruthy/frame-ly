@@ -209,6 +209,9 @@ export const aiEn = {
   'ai.action.cancel': 'Cancel',
   'ai.action.remove': 'Remove',
   'ai.action.verify': 'Check',
+  'ai.action.verify.hint': 'Checks that the model file is intact against its original signature.',
+  'ai.model.verified': '{name}: file is intact.',
+  'ai.model.verifyFailed': '{name}: the file is damaged. Click Repair to download it again.',
   'ai.action.repair': 'Repair',
   'ai.action.update': 'Update',
 

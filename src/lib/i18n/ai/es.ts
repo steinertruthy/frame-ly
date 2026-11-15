@@ -210,6 +210,9 @@ export const aiEs: Record<keyof typeof aiEn, string> = {
   'ai.action.cancel': 'Cancelar',
   'ai.action.remove': 'Eliminar',
   'ai.action.verify': 'Comprobar',
+  'ai.action.verify.hint': 'Comprueba que el archivo del modelo esté íntegro comparándolo con su firma original.',
+  'ai.model.verified': '{name}: archivo íntegro.',
+  'ai.model.verifyFailed': '{name}: el archivo está dañado. Haz clic en Reparar para descargarlo de nuevo.',
   'ai.action.repair': 'Reparar',
   'ai.action.update': 'Actualizar',
 

@@ -210,6 +210,9 @@ export const aiPtBR: Record<keyof typeof aiEn, string> = {
   'ai.action.cancel': 'Cancelar',
   'ai.action.remove': 'Remover',
   'ai.action.verify': 'Verificar',
+  'ai.action.verify.hint': 'Confere se o arquivo do modelo está íntegro, comparando com a assinatura original.',
+  'ai.model.verified': '{name}: arquivo íntegro.',
+  'ai.model.verifyFailed': '{name}: o arquivo está danificado. Clique em Reparar para baixá-lo de novo.',
   'ai.action.repair': 'Reparar',
   'ai.action.update': 'Atualizar',
 

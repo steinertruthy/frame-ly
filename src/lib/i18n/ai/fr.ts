@@ -210,6 +210,9 @@ export const aiFr: Record<keyof typeof aiEn, string> = {
   'ai.action.cancel': 'Annuler',
   'ai.action.remove': 'Supprimer',
   'ai.action.verify': 'Vérifier',
+  'ai.action.verify.hint': 'Vérifie que le fichier du modèle est intact en le comparant à sa signature d’origine.',
+  'ai.model.verified': '{name} : fichier intact.',
+  'ai.model.verifyFailed': '{name} : le fichier est endommagé. Cliquez sur Réparer pour le télécharger à nouveau.',
   'ai.action.repair': 'Réparer',
   'ai.action.update': 'Mettre à jour',
 

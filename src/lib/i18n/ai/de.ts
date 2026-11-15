@@ -210,6 +210,9 @@ export const aiDe: Record<keyof typeof aiEn, string> = {
   'ai.action.cancel': 'Abbrechen',
   'ai.action.remove': 'Entfernen',
   'ai.action.verify': 'Prüfen',
+  'ai.action.verify.hint': 'Prüft anhand der Originalsignatur, ob die Modelldatei intakt ist.',
+  'ai.model.verified': '{name}: Datei ist intakt.',
+  'ai.model.verifyFailed': '{name}: Die Datei ist beschädigt. Klicke auf Reparieren, um sie neu zu laden.',
   'ai.action.repair': 'Reparieren',
   'ai.action.update': 'Aktualisieren',
 

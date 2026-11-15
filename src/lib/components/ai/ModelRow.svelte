@@ -5,6 +5,7 @@
   import type { ModelStatus } from '$lib/ipc/ai';
   import { formatBytes } from '$lib/stores/format';
   import { aiStore } from '$lib/stores/ai.svelte';
+  import { toast } from '$lib/stores/toasts.svelte';
   import { modelName, modelStateLabel, pct } from './format';
 
   interface Props {
@@ -15,6 +16,19 @@
   let { model, simple = false }: Props = $props();
   const busy = $derived(model.state === 'downloading' || model.state === 'verifying');
   const act = (a: Parameters<typeof aiStore.modelAction>[1]) => aiStore.modelAction(model.id, a);
+  // Hashing a multi-GB file takes a few seconds: show it, then say what was found.
+  let checking = $state(false);
+  async function verify() {
+    checking = true;
+    try {
+      const now = await aiStore.modelAction(model.id, 'verify');
+      if (!now) return;
+      if (now.state === 'corrupt') toast('error', t('ai.model.verifyFailed', { name: modelName(model.id) }), 6000);
+      else if (now.state === 'installed' || now.state === 'update') toast('success', t('ai.model.verified', { name: modelName(model.id) }));
+    } finally {
+      checking = false;
+    }
+  }
   const facts = $derived(
     t('ai.model.facts', { size: formatBytes(model.size), ram: formatBytes(model.ramMb * 1024 * 1024), license: model.license }),
   );
@@ -55,7 +69,7 @@
       <Button size="sm" variant="primary" onclick={() => act('download')}>{t('ai.action.update')}</Button>
     {/if}
     {#if !simple && (model.state === 'installed' || model.state === 'update')}
-      <Button size="sm" variant="ghost" onclick={() => act('verify')}>{t('ai.action.verify')}</Button>
+      <Button size="sm" variant="ghost" busy={checking} title={t('ai.action.verify.hint')} onclick={verify}>{t('ai.action.verify')}</Button>
     {/if}
     {#if !simple && (model.state === 'installed' || model.state === 'update' || model.state === 'corrupt')}
       <Button size="sm" variant="ghost" disabled={model.inUse} onclick={() => act('remove')}>{t('ai.action.remove')}</Button>
