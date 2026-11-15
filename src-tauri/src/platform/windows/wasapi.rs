@@ -115,12 +115,12 @@ struct AppAudioSetup {
 }
 
 impl AppAudioSetup {
-    const ALL: [AppAudioSetup; 3] = [
-        // The first setup shipped (closed the app at Start on one PC); kept so its marker
-        // keeps it skipped there.
+    const ALL: [AppAudioSetup; 3] = [Self::SETUPS[1], Self::SETUPS[2], Self::SETUPS[0]];
+    const SETUPS: [AppAudioSetup; 3] = [
+        // Float 48 kHz with Windows conversion, 100 ms buffer.
         AppAudioSetup {
             name: "A",
-            marker: "framely-app-audio-2.attempt",
+            marker: "framely-app-audio-w-a.attempt",
             format: AppAudioFormat::Float48k { autoconvert: true },
             buffer_hns: BUFFER_HNS,
             service_first: false,
@@ -128,7 +128,7 @@ impl AppAudioSetup {
         // Microsoft's ApplicationLoopback sample: 16-bit 44.1 kHz, 20 ms buffer.
         AppAudioSetup {
             name: "B",
-            marker: "framely-app-audio-b.attempt",
+            marker: "framely-app-audio-w-b.attempt",
             format: AppAudioFormat::Pcm16At44k,
             buffer_hns: 200_000,
             service_first: true,
@@ -136,7 +136,7 @@ impl AppAudioSetup {
         // Float at 48 kHz without Windows conversion.
         AppAudioSetup {
             name: "C",
-            marker: "framely-app-audio-c.attempt",
+            marker: "framely-app-audio-w-c.attempt",
             format: AppAudioFormat::Float48k { autoconvert: false },
             buffer_hns: BUFFER_HNS,
             service_first: true,
@@ -167,53 +167,6 @@ fn target_format() -> WAVEFORMATEX {
 }
 
 impl Capture {
-    /// What every app plays, except FrameLy itself, taken from the apps' own streams before
-    /// they reach an output (Windows 10 2004+ process loopback): independent of which output is
-    /// in use and of that output's volume or mute in Windows.
-    ///
-    /// Crash guard: each step is written to a marker file, removed once the stream delivers
-    /// audio or closes normally. A marker left behind means an earlier attempt took the app
-    /// down; this capture is then skipped (the caller falls back to output loopback) and the
-    /// step it died at is reported.
-    pub fn all_apps() -> AppResult<Capture> {
-        let mut skipped = Vec::new();
-        for setup in AppAudioSetup::ALL {
-            let marker = std::env::temp_dir().join(setup.marker);
-            if let Ok(step) = std::fs::read_to_string(&marker) {
-                skipped.push(format!("{} closed FrameLy at step '{step}'", setup.name));
-                continue;
-            }
-            if !skipped.is_empty() {
-                tracing::warn!(earlier = %skipped.join("; "), setup = setup.name, "app audio: trying another setup");
-            }
-            let trail = marker.clone();
-            // Its own thread: guaranteed multithreaded COM apartment, whatever the caller's.
-            let result = std::thread::Builder::new()
-                .name("framely-app-audio".into())
-                .spawn(move || {
-                    let step = |s: &str| {
-                        let _ = std::fs::write(&trail, s);
-                    };
-                    Self::open_all_apps(&step, setup)
-                })
-                .map_err(|e| AppError::Runtime(format!("app audio thread: {e}")))?
-                .join()
-                .map_err(|_| AppError::Runtime("app audio thread failed".into()))?;
-            match result {
-                Ok(mut c) => {
-                    let _ = std::fs::write(&marker, "first packets");
-                    c.marker = Some(marker);
-                    return Ok(c);
-                }
-                Err(e) => {
-                    let _ = std::fs::remove_file(&marker);
-                    skipped.push(format!("{} failed: {e}", setup.name));
-                }
-            }
-        }
-        Err(AppError::Platform(format!("app audio capture not used: {}", skipped.join("; "))))
-    }
-
     fn open_all_apps(step: &dyn Fn(&str), setup: AppAudioSetup) -> AppResult<Capture> {
         step("COM init");
         // SAFETY: COM activation with a parameter block that outlives the call (the operation
@@ -756,6 +709,177 @@ impl Drop for MicMonitor {
         self.stop.store(true, Ordering::Relaxed);
         if let Some(t) = self.thread.take() {
             let _ = t.join();
+        }
+    }
+}
+
+/// System audio source: one output device, or every app (see [`AppsCapture`]).
+pub enum Source {
+    Device(Capture),
+    Apps(AppsCapture),
+}
+
+impl Source {
+    pub fn read(&mut self, on_data: impl FnMut(i64, &[f32])) -> AppResult<()> {
+        match self {
+            Source::Device(c) => c.read(on_data),
+            Source::Apps(a) => a.read(on_data),
+        }
+    }
+    pub fn device_id(&self) -> &str {
+        match self {
+            Source::Device(c) => &c.device_id,
+            Source::Apps(_) => ALL_APPS,
+        }
+    }
+    pub fn name(&self) -> &str {
+        match self {
+            Source::Device(c) => &c.name,
+            Source::Apps(a) => &a.name,
+        }
+    }
+}
+
+/// What every app plays, except FrameLy itself, taken from the apps' own streams before they
+/// reach an output (process loopback, Windows 10 2004+): independent of which output is in
+/// use and of that output's volume or mute in Windows.
+///
+/// The stream lives on one worker thread for the whole life of the app: it is opened, read
+/// and closed there, and that thread never exits (a test PC closed the app as soon as the
+/// thread that had started such a stream ended). Packets reach the recorder through a channel.
+///
+/// Crash guard: each setup step is written to a marker file, removed once audio flows or the
+/// stream opens and closes cleanly. A marker left behind means that setup once took the app
+/// down; it is skipped from then on and the next setup is tried.
+pub struct AppsCapture {
+    data: std::sync::mpsc::Receiver<(i64, Vec<f32>)>,
+    stop: Arc<AtomicBool>,
+    marker: Option<std::path::PathBuf>,
+    pub name: String,
+    pub format: String,
+}
+
+struct OpenRequest {
+    setup: AppAudioSetup,
+    marker: std::path::PathBuf,
+    reply: std::sync::mpsc::Sender<AppResult<String>>,
+    data: std::sync::mpsc::Sender<(i64, Vec<f32>)>,
+    stop: Arc<AtomicBool>,
+}
+
+fn apps_worker() -> AppResult<std::sync::mpsc::Sender<OpenRequest>> {
+    static WORKER: std::sync::OnceLock<std::sync::Mutex<std::sync::mpsc::Sender<OpenRequest>>> =
+        std::sync::OnceLock::new();
+    if let Some(w) = WORKER.get() {
+        return Ok(w.lock().unwrap().clone());
+    }
+    let (tx, rx) = std::sync::mpsc::channel::<OpenRequest>();
+    std::thread::Builder::new()
+        .name("framely-app-audio".into())
+        .spawn(move || {
+            // SAFETY: COM initialization of this (never-ending) thread.
+            let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+            for req in rx {
+                let marker = req.marker.clone();
+                let step = |s: &str| {
+                    let _ = std::fs::write(&marker, s);
+                };
+                match Capture::open_all_apps(&step, req.setup) {
+                    Err(e) => {
+                        let _ = req.reply.send(Err(e));
+                    }
+                    Ok(mut capture) => {
+                        let _ = req.reply.send(Ok(capture.format.clone()));
+                        while !req.stop.load(Ordering::Relaxed) {
+                            let sent = capture.read(|t, samples| {
+                                let _ = req.data.send((t, samples.to_vec()));
+                            });
+                            if let Err(e) = sent {
+                                tracing::warn!(error = %e, "app audio stream stopped");
+                                break;
+                            }
+                            std::thread::sleep(Duration::from_millis(5));
+                        }
+                        step("closing");
+                        drop(capture);
+                        let _ = std::fs::remove_file(&marker);
+                    }
+                }
+            }
+        })
+        .map_err(|e| AppError::Runtime(format!("app audio thread: {e}")))?;
+    let _ = WORKER.set(std::sync::Mutex::new(tx));
+    Ok(WORKER.get().unwrap().lock().unwrap().clone())
+}
+
+impl AppsCapture {
+    pub fn start() -> AppResult<AppsCapture> {
+        let worker = apps_worker()?;
+        let mut skipped = Vec::new();
+        for setup in AppAudioSetup::ALL {
+            let marker = std::env::temp_dir().join(setup.marker);
+            if let Ok(step) = std::fs::read_to_string(&marker) {
+                skipped.push(format!("{} closed FrameLy at step '{step}'", setup.name));
+                continue;
+            }
+            if !skipped.is_empty() {
+                tracing::warn!(earlier = %skipped.join("; "), setup = setup.name, "app audio: trying another setup");
+            }
+            let (reply, answer) = std::sync::mpsc::channel();
+            let (data_tx, data) = std::sync::mpsc::channel();
+            let stop = Arc::new(AtomicBool::new(false));
+            let request =
+                OpenRequest { setup, marker: marker.clone(), reply, data: data_tx, stop: Arc::clone(&stop) };
+            worker.send(request).map_err(|_| AppError::Runtime("app audio thread gone".into()))?;
+            match answer.recv_timeout(Duration::from_secs(5)) {
+                Ok(Ok(format)) => {
+                    let _ = std::fs::write(&marker, "first packets");
+                    return Ok(AppsCapture {
+                        data,
+                        stop,
+                        marker: Some(marker),
+                        name: "all apps".into(),
+                        format,
+                    });
+                }
+                Ok(Err(e)) => {
+                    let _ = std::fs::remove_file(&marker);
+                    skipped.push(format!("{} failed: {e}", setup.name));
+                }
+                Err(_) => {
+                    stop.store(true, Ordering::Relaxed);
+                    skipped.push(format!("{} did not answer", setup.name));
+                }
+            }
+        }
+        Err(AppError::Platform(format!("app audio capture not used: {}", skipped.join("; "))))
+    }
+
+    /// Delivers the packets received since the last call.
+    pub fn read(&mut self, mut on_data: impl FnMut(i64, &[f32])) -> AppResult<()> {
+        loop {
+            match self.data.try_recv() {
+                Ok((t, samples)) => {
+                    on_data(t, &samples);
+                    if let Some(m) = self.marker.take() {
+                        let _ = std::fs::remove_file(m);
+                    }
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => return Ok(()),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    return Err(AppError::Platform("app audio stream ended".into()))
+                }
+            }
+        }
+    }
+}
+
+impl Drop for AppsCapture {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        // A clean end (even without a single packet: nothing played) clears the guard.
+        if let Some(m) = self.marker.take() {
+            let _ = std::fs::remove_file(m);
         }
     }
 }

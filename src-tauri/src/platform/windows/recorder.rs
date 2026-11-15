@@ -11,7 +11,11 @@
 //! - The OS ending the capture (window closed, display gone) finalizes the file and sends
 //!   `NativeEvent::Stopped`.
 
-use super::{capture, displays, media, wasapi, wasapi::Capture, win_err};
+use super::{
+    capture, displays, media, wasapi,
+    wasapi::{AppsCapture, Capture, Source as AudioSource},
+    win_err,
+};
 use crate::{
     core::{
         denoise::Denoiser,
@@ -368,15 +372,15 @@ impl Recorder {
         // System audio = what the apps play (never microphones). Preferred: the apps' own
         // streams (independent of the output in use and of its volume or mute in Windows).
         // Fallback on older Windows: every output device, with software volume undone.
-        let mut systems: Vec<(usize, Capture)> = Vec::new();
+        let mut systems: Vec<(usize, AudioSource)> = Vec::new();
         let mut per_output = false;
         if wants_system {
-            match Capture::all_apps() {
+            match AppsCapture::start() {
                 Ok(c) => {
                     tracing::info!(format = %c.format, "recording: system audio from every app");
                     let index = audio_state.add(system_gain, c.name.clone());
                     audio_state.system.push(index);
-                    systems.push((index, c));
+                    systems.push((index, AudioSource::Apps(c)));
                 }
                 Err(e) => {
                     tracing::warn!(error = %e, "app audio capture unavailable; capturing every output instead");
@@ -871,7 +875,7 @@ impl Engine {
     /// Audio thread: polls both devices every ~10 ms, mixes on the video clock and writes AAC.
     fn run_audio(
         self: Arc<Self>,
-        mut systems: Vec<(usize, Capture)>,
+        mut systems: Vec<(usize, AudioSource)>,
         mut mic: Option<(usize, Capture)>,
         denoise: bool,
         mut per_output: bool,
@@ -894,8 +898,8 @@ impl Engine {
             systems.retain_mut(|(i, c)| match c.read(|t, samples| push(*i, t, samples)) {
                 Ok(()) => true,
                 Err(e) => {
-                    apps_failed |= c.device_id == wasapi::ALL_APPS;
-                    tracing::info!(error = %e, device = %c.name, "output stopped; reopened if it comes back");
+                    apps_failed |= c.device_id() == wasapi::ALL_APPS;
+                    tracing::info!(error = %e, device = %c.name(), "output stopped; reopened if it comes back");
                     if let Some(m) = self.audio.lock().unwrap().mixer.as_mut() {
                         m.deactivate(*i);
                     }
@@ -929,7 +933,7 @@ impl Engine {
             if per_output && last_scan.elapsed() >= Duration::from_secs(1) {
                 last_scan = std::time::Instant::now();
                 for output in wasapi::active_outputs() {
-                    if systems.iter().any(|(_, c)| c.device_id == output.id) {
+                    if systems.iter().any(|(_, c)| c.device_id() == output.id) {
                         continue;
                     }
                     match Capture::loopback_of(&output.id) {
@@ -942,7 +946,7 @@ impl Engine {
                                 index
                             };
                             tracing::info!(device = %c.name, format = %c.format, "recording: system audio output added");
-                            systems.push((index, c));
+                            systems.push((index, AudioSource::Device(c)));
                         }
                         Err(e) => {
                             tracing::debug!(error = %e, output = %output.name, "output not captured yet")
@@ -999,7 +1003,7 @@ impl Engine {
 }
 
 /// Fallback system audio: a loopback of every active output.
-fn open_outputs(audio_state: &mut AudioState, gain: f32) -> Vec<(usize, Capture)> {
+fn open_outputs(audio_state: &mut AudioState, gain: f32) -> Vec<(usize, AudioSource)> {
     let mut systems = Vec::new();
     for output in wasapi::active_outputs() {
         match Capture::loopback_of(&output.id) {
@@ -1007,7 +1011,7 @@ fn open_outputs(audio_state: &mut AudioState, gain: f32) -> Vec<(usize, Capture)
                 tracing::info!(device = %c.name, format = %c.format, "recording: system audio output");
                 let index = audio_state.add(gain, c.name.clone());
                 audio_state.system.push(index);
-                systems.push((index, c));
+                systems.push((index, AudioSource::Device(c)));
             }
             Err(e) => tracing::warn!(error = %e, output = %output.name, "output not captured"),
         }
