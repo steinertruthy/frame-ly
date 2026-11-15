@@ -112,6 +112,21 @@ describe('limits', () => {
     expect(((await daily.json()) as { error: { code: string } }).error.code).toBe('daily_limit');
   });
 
+  it('reports today\'s usage to the signed device only', async () => {
+    const h = harness();
+    const dev = await registerDevice(h);
+    const other = await registerDevice(h, '198.51.100.9');
+    const usage = async (d: typeof dev) => (await h.call('GET', '/v1/usage', { headers: await d.sign('GET', '/v1/usage', '') })).json() as Promise<Record<string, number>>;
+    expect(await usage(dev)).toMatchObject({ usedToday: 0 });
+    for (let i = 0; i < 2; i++) expect((await signedCall(h, dev, '/v1/ai/summarize', { transcript: TRANSCRIPT })).status).toBe(200);
+    const u = await usage(dev);
+    expect(u.usedToday).toBe(2);
+    expect(u.limitPerDay).toBeGreaterThan(2);
+    expect(u.resetsIn).toBeGreaterThan(0);
+    expect((await usage(other)).usedToday).toBe(0);
+    expect((await h.call('GET', '/v1/usage')).status).toBe(401);
+  });
+
   it('global ceilings protect the provider quota', async () => {
     const h = harness(env({ GLOBAL_REQUESTS_PER_MINUTE: '2', DEVICE_REQUESTS_PER_MINUTE: '50', DEVICE_REQUESTS_PER_DAY: '50' }));
     const a = await registerDevice(h);

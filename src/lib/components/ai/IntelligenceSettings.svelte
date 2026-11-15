@@ -18,7 +18,7 @@
   import { toast } from '$lib/stores/toasts.svelte';
   import { TRANSCRIPTION_LANGUAGES } from '$lib/ai';
   import ModelRow from './ModelRow.svelte';
-  import { consentBody, languageName, offeredProvider, providerName } from './format';
+  import { consentPoints, languageName, offeredProvider, providerName, roughTime } from './format';
   import CloudState from './CloudState.svelte';
 
   interface Props {
@@ -29,7 +29,11 @@
   let { platform, set }: Props = $props();
   const mac = $derived(platform === 'macos');
 
-  onMount(() => void aiStore.init());
+  onMount(() => {
+    void aiStore.init();
+    // Fresh usage numbers every time Settings opens.
+    void aiStore.checkCloud(true);
+  });
   const s = $derived(settings.value!.intelligence);
   const o = $derived(aiStore.overview);
   const info = (id: ProviderId) => o?.providers.find((p) => p.id === id);
@@ -243,8 +247,20 @@
       {/if}
     </SettingRow>
     {#if cloud?.requestsPerDay}
-      <SettingRow title={t('ai.cloud.limit')} hint={t('ai.cloud.limit.hint', { n: cloud.requestsPerDay })}>
-        <span class="value">{cloud.requestsPerDay}</span>
+      {@const used = cloud.usedToday}
+      {@const max = cloud.requestsPerDay}
+      <SettingRow
+        title={t('ai.cloud.limit')}
+        hint={`${t('ai.cloud.limit.hint', { n: max })}${cloud.resetsIn ? ` ${t('ai.cloud.limit.resets', { time: roughTime(cloud.resetsIn * 1000) })}` : ''}`}
+      >
+        {#if used != null}
+          <span class="usage" class:full={used >= max}>
+            <span class="meter"><span style:width="{Math.min(100, (used / max) * 100)}%"></span></span>
+            <span class="value">{t('ai.cloud.limit.used', { used, max })}</span>
+          </span>
+        {:else}
+          <span class="value">{max}</span>
+        {/if}
       </SettingRow>
     {/if}
   </Section>
@@ -319,7 +335,8 @@
 {#if granting}
   <ConfirmDialog
     title={t('ai.set.allow.title', { provider: providerName(granting) })}
-    body={consentBody(granting, aiStore.cloud)}
+    points={consentPoints(granting, aiStore.cloud)}
+    note={t('ai.consent.p.revoke')}
     confirm={t('ai.set.allow')}
     cancel={t('ai.consent.cancel')}
     onconfirm={grant}
@@ -422,6 +439,31 @@
   }
   .tone-warn i {
     background: var(--warn-500);
+  }
+  .usage {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .meter {
+    position: relative;
+    width: 96px;
+    height: 6px;
+    border-radius: 99px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .meter span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: inherit;
+    background: var(--accent);
+  }
+  .usage.full .meter span {
+    background: var(--warn-500);
+  }
+  .usage.full .value {
+    color: var(--warn-500);
   }
   .value {
     color: var(--text-2);

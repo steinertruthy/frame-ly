@@ -1,6 +1,6 @@
 # FrameLy Cloud API. Every setting lives here (or in `wrangler secret` for credentials);
 # see README.md. Changing the model or limits needs no desktop app update.
-name = "framely-cloud"
+name = "framely-ia-cloud"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 workers_dev = true

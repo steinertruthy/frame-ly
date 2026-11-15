@@ -15,7 +15,7 @@
   import { toast } from '$lib/stores/toasts.svelte';
   import { isReady, needsConsent, TRANSCRIPTION_LANGUAGES } from '$lib/ai';
   import Sheet from './Sheet.svelte';
-  import { consentBody, languageName, modelName, offeredProvider, pct, providerName, roughTime } from './format';
+  import { consentPoints, languageName, modelName, offeredProvider, pct, providerName, roughTime } from './format';
   import CloudState from './CloudState.svelte';
 
   interface Props {
@@ -309,7 +309,8 @@
 {#if consentFor}
   <ConfirmDialog
     title={t('ai.consent.title', { provider: providerName(consentFor) })}
-    body={consentBody(consentFor, aiStore.cloud)}
+    points={consentPoints(consentFor, aiStore.cloud)}
+    note={t('ai.consent.p.revoke')}
     confirm={t('ai.consent.allow')}
     cancel={t('ai.consent.cancel')}
     onconfirm={allow}

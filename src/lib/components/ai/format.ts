@@ -41,9 +41,20 @@ export function offeredProvider(p: { id: ProviderId; local: boolean }, externalE
   return p.local || p.id === 'cloud' || !!externalEnabled;
 }
 
-/** Consent text: what is sent, to whom, and how it may be used. The app never names the cloud's AI provider or model. */
-export function consentBody(provider: ProviderId, cloud: CloudStatus | null): string {
-  if (provider !== 'cloud') return t('ai.consent.body', { provider: providerName(provider), host: PROVIDER_HOSTS[provider] });
-  const use = cloud?.dataUse === 'no_training' ? t('ai.cloud.noTraining') : t('ai.cloud.mayTrain');
-  return `${t('ai.cloud.consentBody')} ${use}`;
+export interface ConsentPoint {
+  tone: 'ok' | 'warn' | 'info';
+  text: string;
+}
+
+/** Consent notice as short points: what is sent, where, what happens to it. Never names the cloud's AI provider. */
+export function consentPoints(provider: ProviderId, cloud: CloudStatus | null): ConsentPoint[] {
+  const points: ConsentPoint[] = [{ tone: 'ok', text: t('ai.consent.p.textOnly') }];
+  if (provider === 'cloud') {
+    points.push({ tone: 'ok', text: t('ai.consent.p.discarded') });
+    points.push(cloud?.dataUse === 'no_training' ? { tone: 'ok', text: t('ai.consent.p.noTraining') } : { tone: 'warn', text: t('ai.consent.p.mayTrain') });
+  } else {
+    points.push({ tone: 'info', text: t('ai.consent.p.sentTo', { host: PROVIDER_HOSTS[provider] }) });
+    points.push({ tone: 'warn', text: t('ai.consent.p.billed', { provider: providerName(provider) }) });
+  }
+  return points;
 }

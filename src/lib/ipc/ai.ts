@@ -188,6 +188,10 @@ export interface CloudStatus {
   dataUse: 'may_train' | 'no_training' | null;
   maxInputChars: number | null;
   requestsPerDay: number | null;
+  /** Requests this computer made today (0 before first use); null when unknown. */
+  usedToday: number | null;
+  /** Seconds until today's count starts over. */
+  resetsIn: number | null;
 }
 
 export interface Followups {

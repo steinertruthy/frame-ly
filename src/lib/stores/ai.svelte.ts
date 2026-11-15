@@ -108,7 +108,7 @@ class AiStore {
       this.cloud = await ai.cloudStatus();
       this.cloudCheckedAt = Date.now();
     } catch {
-      this.cloud = { state: 'offline', dataUse: null, maxInputChars: null, requestsPerDay: null };
+      this.cloud = { state: 'offline', dataUse: null, maxInputChars: null, requestsPerDay: null, usedToday: null, resetsIn: null };
     } finally {
       this.cloudChecking = false;
     }

@@ -12,7 +12,7 @@
   import { nav } from '$lib/stores/nav.svelte';
   import { toast } from '$lib/stores/toasts.svelte';
   import { needsConsent } from '$lib/ai';
-  import { consentBody, offeredProvider, providerName, roughTime } from './format';
+  import { consentPoints, offeredProvider, providerName, roughTime } from './format';
   import CloudState from './CloudState.svelte';
 
   interface Props {
@@ -160,7 +160,8 @@
 {#if asking}
   <ConfirmDialog
     title={t('ai.consent.title', { provider: providerName(provider) })}
-    body={consentBody(provider, aiStore.cloud)}
+    points={consentPoints(provider, aiStore.cloud)}
+    note={t('ai.consent.p.revoke')}
     confirm={t('ai.consent.allow')}
     cancel={t('ai.consent.cancel')}
     onconfirm={allowAndRun}

@@ -32,6 +32,7 @@ FrameLy Desktop ──HTTPS assinado──▶ FrameLy Cloud API (Worker) ──�
 | `POST /v1/devices` | `{challenge, publicKey, nonce}` → `{deviceId}`. Registra a chave pública Ed25519 do aparelho. |
 | `POST /v1/ai/summarize` | `{language, detail, transcript, part?}` ou `{language, detail, partials}` → `{result: {overview, points[{text,time}]}}` |
 | `POST /v1/ai/topics` | `{language, detail, transcript, part?}` → `{result: {topics[{title,time,subtopics[{title,time,points}]}], decisions, actions, dates, numbers, keywords}}` |
+| `GET /v1/usage` | Assinado, sem corpo: `{usedToday, limitPerDay, resetsIn}` do próprio aparelho (o app mostra "X de 60 hoje"). |
 
 Erros: `{"error": {"code", "message", "retryAfter"?}}` com `retry-after` quando faz sentido.
 Códigos: `invalid_request` 400, `unauthorized` 401, `too_large` 413, `rate_limited`/`daily_limit`
@@ -119,14 +120,14 @@ cd cloud
 npx wrangler login
 npx wrangler secret put GEMINI_API_KEY   # ou DEEPSEEK_API_KEY, se PROVIDER = "deepseek"
 npx wrangler secret put TOKEN_SECRET
-pnpm run deploy        # publica em https://framely-cloud.<sua-conta>.workers.dev
+pnpm run deploy        # publica em https://framely-ia-cloud.<sua-conta>.workers.dev
 ```
 
 Depois, gere o Desktop com a URL publicada (fica embutida no binário):
 
 ```bash
-FRAMELY_CLOUD_URL=https://framely-cloud.<sua-conta>.workers.dev pnpm app:mac
-FRAMELY_CLOUD_URL=https://framely-cloud.<sua-conta>.workers.dev pnpm build:windows
+FRAMELY_CLOUD_URL=https://framely-ia-cloud.<sua-conta>.workers.dev pnpm app:mac
+FRAMELY_CLOUD_URL=https://framely-ia-cloud.<sua-conta>.workers.dev pnpm build:windows
 ```
 
 Um domínio próprio (ex.: `cloud.framely.app`) pode ser ligado ao Worker em Workers & Pages ›

@@ -19,6 +19,13 @@ export type LimitOutcome =
   | { ok: true }
   | { ok: false; code: 'rate_limited' | 'daily_limit' | 'service_busy' | 'unauthorized'; retryAfter?: number };
 
+export interface Usage {
+  usedToday: number;
+  limitPerDay: number;
+  /** Seconds until the daily counter starts over (00:00 UTC). */
+  resetsIn: number;
+}
+
 const minuteOf = (now: number) => Math.floor(now / 60_000);
 const dayOf = (now: number) => Math.floor(now / 86_400_000);
 const REPLAY_TTL_MS = 11 * 60_000;
@@ -80,6 +87,11 @@ export class LimiterCore {
     return { ok: true };
   }
 
+  /** Today's requests for one device (UTC day), for the app's usage display. Read-only. */
+  async usage(deviceId: string, now: number): Promise<Usage> {
+    return { usedToday: await this.count(`cnt:dev:${deviceId}:d${dayOf(now)}`), limitPerDay: this.limits.deviceDay, resetsIn: Math.ceil(secondsToNextDay(now)) };
+  }
+
   /** Corrects the token estimate with what the provider actually used. */
   async recordTokens(estimated: number, actual: number, now: number): Promise<void> {
     const key = `cnt:gtok:m${minuteOf(now)}`;
@@ -131,13 +143,15 @@ export interface LimiterClient {
   register(deviceId: string, publicKey: string, ip: string, now: number): Promise<LimitOutcome>;
   consume(deviceId: string, requestId: string, estimatedTokens: number, now: number): Promise<LimitOutcome>;
   recordTokens(estimated: number, actual: number, now: number): Promise<void>;
+  usage(deviceId: string, now: number): Promise<Usage>;
 }
 
 type Op =
   | { op: 'publicKey'; deviceId: string }
   | { op: 'register'; deviceId: string; publicKey: string; ip: string; now: number }
   | { op: 'consume'; deviceId: string; requestId: string; estimatedTokens: number; now: number }
-  | { op: 'recordTokens'; estimated: number; actual: number; now: number };
+  | { op: 'recordTokens'; estimated: number; actual: number; now: number }
+  | { op: 'usage'; deviceId: string; now: number };
 
 /** RPC client for the single global Limiter Durable Object. */
 export function durableLimiter(ns: DurableObjectNamespace): LimiterClient {
@@ -154,6 +168,7 @@ export function durableLimiter(ns: DurableObjectNamespace): LimiterClient {
     recordTokens: async (estimated, actual, now) => {
       await call({ op: 'recordTokens', estimated, actual, now });
     },
+    usage: (deviceId, now) => call({ op: 'usage', deviceId, now }),
   };
 }
 
@@ -183,6 +198,9 @@ export class Limiter {
       case 'recordTokens':
         await c.recordTokens(op.estimated, op.actual, op.now);
         out = {};
+        break;
+      case 'usage':
+        out = await c.usage(op.deviceId, op.now);
         break;
     }
     return Response.json(out);

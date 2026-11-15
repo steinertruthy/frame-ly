@@ -6,6 +6,7 @@
  *   POST /v1/devices             register an anonymous device (Ed25519 public key)
  *   POST /v1/ai/summarize        summary of a transcript (or of one part; or combine parts)
  *   POST /v1/ai/topics           topics, decisions, tasks, dates, numbers, keywords
+ *   GET  /v1/usage               this device's requests today and its daily limit (signed)
  *
  * The app never learns which AI provider or model is behind the service.
  *
@@ -88,6 +89,15 @@ async function register(req: Request, d: Deps): Promise<Response> {
   return json({ deviceId });
 }
 
+/** Signed, read-only: how much of today's limit this device has used. */
+async function usage(req: Request, d: Deps): Promise<Response> {
+  const headers = readSignedHeaders(req);
+  const pk = await d.limiter.publicKey(headers.deviceId);
+  if (!pk) throw new ApiError('unauthorized', 'unknown device');
+  await verifyRequest(req.method, new URL(req.url).pathname, '', headers, pk, d.now());
+  return json(await d.limiter.usage(headers.deviceId, d.now()));
+}
+
 async function generate(task: Task, req: Request, d: Deps): Promise<Response> {
   const started = d.now();
   const path = new URL(req.url).pathname;
@@ -160,6 +170,8 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
         return await generate('summary', req, d);
       case 'POST /v1/ai/topics':
         return await generate('topics', req, d);
+      case 'GET /v1/usage':
+        return await usage(req, d);
       default:
         throw new ApiError('not_found', 'no such endpoint');
     }

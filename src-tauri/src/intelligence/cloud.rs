@@ -48,11 +48,15 @@ pub struct Status {
     pub data_use: Option<String>,
     pub max_input_chars: Option<u64>,
     pub requests_per_day: Option<u64>,
+    /// Requests this computer made today (0 before its first use), when the service could tell.
+    pub used_today: Option<u64>,
+    /// Seconds until today's count starts over.
+    pub resets_in: Option<u64>,
 }
 
 impl Status {
     fn only(state: &str) -> Self {
-        Self { state: state.into(), data_use: None, max_input_chars: None, requests_per_day: None }
+        Self { state: state.into(), data_use: None, max_input_chars: None, requests_per_day: None, used_today: None, resets_in: None }
     }
 }
 
@@ -78,12 +82,30 @@ pub fn status(local_only: bool) -> Status {
         (_, Some("region_blocked")) => "region_blocked",
         _ => "unavailable",
     };
-    Status {
+    let mut out = Status {
         state: state.into(),
         data_use: v["dataUse"].as_str().map(str::to_string),
         max_input_chars: v["limits"]["maxInputChars"].as_u64(),
         requests_per_day: v["limits"]["requestsPerDay"].as_u64(),
+        used_today: None,
+        resets_in: None,
+    };
+    if state == "available" {
+        // Only an already registered computer has usage; never register just to look.
+        match stored_device(&base) {
+            None => out.used_today = Some(0),
+            Some(dev) => {
+                if let Ok((200, body)) = signed_get(&agent, &base, &dev, "/v1/usage") {
+                    if let Ok(u) = serde_json::from_str::<Value>(&body) {
+                        out.used_today = u["usedToday"].as_u64();
+                        out.resets_in = u["resetsIn"].as_u64();
+                        out.requests_per_day = u["limitPerDay"].as_u64().or(out.requests_per_day);
+                    }
+                }
+            }
+        }
     }
+    out
 }
 
 /// Maps the service's structured errors (`{error: {code, retryAfter}}`) to app errors.
@@ -151,17 +173,22 @@ fn random<const N: usize>() -> AppResult<[u8; N]> {
     Ok(b)
 }
 
+/// The device already registered with `base`, if any (no network).
+fn stored_device(base: &str) -> Option<Device> {
+    let raw = crate::platform::keystore::get(KEY_ACCOUNT).ok()??;
+    let s = serde_json::from_str::<Stored>(&raw).ok()?;
+    if s.url != base {
+        return None;
+    }
+    let seed = <[u8; 32]>::try_from(B64.decode(&s.seed).ok()?).ok()?;
+    Some(Device { id: s.device_id, key: SigningKey::from_bytes(&seed) })
+}
+
 /// The registered device for `base`, registering it on first use.
 pub fn device(agent: &ureq::Agent, base: &str, force_new: bool) -> AppResult<Device> {
     if !force_new {
-        if let Some(raw) = crate::platform::keystore::get(KEY_ACCOUNT)? {
-            if let Ok(s) = serde_json::from_str::<Stored>(&raw) {
-                if s.url == base {
-                    if let Ok(seed) = B64.decode(&s.seed).map_err(|_| ()).and_then(|v| <[u8; 32]>::try_from(v).map_err(|_| ())) {
-                        return Ok(Device { id: s.device_id, key: SigningKey::from_bytes(&seed) });
-                    }
-                }
-            }
+        if let Some(dev) = stored_device(base) {
+            return Ok(dev);
         }
     }
     let key = SigningKey::from_bytes(&random::<32>()?);
@@ -205,6 +232,23 @@ fn signed_post(agent: &ureq::Agent, base: &str, dev: &Device, path: &str, body: 
         .header("x-framely-request", &request_id)
         .header("x-framely-signature", &B64.encode(sig.to_bytes()))
         .send(body.to_string())
+        .map_err(net::net_err)?;
+    let status = r.status().as_u16();
+    Ok((status, r.body_mut().read_to_string().map_err(net::net_err)?))
+}
+
+/// Signed read-only request (empty body); returns `(status, body)`.
+fn signed_get(agent: &ureq::Agent, base: &str, dev: &Device, path: &str) -> AppResult<(u16, String)> {
+    let timestamp = chrono::Utc::now().timestamp_millis().to_string();
+    let request_id = hex(&random::<16>()?);
+    let sig = dev.key.sign(signing_string("GET", path, &timestamp, &request_id, "").as_bytes());
+    let mut r = agent
+        .get(&format!("{base}{path}"))
+        .header("x-framely-device", &dev.id)
+        .header("x-framely-timestamp", &timestamp)
+        .header("x-framely-request", &request_id)
+        .header("x-framely-signature", &B64.encode(sig.to_bytes()))
+        .call()
         .map_err(net::net_err)?;
     let status = r.status().as_u16();
     Ok((status, r.body_mut().read_to_string().map_err(net::net_err)?))
