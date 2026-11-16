@@ -79,6 +79,10 @@ export type TranscriptStatus = 'queued' | 'running' | 'interrupted' | 'cancelled
 export interface Transcript {
   id: number;
   media: MediaRef;
+  /** Shown name: the one the person gave it, else the media file name. */
+  title: string;
+  /** Renamed by the person (the media file itself is never renamed). */
+  customTitle: boolean;
   language: string;
   detectedLanguage: string | null;
   precision: Exclude<Precision, 'auto'>;
@@ -250,6 +254,8 @@ export const ai = {
   get: (id: number) => invoke<Detailed>('transcript_get', { id }),
   find: (path: string) => invoke<Transcript | null>('transcript_find', { path }),
   editSegment: (id: number, idx: number, text: string) => invoke<void>('transcript_edit', { id, idx, text }),
+  /** Renames a transcript; a blank title goes back to the file name. */
+  rename: (id: number, title: string) => invoke<Transcript>('transcript_rename', { id, title }),
   remove: (id: number) => invoke<void>('transcript_delete', { id }),
   saveGenerated: (id: number, kind: Task, content: unknown) => invoke<void>('generated_save', { id, kind, content }),
   generate: (id: number, task: Task, provider: ProviderId, detail: Detail) =>

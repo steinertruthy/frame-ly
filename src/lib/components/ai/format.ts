@@ -8,6 +8,17 @@ export function roughTime(ms: number): string {
   return t(`ai.time.${r.unit}` as MessageKey, { n: r.n.toLocaleString(locale()) });
 }
 
+/** Name to show for a transcript: its own title, or the media file name without extension. */
+export function transcriptTitle(tr: { title: string; customTitle: boolean; media: { name: string } }): string {
+  return tr.customTitle ? tr.title : tr.media.name.replace(/\.[^.]+$/, '');
+}
+
+/** A title safe to use as a file name on macOS and Windows. */
+export function fileSafe(name: string): string {
+  const clean = name.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
+  return clean.slice(0, 120) || 'FrameLy';
+}
+
 export const providerName = (p: ProviderId): string => t(`ai.provider.${p}` as MessageKey);
 export const modelName = (id: string): string => t(`ai.model.${id}` as MessageKey);
 

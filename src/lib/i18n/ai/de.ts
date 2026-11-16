@@ -27,6 +27,8 @@ export const aiDe: Record<keyof typeof aiEn, string> = {
   'ai.resume': 'Fortsetzen',
   'ai.retry': 'Erneut versuchen',
   'ai.delete': 'Transkription löschen',
+  'ai.title.rename': 'Transkript umbenennen',
+  'ai.title.saved': 'Titel aktualisiert.',
   'ai.delete.confirm': 'Transkription von „{name}“ löschen?',
   'ai.delete.body': 'Text, Zusammenfassung und Themen werden entfernt. Die Mediendatei bleibt, wo sie ist.',
   'ai.back': 'Alle Transkriptionen',

@@ -26,6 +26,8 @@ export const aiEn = {
   'ai.resume': 'Continue',
   'ai.retry': 'Try again',
   'ai.delete': 'Delete transcription',
+  'ai.title.rename': 'Rename transcript',
+  'ai.title.saved': 'Title updated.',
   'ai.delete.confirm': 'Delete the transcription of “{name}”?',
   'ai.delete.body': 'The text, summary and topics are removed. The media file stays where it is.',
   'ai.back': 'All transcriptions',

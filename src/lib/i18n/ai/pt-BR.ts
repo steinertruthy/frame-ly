@@ -27,6 +27,8 @@ export const aiPtBR: Record<keyof typeof aiEn, string> = {
   'ai.resume': 'Continuar',
   'ai.retry': 'Tentar de novo',
   'ai.delete': 'Excluir transcrição',
+  'ai.title.rename': 'Renomear transcrição',
+  'ai.title.saved': 'Título atualizado.',
   'ai.delete.confirm': 'Excluir a transcrição de “{name}”?',
   'ai.delete.body': 'O texto, o resumo e os tópicos são removidos. O arquivo de mídia continua onde está.',
   'ai.back': 'Todas as transcrições',

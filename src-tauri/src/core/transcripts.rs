@@ -66,6 +66,10 @@ pub struct MediaRef {
 pub struct Transcript {
     pub id: i64,
     pub media: MediaRef,
+    /// Shown name: the one the person gave it, else the media file name (the file is never renamed).
+    pub title: String,
+    /// The person renamed it (`title` differs from the file name on purpose).
+    pub custom_title: bool,
     /// Requested language ("auto" or an ISO code).
     pub language: String,
     pub detected_language: Option<String>,
@@ -122,7 +126,8 @@ CREATE TABLE IF NOT EXISTS transcripts (
   blocks_done INTEGER NOT NULL DEFAULT 0,
   error TEXT,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  title TEXT
 );
 CREATE TABLE IF NOT EXISTS segments (
   transcript_id INTEGER NOT NULL REFERENCES transcripts(id) ON DELETE CASCADE,
@@ -163,7 +168,8 @@ const SELECT: &str =
   detected_language, precision, model_id, status, done_ms, blocks_done, error, t.created_at, updated_at,
   EXISTS(SELECT 1 FROM generated g WHERE g.transcript_id = t.id AND g.kind = 'summary'),
   EXISTS(SELECT 1 FROM generated g WHERE g.transcript_id = t.id AND g.kind = 'topics'),
-  EXISTS(SELECT 1 FROM segments s WHERE s.transcript_id = t.id AND s.edited = 1)
+  EXISTS(SELECT 1 FROM segments s WHERE s.transcript_id = t.id AND s.edited = 1),
+  t.title
   FROM transcripts t";
 
 fn row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Transcript> {
@@ -190,6 +196,14 @@ fn row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Transcript> {
         has_summary: r.get(17)?,
         has_topics: r.get(18)?,
         edited: r.get(19)?,
+        title: String::new(),
+        custom_title: false,
+    })
+    .map(|mut t| {
+        let custom: Option<String> = r.get(20).ok().flatten();
+        t.custom_title = custom.is_some();
+        t.title = custom.unwrap_or_else(|| t.media.name.clone());
+        t
     })
 }
 
@@ -214,6 +228,14 @@ impl Transcripts {
     fn init(conn: Connection) -> AppResult<Self> {
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;").map_err(db_err)?;
         conn.execute_batch(SCHEMA).map_err(db_err)?;
+        // Databases from before titles existed gain the column (NULL = use the file name).
+        let has_title = conn
+            .prepare("SELECT 1 FROM pragma_table_info('transcripts') WHERE name = 'title'")
+            .and_then(|mut st| st.exists([]))
+            .map_err(db_err)?;
+        if !has_title {
+            conn.execute_batch("ALTER TABLE transcripts ADD COLUMN title TEXT").map_err(db_err)?;
+        }
         Ok(Self { conn })
     }
 
@@ -299,6 +321,24 @@ impl Transcripts {
             )
             .map_err(db_err)?;
         self.get(self.conn.last_insert_rowid())
+    }
+
+    /// Renames the transcript (not the media file). A blank title goes back to the file name.
+    pub fn set_title(&self, id: i64, title: &str) -> AppResult<Transcript> {
+        let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+        let title: String = title.chars().take(200).collect();
+        let value = if title.is_empty() { None } else { Some(title) };
+        let n = self
+            .conn
+            .execute(
+                "UPDATE transcripts SET title = ?2, updated_at = ?3 WHERE id = ?1",
+                params![id, value, now_ms()],
+            )
+            .map_err(db_err)?;
+        if n == 0 {
+            return Err(AppError::NotFound);
+        }
+        self.get(id)
     }
 
     pub fn set_status(&self, id: i64, status: Status, error: Option<&str>) -> AppResult<()> {
@@ -599,5 +639,39 @@ mod tests {
         let (rate, n) = db.perf_rate("asr", "m", "metal").unwrap().unwrap();
         assert_eq!(n, 3);
         assert!((rate - 60.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn titles_start_as_the_file_name_and_can_be_renamed() {
+        let mut db = Transcripts::in_memory().unwrap();
+        let t = db.begin(&media("/v/a.mp4", 10), "auto", "balanced", "m").unwrap();
+        assert_eq!((t.title.as_str(), t.custom_title), ("a.mp4", false));
+        let t = db.set_title(t.id, "  Reunião   de  planejamento ").unwrap();
+        assert_eq!((t.title.as_str(), t.custom_title), ("Reunião de planejamento", true));
+        assert_eq!(t.media.name, "a.mp4", "the file keeps its name");
+        // Re-transcribing with other settings keeps the title.
+        let t = db.begin(&media("/v/a.mp4", 10), "auto", "max", "m2").unwrap();
+        assert_eq!(t.title, "Reunião de planejamento");
+        // Blank goes back to the file name.
+        let t = db.set_title(t.id, "   ").unwrap();
+        assert_eq!((t.title.as_str(), t.custom_title), ("a.mp4", false));
+        assert!(matches!(db.set_title(999, "x"), Err(AppError::NotFound)));
+    }
+
+    #[test]
+    fn older_databases_gain_the_title_column() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE transcripts (id INTEGER PRIMARY KEY, media_path TEXT NOT NULL UNIQUE, media_name TEXT NOT NULL,
+             media_kind TEXT NOT NULL, media_size INTEGER NOT NULL, media_mtime INTEGER NOT NULL, duration_ms INTEGER NOT NULL,
+             language TEXT NOT NULL, detected_language TEXT, precision TEXT NOT NULL, model_id TEXT NOT NULL,
+             status TEXT NOT NULL, done_ms INTEGER NOT NULL DEFAULT 0, blocks_done INTEGER NOT NULL DEFAULT 0, error TEXT,
+             created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+             INSERT INTO transcripts VALUES (1,'/v/b.mp4','b.mp4','video',1,1,1,'auto',NULL,'fast','m','done',0,0,NULL,1,1);",
+        )
+        .unwrap();
+        let db = Transcripts::init(conn).unwrap();
+        assert_eq!(db.get(1).unwrap().title, "b.mp4");
+        assert_eq!(db.set_title(1, "Aula 3").unwrap().title, "Aula 3");
     }
 }

@@ -27,6 +27,8 @@ export const aiFr: Record<keyof typeof aiEn, string> = {
   'ai.resume': 'Reprendre',
   'ai.retry': 'Réessayer',
   'ai.delete': 'Supprimer la transcription',
+  'ai.title.rename': 'Renommer la transcription',
+  'ai.title.saved': 'Titre mis à jour.',
   'ai.delete.confirm': 'Supprimer la transcription de « {name} » ?',
   'ai.delete.body': 'Le texte, le résumé et les thèmes sont supprimés. Le fichier média reste où il est.',
   'ai.back': 'Toutes les transcriptions',

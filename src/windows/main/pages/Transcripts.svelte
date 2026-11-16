@@ -67,7 +67,13 @@
   const showSetup = $derived(!!plan && !setupDismissed && (!plan.done || setupShown));
   let query = $state('');
   const filtered = $derived(
-    query.trim() ? aiStore.transcripts.filter((x) => x.media.name.toLowerCase().includes(query.trim().toLowerCase())) : aiStore.transcripts,
+    query.trim()
+      ? aiStore.transcripts.filter((x) => {
+          // Matches the title and, for renamed ones, the original file name too.
+          const q = query.trim().toLowerCase();
+          return x.title.toLowerCase().includes(q) || x.media.name.toLowerCase().includes(q);
+        })
+      : aiStore.transcripts,
   );
   const working = $derived(filtered.filter((x) => aiStore.current(x.id)));
   const rest = $derived(filtered.filter((x) => !aiStore.current(x.id)));

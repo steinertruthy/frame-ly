@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { convertFileSrc } from '@tauri-apps/api/core';
   import { save as saveDialog } from '@tauri-apps/plugin-dialog';
-  import { ArrowLeft, Download, Trash2, AudioLines, FileText, ListTree, Captions, Check, LoaderCircle, Clock3, Circle, AlertTriangle } from '@lucide/svelte';
+  import { ArrowLeft, Download, Trash2, Pencil, AudioLines, FileText, ListTree, Captions, Check, LoaderCircle, Clock3, Circle, AlertTriangle } from '@lucide/svelte';
   import type { Component } from 'svelte';
   import Button from '$lib/components/Button.svelte';
   import Segmented from '$lib/components/Segmented.svelte';
@@ -18,7 +18,7 @@
   import TranscriptTab from './TranscriptTab.svelte';
   import SummaryTab from './SummaryTab.svelte';
   import TopicsTab from './TopicsTab.svelte';
-  import { languageName, modelName, providerName } from './format';
+  import { fileSafe, languageName, modelName, providerName, transcriptTitle } from './format';
 
   interface Props {
     id: number;
@@ -88,13 +88,46 @@
     }
   }
 
-  const stem = (name: string) => name.replace(/\.[^.]+$/, '');
+  // ── Title (inline rename: Enter saves, Esc cancels; the media file keeps its name) ──
+  let renaming = $state(false);
+  let draft = $state('');
+  let titleInput: HTMLInputElement | undefined = $state();
+  function startRename() {
+    if (!detail) return;
+    draft = transcriptTitle(detail.transcript);
+    renaming = true;
+    queueMicrotask(() => titleInput?.select());
+  }
+  async function saveTitle() {
+    if (!renaming || !detail) return;
+    renaming = false;
+    const next = draft.trim();
+    if (next === transcriptTitle(detail.transcript)) return;
+    try {
+      // Typing the file name back (or clearing it) returns to the automatic title.
+      const fileStem = detail.transcript.media.name.replace(/\.[^.]+$/, '');
+      detail.transcript = await ai.rename(detail.transcript.id, next === fileStem ? '' : next);
+      toast('success', t('ai.title.saved'));
+    } catch (e) {
+      toast('error', t(`error.${isAppError(e) ? e.code : 'generic'}` as MessageKey) || t('error.generic'));
+    }
+  }
+  function titleKey(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      void saveTitle();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      renaming = false;
+    }
+  }
   async function exportAs(what: ExportWhat, format: ExportFormat) {
     if (!detail) return;
     const d = detail;
     const suffix = what === 'transcript' ? '' : ` (${t(`ai.export.${what}` as MessageKey)})`;
     const path = await saveDialog({
-      defaultPath: `${stem(d.transcript.media.name)}${suffix}.${format}`,
+      defaultPath: `${fileSafe(transcriptTitle(d.transcript))}${suffix}.${format}`,
       filters: [{ name: t(`ai.format.${format}` as MessageKey), extensions: [format] }],
     });
     if (typeof path !== 'string') return;
@@ -104,7 +137,7 @@
         what,
         format,
         path,
-        title: stem(d.transcript.media.name),
+        title: transcriptTitle(d.transcript),
         meta: meta,
         labels: {
           decisions: t('ai.topics.decisions'),
@@ -174,7 +207,25 @@
       <button class="back" onclick={onback}><ArrowLeft size={15} />{t('ai.back')}</button>
       <div class="title-row">
         <div class="titles">
-          <h1 title={tr.media.path}>{stem(tr.media.name)}</h1>
+          {#if renaming}
+            <input
+              class="title-input"
+              bind:this={titleInput}
+              bind:value={draft}
+              maxlength="200"
+              aria-label={t('ai.title.rename')}
+              placeholder={tr.media.name.replace(/\.[^.]+$/, '')}
+              onkeydown={titleKey}
+              onblur={saveTitle}
+            />
+          {:else}
+            <h1>
+              <button class="title-btn" onclick={startRename} title={`${t('ai.title.rename')} · ${tr.media.path}`}>
+                <span class="title-text">{transcriptTitle(tr)}</span>
+                <Pencil size={15} />
+              </button>
+            </h1>
+          {/if}
           <div class="meta">{meta}</div>
         </div>
         <div class="actions">
@@ -266,7 +317,7 @@
   {#if menu}<ContextMenu x={menu.x} y={menu.y} items={exportItems} onclose={() => (menu = null)} />{/if}
   {#if confirmDelete}
     <ConfirmDialog
-      title={t('ai.delete.confirm', { name: tr.media.name })}
+      title={t('ai.delete.confirm', { name: transcriptTitle(tr) })}
       body={t('ai.delete.body')}
       confirm={t('ai.delete')}
       cancel={t('library.cancel')}
@@ -314,6 +365,56 @@
   }
   .titles {
     min-width: 0;
+  }
+  .title-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    margin: 0 0 0 -6px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-align: left;
+    cursor: text;
+  }
+  .title-btn:hover {
+    background: var(--surface-hover);
+  }
+  .title-btn :global(svg) {
+    flex-shrink: 0;
+    color: var(--text-3);
+    opacity: 0;
+    transition: opacity var(--dur-fast);
+  }
+  .title-btn:hover :global(svg),
+  .title-btn:focus-visible :global(svg) {
+    opacity: 1;
+  }
+  .title-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .title-input {
+    width: min(560px, 100%);
+    margin: 0 0 0 -6px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--bg);
+    box-shadow: var(--focus-ring);
+    color: var(--text);
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    outline: none;
   }
   h1 {
     margin: 0;

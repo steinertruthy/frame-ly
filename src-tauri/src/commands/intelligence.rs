@@ -21,7 +21,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> AppResult<T> + Send + 'static) -> AppResult<T> {
     tauri::async_runtime::spawn_blocking(f).await.map_err(|e| AppError::Runtime(e.to_string()))?
@@ -344,6 +344,17 @@ pub async fn transcript_find(app: AppHandle, path: String) -> AppResult<Option<T
 #[tauri::command]
 pub async fn transcript_edit(app: AppHandle, id: i64, idx: u32, text: String) -> AppResult<()> {
     blocking(move || ai::with_db(&app, |db| db.edit_segment(id, idx, &text))).await
+}
+
+/// Renames a transcript (the media file keeps its name). Blank restores the file name.
+#[tauri::command]
+pub async fn transcript_rename(app: AppHandle, id: i64, title: String) -> AppResult<Transcript> {
+    blocking(move || {
+        let t = ai::with_db(&app, |db| db.set_title(id, &title))?;
+        let _ = app.emit(ai::TRANSCRIPT_EVENT, t.id);
+        Ok(t)
+    })
+    .await
 }
 
 #[tauri::command]

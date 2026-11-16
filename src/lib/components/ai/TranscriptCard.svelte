@@ -6,7 +6,7 @@
   import { framelyUrl } from '$lib/ipc/protocol';
   import { formatDuration } from '$lib/stores/format';
   import { aiStore } from '$lib/stores/ai.svelte';
-  import { languageName } from './format';
+  import { languageName, transcriptTitle } from './format';
 
   interface Props {
     tr: Transcript;
@@ -16,7 +16,7 @@
 
   let thumbFailed = $state(false);
   const job = $derived(aiStore.current(tr.id));
-  const stem = $derived(tr.media.name.replace(/\.[^.]+$/, ''));
+  const stem = $derived(transcriptTitle(tr));
   const date = $derived(new Intl.DateTimeFormat(locale(), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(tr.createdAt)));
   const percent = $derived(job?.progress != null ? Math.round(job.progress * 100) : null);
 

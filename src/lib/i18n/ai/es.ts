@@ -27,6 +27,8 @@ export const aiEs: Record<keyof typeof aiEn, string> = {
   'ai.resume': 'Continuar',
   'ai.retry': 'Reintentar',
   'ai.delete': 'Eliminar transcripción',
+  'ai.title.rename': 'Renombrar transcripción',
+  'ai.title.saved': 'Título actualizado.',
   'ai.delete.confirm': '¿Eliminar la transcripción de «{name}»?',
   'ai.delete.body': 'Se eliminan el texto, el resumen y los temas. El archivo multimedia se queda donde está.',
   'ai.back': 'Todas las transcripciones',

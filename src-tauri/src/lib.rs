@@ -305,6 +305,7 @@ pub fn run() {
             commands::intelligence::transcript_get,
             commands::intelligence::transcript_find,
             commands::intelligence::transcript_edit,
+            commands::intelligence::transcript_rename,
             commands::intelligence::transcript_delete,
             commands::intelligence::generated_save,
             commands::intelligence::generation_start,
