@@ -6,9 +6,9 @@ on:
     paths: ['website/**', 'CHANGELOG.md', '.github/workflows/site.yml']
   pull_request:
     paths: ['website/**', 'CHANGELOG.md', '.github/workflows/site.yml']
+  # The release workflow dispatches this on main (deploys from a tag ref are recorded but not
+  # served by Pages), so the download area picks up the new files.
   workflow_dispatch:
-  # Called by the release workflow so the download area picks up the new files.
-  workflow_call:
     inputs:
       expect-tag:
         description: Release tag the download data must include (fails the build otherwise)
