@@ -104,8 +104,15 @@ function applyOs(choice: Detected) {
   if (hero && os) {
     const target = hero.dataset[`href${os === 'macos' ? 'Macos' : 'Windows'}`] ?? '#download';
     hero.href = target;
-    if (target.startsWith('http')) hero.setAttribute('download', '');
-    else hero.removeAttribute('download');
+    if (target.startsWith('http')) {
+      hero.setAttribute('download', '');
+      hero.target = '_blank';
+      hero.rel = 'noopener noreferrer';
+    } else {
+      hero.removeAttribute('download');
+      hero.removeAttribute('target');
+      hero.removeAttribute('rel');
+    }
     const label = hero.querySelector('[data-label]');
     if (label) label.textContent = hero.dataset[`label${os === 'macos' ? 'Macos' : 'Windows'}`] ?? label.textContent;
   }

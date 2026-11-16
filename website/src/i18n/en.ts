@@ -15,7 +15,8 @@ export const en = {
     "language": "Language",
     "home": "FrameLy home",
     "screenshotOf": "Screenshot of FrameLy:",
-    "playPause": "Play or pause the demo video"
+    "playPause": "Play or pause the demo video",
+    "github": "FrameLy on GitHub"
   },
   "nav": {
     "overview": "Overview",

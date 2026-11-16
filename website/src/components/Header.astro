@@ -3,7 +3,7 @@ import Icon from './Icon.astro';
 import LogoMark from './LogoMark.astro';
 import { LOCALES, LOCALE_NAMES, type Locale, type PageId } from '../i18n/locales';
 import { t } from '../i18n';
-import { pageHref } from '../lib/paths';
+import { pageHref, REPO_URL } from '../lib/paths';
 
 interface Props {
   locale: Locale;
@@ -40,6 +40,9 @@ const links = [
     </nav>
 
     <div class="actions">
+      <a class="gh" href={REPO_URL} aria-label={m.a11y.github} title={m.a11y.github}>
+        <Icon name="github" size={17} />
+      </a>
       <details class="lang" data-lang>
         <summary aria-label={m.a11y.language}>
           <Icon name="globe" size={16} />
@@ -131,6 +134,22 @@ const links = [
     display: flex;
     align-items: center;
     gap: 10px;
+  }
+  .gh {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--r-md);
+    color: var(--text-2);
+    border: 1px solid transparent;
+    transition:
+      color 160ms var(--ease),
+      border-color 160ms var(--ease);
+  }
+  .gh:hover {
+    color: var(--text);
+    border-color: var(--hairline-strong);
   }
   .lang {
     position: relative;

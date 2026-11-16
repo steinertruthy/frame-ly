@@ -13,7 +13,8 @@ export const es: Messages = {
     "language": "Idioma",
     "home": "Inicio de FrameLy",
     "screenshotOf": "Captura de FrameLy:",
-    "playPause": "Reproducir o pausar el vídeo de demostración"
+    "playPause": "Reproducir o pausar el vídeo de demostración",
+    "github": "FrameLy en GitHub"
   },
   "nav": {
     "overview": "Visión general",
