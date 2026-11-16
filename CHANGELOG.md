@@ -8,6 +8,27 @@ for the website live in `website/src/content/changelog/`.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-16
+
+FrameLy AI Cloud is live and is now the default for summaries and topics.
+
+### Added
+
+- FrameLy AI Cloud in published builds: summaries and topics in the cloud, free, with no account or key, and a daily limit per computer. A partner AI provider generates the result and may use the content to improve its services — the app says so before the first use.
+
+### Changed
+
+- New installs and settings still on the previous default use FrameLy AI Cloud for summaries and topics; any other choice is kept. FrameLy asks for consent before sending anything, and "Local only" mode still blocks the cloud.
+- The first-use setup downloads the local summary model only when FrameLy AI Local is the one generating summaries or topics.
+
+### Fixed
+
+- Confirmation dialogs (such as the consent prompt) now open above the New transcription sheet, and Escape closes the dialog first.
+
+### Known limitations
+
+- FrameLy AI Cloud isn't available in the European Economic Area, Switzerland or the United Kingdom; FrameLy AI Local, Apple Intelligence and your own Anthropic or OpenAI key work there.
+
 ## [0.1.0] - 2026-11-15
 
 First public version.
@@ -32,5 +53,6 @@ First public version.
 - Speakers are not identified in transcripts.
 - A recording captures one display at a time.
 
-[Unreleased]: https://github.com/steinertruthy/frame-ly/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/steinertruthy/frame-ly/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/steinertruthy/frame-ly/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/steinertruthy/frame-ly/releases/tag/v0.1.0

@@ -7,10 +7,11 @@ describe('changelog', () => {
   const entries = parseChangelog(md);
 
   it('parses released versions and skips Unreleased', () => {
-    expect(entries[0]?.version).toBe('0.1.0');
+    expect(entries[0]?.version).toMatch(/^\d+\.\d+\.\d+/);
+    expect(entries.map((e) => e.version)).toContain('0.1.0');
     expect(entries[0]?.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(entries.some((e) => e.version.toLowerCase() === 'unreleased')).toBe(false);
-    expect(entries[0]?.sections.find((s) => s.kind === 'added')?.items.length).toBeGreaterThan(3);
+    expect(entries.find((e) => e.version === '0.1.0')?.sections.find((s) => s.kind === 'added')?.items.length).toBeGreaterThan(3);
   });
 
   it('every translation covers the same versions and section kinds', () => {

@@ -1,3 +1,24 @@
+## [0.2.0] - 2026-11-16
+
+FrameLy AI Cloud ya está en marcha y ahora es la opción predeterminada para resúmenes y temas.
+
+### Added
+
+- FrameLy AI Cloud en las versiones publicadas: resúmenes y temas en la nube, gratis, sin cuenta ni clave y con un límite diario por ordenador. Un proveedor de IA asociado genera el resultado y puede usar el contenido para mejorar sus servicios; la app lo indica antes del primer uso.
+
+### Changed
+
+- Las instalaciones nuevas y los ajustes que seguían en la opción predeterminada anterior usan FrameLy AI Cloud para resúmenes y temas; cualquier otra elección se mantiene. FrameLy pide autorización antes de enviar nada, y el modo «Solo local» sigue bloqueando la nube.
+- La configuración inicial solo descarga el modelo local de resúmenes cuando FrameLy AI Local es quien genera los resúmenes o temas.
+
+### Fixed
+
+- Los diálogos de confirmación (como la solicitud de autorización) ahora se abren encima de la hoja de Nueva transcripción, y Esc cierra primero el diálogo.
+
+### Known limitations
+
+- FrameLy AI Cloud no está disponible en el Espacio Económico Europeo, Suiza ni el Reino Unido; allí funcionan FrameLy AI Local, Apple Intelligence y tu propia clave de Anthropic u OpenAI.
+
 ## [0.1.0] - 2026-11-15
 
 Primera versión pública.

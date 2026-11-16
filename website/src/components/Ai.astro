@@ -43,11 +43,11 @@ const cols = [a.table.columns.local, a.table.columns.cloud, a.table.columns.exte
             <p class="body">{md.data.body}</p>
             {'options' in md.data && (
               <div class="options">
-                {md.data.options.map((o, j) => (
+                {md.data.options.map((o) => (
                   <div class="option">
                     <p class="opt-head">
                       <strong>{o.name}</strong>
-                      <span class:list={['status', j === 0 ? 'pending' : 'ok']}>{o.status}</span>
+                      <span class="status ok">{o.status}</span>
                     </p>
                     <p class="opt-body">{o.body}</p>
                   </div>
@@ -81,8 +81,8 @@ const cols = [a.table.columns.local, a.table.columns.cloud, a.table.columns.exte
             rows.map((r) => (
               <tr>
                 <th scope="row">{a.table.rows[r]}</th>
-                {cols.map((c, j) => (
-                  <td class:list={[r === 'availability' && j === 1 && 'pending']}>{c[r]}</td>
+                {cols.map((c) => (
+                  <td>{c[r]}</td>
                 ))}
               </tr>
             ))

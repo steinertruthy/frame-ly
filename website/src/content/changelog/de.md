@@ -1,3 +1,24 @@
+## [0.2.0] - 2026-11-16
+
+FrameLy AI Cloud ist online und jetzt der Standard für Zusammenfassungen und Themen.
+
+### Added
+
+- FrameLy AI Cloud in den veröffentlichten Versionen: Zusammenfassungen und Themen in der Cloud, kostenlos, ohne Konto und Schlüssel, mit einem Tageslimit pro Computer. Ein KI-Partneranbieter erzeugt das Ergebnis und kann die Inhalte zur Verbesserung seiner Dienste nutzen – die App weist vor der ersten Nutzung darauf hin.
+
+### Changed
+
+- Neue Installationen und Einstellungen, die noch auf dem bisherigen Standard standen, nutzen FrameLy AI Cloud für Zusammenfassungen und Themen; jede andere Wahl bleibt erhalten. FrameLy fragt vor dem Senden um Erlaubnis, und der Modus „Nur lokal“ blockiert die Cloud weiterhin.
+- Die Ersteinrichtung lädt das lokale Zusammenfassungsmodell nur, wenn FrameLy AI Local Zusammenfassungen oder Themen erzeugt.
+
+### Fixed
+
+- Bestätigungsdialoge (etwa die Zustimmungsabfrage) öffnen sich jetzt über dem Fenster „Neue Transkription“, und Esc schließt zuerst den Dialog.
+
+### Known limitations
+
+- FrameLy AI Cloud ist im Europäischen Wirtschaftsraum, in der Schweiz und im Vereinigten Königreich nicht verfügbar; dort funktionieren FrameLy AI Local, Apple Intelligence und dein eigener Anthropic- oder OpenAI-Schlüssel.
+
 ## [0.1.0] - 2026-11-15
 
 Erste öffentliche Version.

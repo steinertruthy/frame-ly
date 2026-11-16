@@ -11,7 +11,8 @@ pode rodar inteiramente no seu computador.
 
 > *English:* FrameLy is a screen recorder and screenshot tool for macOS 14+ (Apple Silicon) and
 > Windows 10 22H2+ (x64) that transcribes recordings on-device and writes summaries and topics with
-> local models, Apple Intelligence or your own Anthropic/OpenAI key. See the
+> FrameLy AI Cloud (free, the default), local models, Apple Intelligence or your own
+> Anthropic/OpenAI key. See the
 > [website](https://steinertruthy.github.io/frame-ly/en/).
 
 ## O que faz
@@ -21,8 +22,10 @@ pode rodar inteiramente no seu computador.
 - **Gravação de tela** com áudio do sistema e microfone, pausa, contagem regressiva, H.264/HEVC.
 - **Transcrição** local (whisper.cpp) com detecção de idioma, tempo por palavra e exportação em
   TXT, SRT, VTT, Markdown e PDF.
-- **Resumos e tópicos** com a FrameLy AI local (llama.cpp), o Apple Intelligence (macOS 26+) ou
-  Anthropic/OpenAI com a sua chave — sempre com autorização explícita para provedores externos.
+- **Resumos e tópicos** com a FrameLy AI Cloud (padrão: gratuita, sem conta nem chave, com limite
+  diário; indisponível no EEE, Suíça e Reino Unido), a FrameLy AI Local (llama.cpp), o Apple
+  Intelligence (macOS 26+) ou Anthropic/OpenAI com a sua chave — sempre com autorização antes de
+  enviar qualquer texto.
 - Painel rápido, biblioteca, atalhos globais, linha de comando e interface em cinco idiomas
   (pt-BR, en, es, fr, de).
 
@@ -35,7 +38,7 @@ veja [docs/signing.md](docs/signing.md).
 | Pasta | Conteúdo |
 |---|---|
 | `src/`, `src-tauri/`, `native/` | O app (Svelte 5 + TypeScript, Rust/Tauri 2, Swift no macOS) |
-| `cloud/` | Serviço FrameLy Cloud (Cloudflare Worker) — ainda não publicado |
+| `cloud/` | Serviço FrameLy AI Cloud (Cloudflare Worker), publicado; a URL entra no build pela variável `FRAMELY_CLOUD_URL` do repositório |
 | `website/` | Site oficial (Astro, GitHub Pages) |
 | `docs/` | Arquitetura, desenvolvimento, plataformas, [releases](docs/release.md), [assinatura](docs/signing.md) |
 | `.github/workflows/` | CI do app, site e release |

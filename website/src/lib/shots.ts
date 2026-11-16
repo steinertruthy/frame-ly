@@ -11,7 +11,6 @@ export type ShotName =
   | 'transcript'
   | 'summary'
   | 'topics'
-  | 'ai-settings'
   | 'models'
   | 'editor'
   | 'panel'
