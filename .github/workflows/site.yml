@@ -9,6 +9,11 @@ on:
   workflow_dispatch:
   # Called by the release workflow so the download area picks up the new files.
   workflow_call:
+    inputs:
+      expect-tag:
+        description: Release tag the download data must include (fails the build otherwise)
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -46,6 +51,8 @@ jobs:
         run: pnpm releases
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          EXPECT_TAG: ${{ inputs.expect-tag }}
+          REQUIRE_RELEASES: ${{ inputs.expect-tag != '' && '1' || '' }}
       - name: Build
         run: pnpm build:offline
       - name: Check output

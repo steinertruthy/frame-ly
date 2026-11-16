@@ -30,10 +30,23 @@ function parseChecksums(text) {
   return map;
 }
 
+// Right after a release is published the API can still list the previous state: when the
+// release workflow passes EXPECT_TAG, wait (up to ~3 min) until that release is listed.
+async function listReleases() {
+  const expect = process.env.EXPECT_TAG;
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, { headers });
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    const list = await res.json();
+    if (!expect || list.some((r) => r.tag_name === expect && !r.draft)) return list;
+    if (attempt >= 18) throw new Error(`release ${expect} not listed yet`);
+    console.log(`waiting for ${expect} to appear in the API…`);
+    await new Promise((r) => setTimeout(r, 10_000));
+  }
+}
+
 async function main() {
-  const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, { headers });
-  if (!res.ok) throw new Error(`GitHub API ${res.status}`);
-  const list = await res.json();
+  const list = await listReleases();
   const releases = [];
   for (const r of list) {
     if (r.draft) continue;
