@@ -1,12 +1,8 @@
-; FrameLy additions to Tauri's NSIS installer (bundle > windows > nsis > installerHooks).
-; Included near the top of Tauri's installer.nsi, before the pages are declared.
+; FrameLy additions to the NSIS installer (bundle > windows > nsis > installerHooks), included
+; near the top of installer/installer.nsi.
 
-; Welcome and Finish pages in FrameLy's words (strings in installer/lang/*.nsh).
-!define MUI_WELCOMEPAGE_TITLE "$(framelyWelcomeTitle)"
-!define MUI_WELCOMEPAGE_TEXT "$(framelyWelcomeText)"
-!define MUI_FINISHPAGE_TITLE "$(framelyFinishTitle)"
-!define MUI_FINISHPAGE_TEXT "$(framelyFinishText)"
-!define MUI_FINISHPAGE_RUN_TEXT "$(framelyRunNow)"
+; Where ui.nsh and logo.bmp live (installer.nsi itself is rendered into target/).
+!define FRAMELY_INSTALLER_DIR "${__FILEDIR__}"
 
 ; The local AI worker runs as a separate process (framely-llm.exe). Tauri's installer closes
 ; FrameLy itself; this also stops a worker left behind, which would lock its file on update.

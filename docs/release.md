@@ -43,24 +43,33 @@ existem. Veja [website/README.md](../website/README.md).
 
 ## Instalador do Windows (NSIS)
 
-Usa o template oficial do Tauri com a identidade do FrameLy (`src-tauri/tauri.conf.json` ›
-`bundle.windows.nsis`), sem template próprio, para manter o fluxo de atualização do Tauri:
+Instalador próprio do FrameLy, do início ao fim, sobre o NSIS do Tauri:
 
-- `src-tauri/installer/sidebar.bmp` (164×314) e `header.bmp` (150×57), gerados por
-  `node scripts/windows-installer-art.mjs` a partir de `assets/logo.svg`;
-- ícone do app no instalador e no desinstalador;
-- os 5 idiomas do app, escolhidos pelo idioma do Windows (`installer/lang/*.nsh`: textos do Tauri
-  + textos do FrameLy nas telas de boas-vindas e de conclusão);
-- `installer/hooks.nsh`: encerra o `framely-llm.exe` antes de instalar/desinstalar e, se a pessoa
-  marcar “apagar dados” ao desinstalar, remove também as credenciais `FrameLy/ai/*`.
+- `src-tauri/installer/installer.nsi` — o template do Tauri (tauri-cli 2.12.4) com as páginas
+  trocadas pelas telas do FrameLy; toda a lógica de instalação, atualização (`/UPDATE`), modo
+  passivo (`/P`), silencioso (`/S`) e desinstalação é a do Tauri (mudanças marcadas `FrameLy:`).
+  Ao atualizar o `@tauri-apps/cli`, compare com o template novo.
+- `src-tauri/installer/ui.nsh` — as telas, em janela inteira, nas cores do app: boas-vindas (com
+  local de instalação, atalho na área de trabalho e o estado: nova instalação, atualização,
+  reinstalação ou versão anterior), progresso com barra própria, conclusão com “Abrir o FrameLy
+  agora”; no desinstalador, confirmação (com a opção de apagar dados), progresso e conclusão.
+  Botões planos e arredondados na cor primária do app; os botões nativos ficam ocultos, mas Enter
+  e Esc continuam funcionando. Barra de título escura no Windows 10 2004+/11.
+- `installer/lang/*.nsh` — textos do Tauri + do FrameLy nos 5 idiomas do app.
+- `installer/hooks.nsh` — encerra o `framely-llm.exe` antes de instalar/desinstalar e, com “apagar
+  dados”, remove as credenciais `FrameLy/ai/*`.
+- `installer/logo.bmp` — gerado por `node scripts/windows-installer-art.mjs`.
 
-Instalar por cima de uma versão anterior atualiza no lugar: o desinstalador antigo roda em modo
-silencioso e nunca apaga `%APPDATA%\app.framely.desktop` (ajustes, biblioteca, transcrições e
-modelos baixados). Atalho no Menu Iniciar sempre; atalho na área de trabalho e “Abrir o FrameLy
-agora” como opções na última tela.
+Instalar por cima de uma versão anterior atualiza no lugar (como o updater): ajustes, biblioteca,
+transcrições e modelos em `%APPDATA%\app.framely.desktop` são mantidos.
 
-Ao atualizar o `@tauri-apps/cli`, compare `installer/lang/*.nsh` com os arquivos de idioma do
-Tauri (novas chaves precisam ser copiadas).
+**Telas:** *Actions › Installer screens* compila `installer/preview/preview.nsi` (as mesmas telas
+com uma instalação simulada; `/PAGE=` e `/STATE=` abrem cada tela) num runner Windows e publica
+screenshots. *Updater end-to-end* também fotografa a tela inicial do instalador real.
+
+**Build local no macOS:** o makensis do Homebrew quebra no macOS 26; use o do Docker:
+`ln -s "$PWD/scripts/makensis-docker.sh" ~/bin/makensis` (com `~/bin` primeiro no `PATH`) e
+`pnpm build:windows`.
 
 ## Atualização automática
 

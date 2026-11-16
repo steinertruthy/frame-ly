@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-// Bitmaps for the Windows (NSIS) installer, in FrameLy's identity:
-//   src-tauri/installer/sidebar.bmp  164×314  Welcome and Finish pages
-//   src-tauri/installer/header.bmp   150×57   header of the other pages (white header bar)
-// NSIS needs 24-bit BMPs at exactly these sizes. Text is rendered with the fonts of the machine
+// Bitmap for the Windows (NSIS) installer's own screens (installer/ui.nsh):
+//   src-tauri/installer/logo.bmp     192×192  the mark, on the app's background colour
+// NSIS needs 24-bit BMPs. Text is rendered with the fonts of the machine
 // that runs this, so the output is committed. Uses the website's sharp: run `pnpm -C website i` first.
 // Usage: node scripts/windows-installer-art.mjs
 import { createRequire } from 'node:module';
@@ -53,39 +52,13 @@ async function render(svg, overlays, w, h, out, preview) {
 
 const tile = (px) => sharp(logo).resize(px, px).png().toBuffer();
 
-// Sidebar: the app's navy, one soft light behind the mark, the wordmark below.
+// Logo for the custom screens: drawn at 2x and scaled down by Windows, on the app's background
+// colour (BMPs have no transparency).
 await render(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="164" height="314">
-    <defs>
-      <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#14295a"/><stop offset="0.55" stop-color="#0a1428"/><stop offset="1" stop-color="#05080f"/>
-      </linearGradient>
-      <radialGradient id="glow" cx="0.5" cy="0.3" r="0.55">
-        <stop offset="0" stop-color="#3a6fe0" stop-opacity="0.38"/><stop offset="1" stop-color="#3a6fe0" stop-opacity="0"/>
-      </radialGradient>
-    </defs>
-    <rect width="164" height="314" fill="url(#bg)"/>
-    <rect width="164" height="314" fill="url(#glow)"/>
-    <rect x="163" width="1" height="314" fill="#ffffff" fill-opacity="0.08"/>
-    <text x="82" y="168" text-anchor="middle" ${font} font-size="22" font-weight="600" letter-spacing="-0.4" fill="#edf0f7">FrameLy</text>
-    <rect x="66" y="184" width="32" height="1" fill="#6c9de6" fill-opacity="0.6"/>
-  </svg>`,
-  [{ input: await tile(76), left: 44, top: 56 }],
-  164,
-  314,
-  'src-tauri/installer/sidebar.bmp',
-  process.env.PREVIEW_DIR && `${process.env.PREVIEW_DIR}/sidebar.png`,
-);
-
-// Header: sits on the installer's white header bar, aligned right.
-await render(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="150" height="57">
-    <rect width="150" height="57" fill="#ffffff"/>
-    <text x="140" y="35" text-anchor="end" ${font} font-size="17" font-weight="600" letter-spacing="-0.3" fill="#0b1424">FrameLy</text>
-  </svg>`,
-  [{ input: await tile(32), left: 40, top: 12 }],
-  150,
-  57,
-  'src-tauri/installer/header.bmp',
-  process.env.PREVIEW_DIR && `${process.env.PREVIEW_DIR}/header.png`,
+  `<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192"><rect width="192" height="192" fill="#0b0e14"/></svg>`,
+  [{ input: await tile(192), left: 0, top: 0 }],
+  192,
+  192,
+  'src-tauri/installer/logo.bmp',
+  process.env.PREVIEW_DIR && `${process.env.PREVIEW_DIR}/logo.png`,
 );

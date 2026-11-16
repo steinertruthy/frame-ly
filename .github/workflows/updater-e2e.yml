@@ -7,7 +7,7 @@ name: Updater end-to-end
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['src-tauri/src/updates.rs', 'src-tauri/installer/**', '.github/workflows/updater-e2e.yml']
+    paths: ['src-tauri/src/updates.rs', 'src-tauri/installer/**', 'src-tauri/tauri.conf.json', '.github/workflows/updater-e2e.yml']
 
 permissions:
   contents: read
@@ -121,6 +121,35 @@ jobs:
           echo "::error::not updated: version $(version)"
           cat "$RUNNER_TEMP/http.log"; tail -n 80 ~/Library/Logs/app.framely.desktop/*.log 2>/dev/null || true
           exit 1
+
+      - name: Screenshot of the real installer (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          Add-Type @'
+          using System; using System.Runtime.InteropServices;
+          public class W {
+            [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+            [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+            public struct RECT { public int L, T, R, B; }
+          }
+          '@
+          [W]::SetProcessDPIAware() | Out-Null
+          $p = Start-Process "$env:RUNNER_TEMP\old\setup.exe" -PassThru
+          Start-Sleep 6
+          $r = New-Object W+RECT
+          [W]::GetWindowRect([W]::GetForegroundWindow(), [ref]$r) | Out-Null
+          $bmp = New-Object System.Drawing.Bitmap ($r.R - $r.L), ($r.B - $r.T)
+          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
+          $bmp.Save("$env:RUNNER_TEMP\real-installer-welcome.png")
+          Stop-Process $p -Force
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: real-installer-screen
+          path: ${{ runner.temp }}/real-installer-welcome.png
 
       - name: Update the old app (Windows)
         if: runner.os == 'Windows'

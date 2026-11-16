@@ -1,0 +1,80 @@
+name: Installer screens
+
+# Screenshots of FrameLy's own installer and uninstaller screens on a real Windows desktop,
+# from the preview build (src-tauri/installer/preview/preview.nsi, same ui.nsh as the installer).
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['src-tauri/installer/**', '.github/workflows/installer-ui.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  screens:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: NSIS
+        run: choco install nsis -y --no-progress
+      - name: Build the preview
+        working-directory: src-tauri/installer/preview
+        run: '& "C:\Program Files (x86)\NSIS\makensis.exe" /V2 /WX preview.nsi'
+      - name: Screenshots
+        working-directory: src-tauri/installer/preview
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Drawing
+          Add-Type @'
+          using System; using System.Runtime.InteropServices;
+          public class W {
+            [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+            [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+            public struct RECT { public int L, T, R, B; }
+          }
+          '@
+          [W]::SetProcessDPIAware() | Out-Null
+          New-Item -ItemType Directory -Force shots | Out-Null
+          $dir = "$env:LOCALAPPDATA\FrameLyInstallerPreview"
+
+          function Close-Preview {
+            Get-Process | Where-Object { $_.MainWindowTitle -like '*FrameLy*' } | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep 1
+          }
+          function Shot([string]$exe, [string]$arguments, [string]$name, [int]$wait = 4) {
+            Close-Preview
+            Start-Process $exe -ArgumentList $arguments | Out-Null
+            Start-Sleep $wait
+            $h = [W]::GetForegroundWindow()
+            $r = New-Object W+RECT
+            [W]::GetWindowRect($h, [ref]$r) | Out-Null
+            $w = $r.R - $r.L; $hgt = $r.B - $r.T
+            $bmp = New-Object System.Drawing.Bitmap $w, $hgt
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
+            $bmp.Save("$PWD\shots\$name.png")
+            Write-Host "$name ($w x $hgt)"
+          }
+          function Install-Quietly { Start-Process .\framely-installer-preview.exe -ArgumentList '/S' -Wait; Start-Sleep 1 }
+
+          $exe = '.\framely-installer-preview.exe'
+          foreach ($lang in 'en', 'pt') {
+            Shot $exe "/PAGE=welcome /STATE=new /LANG=$lang" "$lang-1-welcome"
+            Shot $exe "/PAGE=welcome /STATE=update /LANG=$lang" "$lang-2-welcome-update"
+            Shot $exe "/PAGE=welcome /STATE=reinstall /LANG=$lang" "$lang-3-welcome-reinstall"
+            Shot $exe "/PAGE=progress /LANG=$lang" "$lang-4-progress" 5
+            Shot $exe "/PAGE=finish /LANG=$lang" "$lang-5-finish"
+            Install-Quietly
+            Shot "$dir\uninstall.exe" "/PAGE=uninstall /LANG=$lang" "$lang-6-uninstall"
+            Shot "$dir\uninstall.exe" "/PAGE=removed /LANG=$lang" "$lang-8-removed"
+            Shot "$dir\uninstall.exe" "/PAGE=removing /LANG=$lang" "$lang-7-removing" 2
+          }
+          Close-Preview
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-screens
+          path: src-tauri/installer/preview/shots/*.png
+          if-no-files-found: error
