@@ -287,16 +287,16 @@ Function FlWelcome
 
   ; Where it goes (fixed when updating an existing installation). No overlapping controls: a
   ; caption, the path and a "Change" link on the right.
-  ${NSD_CreateLabel} 28u 140u 150u 10u "$(flLocation)"
+  ${NSD_CreateLabel} 28u 134u 150u 10u "$(flLocation)"
   Pop $0
   SendMessage $0 ${WM_SETFONT} $FlFontSmall 0
   SetCtlColors $0 ${FL_TEXT2} ${FL_BG}
-  nsDialogs::CreateControl STATIC ${__NSD_Label_STYLE}|${SS_PATHELLIPSIS} 0 28u 151u -132u 12u "$INSTDIR"
+  nsDialogs::CreateControl STATIC ${__NSD_Label_STYLE}|${SS_PATHELLIPSIS} 0 28u 145u -132u 12u "$INSTDIR"
   Pop $FlPathLabel
   SendMessage $FlPathLabel ${WM_SETFONT} $FlFontBody 0
   SetCtlColors $FlPathLabel ${FL_TEXT} ${FL_BG}
   ${If} $FlState == "new"
-    nsDialogs::CreateControl STATIC ${__NSD_Label_STYLE}|${SS_RIGHT} 0 -96u 151u 68u 12u "$(flChange)"
+    nsDialogs::CreateControl STATIC ${__NSD_Label_STYLE}|${SS_RIGHT} 0 -96u 145u 68u 12u "$(flChange)"
     Pop $FlChangeLink
     SendMessage $FlChangeLink ${WM_SETFONT} $FlFontButton 0
     SetCtlColors $FlChangeLink ${FL_LINK} ${FL_BG}
@@ -307,7 +307,7 @@ Function FlWelcome
     StrCpy $FlDesktop 1
   ${EndIf}
   ${If} $UpdateMode <> 1
-    !insertmacro FL_CHECK 28u 42u 178u "$(flDesktop)" $FlDesktopBox $FlDesktop FlToggleDesktop
+    !insertmacro FL_CHECK 28u 42u 168u "$(flDesktop)" $FlDesktopBox $FlDesktop FlToggleDesktop
   ${EndIf}
 
   !insertmacro FL_BUTTON "" -168u -34u 64u 20u "$(flCancel)" secondary FlCancel
