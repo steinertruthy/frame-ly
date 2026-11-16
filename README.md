@@ -37,7 +37,7 @@ veja [docs/signing.md](docs/signing.md).
 
 | Pasta | Conteúdo |
 |---|---|
-| `src/`, `src-tauri/`, `native/` | O app (Svelte 5 + TypeScript, Rust/Tauri 2, Swift no macOS) |
+| `src/`, `src-tauri/`, `native/` | O app (Svelte 5 + TypeScript, Rust/Tauri 2, Swift no macOS); cada janela tem sua entrada HTML em `src/windows/<janela>.html` |
 | `cloud/` | Serviço FrameLy AI Cloud (Cloudflare Worker), publicado; a URL entra no build pela variável `FRAMELY_CLOUD_URL` do repositório |
 | `website/` | Site oficial (Astro, GitHub Pages) |
 | `docs/` | Arquitetura, desenvolvimento, plataformas, [releases](docs/release.md), [assinatura](docs/signing.md) |

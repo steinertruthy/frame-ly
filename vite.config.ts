@@ -3,10 +3,17 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { resolve } from 'node:path';
 
 const host = process.env.TAURI_DEV_HOST;
+const project = import.meta.dirname;
+const windows = resolve(project, 'src/windows');
 
-// Each native window type has its own HTML entry so it only loads what it needs.
+// Each native window type has its own HTML entry (src/windows/<name>.html) so it only loads what
+// it needs. Vite's root is src/windows, so the build still emits dist/<name>.html, the paths the
+// Rust side opens (WebviewUrl::App("main.html"), …).
 export default defineConfig({
-  plugins: [svelte()],
+  root: windows,
+  envDir: project,
+  cacheDir: resolve(project, 'node_modules/.vite'),
+  plugins: [svelte({ configFile: resolve(project, 'svelte.config.js') })],
   clearScreen: false,
   resolve: {
     alias: { $lib: resolve(import.meta.dirname, 'src/lib') },
@@ -22,22 +29,25 @@ export default defineConfig({
   envPrefix: ['VITE_', 'TAURI_ENV_'],
   build: {
     target: process.env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome110' : 'safari16',
+    outDir: resolve(project, 'dist'),
+    emptyOutDir: true,
     minify: !process.env.TAURI_ENV_DEBUG,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
     rollupOptions: {
       input: {
-        main: resolve(import.meta.dirname, 'main.html'),
-        overlay: resolve(import.meta.dirname, 'overlay.html'),
-        preview: resolve(import.meta.dirname, 'preview.html'),
-        countdown: resolve(import.meta.dirname, 'countdown.html'),
-        frame: resolve(import.meta.dirname, 'frame.html'),
-        recbar: resolve(import.meta.dirname, 'recbar.html'),
-        panel: resolve(import.meta.dirname, 'panel.html'),
-        editor: resolve(import.meta.dirname, 'editor.html'),
+        main: resolve(windows, 'main.html'),
+        overlay: resolve(windows, 'overlay.html'),
+        preview: resolve(windows, 'preview.html'),
+        countdown: resolve(windows, 'countdown.html'),
+        frame: resolve(windows, 'frame.html'),
+        recbar: resolve(windows, 'recbar.html'),
+        panel: resolve(windows, 'panel.html'),
+        editor: resolve(windows, 'editor.html'),
       },
     },
   },
   test: {
+    root: project,
     include: ['src/**/*.test.ts'],
     environment: 'node',
   },
