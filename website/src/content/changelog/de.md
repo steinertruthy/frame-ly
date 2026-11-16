@@ -1,3 +1,20 @@
+## [0.3.1] - 2026-11-16
+
+Eigener Windows-Installer von FrameLy, bearbeitbare Transkript-Titel und vollständige Credits.
+
+### Added
+
+- Transkripte haben einen eigenen Titel: Klicke im Transkript darauf, um ihn umzubenennen (Enter speichert, Esc bricht ab). Die Mediendatei wird nie umbenannt; der Titel erscheint in der Liste, in der Suche und in den Dateinamen beim Export.
+- Einstellungen › Über führt jede Open-Source-Komponente und jedes KI-Modell auf, das FrameLy nutzt – mit Lizenz und Link.
+
+### Changed
+
+- Installer und Deinstaller unter Windows stammen jetzt vollständig von FrameLy: Vollfenster-Seiten in den Farben der App, mit Installationsort, Desktop-Verknüpfung und „FrameLy jetzt öffnen“. Eine bestehende Installation wird direkt aktualisiert; Einstellungen, Transkripte und KI-Modelle bleiben erhalten.
+
+### Known limitations
+
+- Die Installer-Seiten wurden noch nicht bei einer Anzeigeskalierung über 100 % geprüft.
+
 ## [0.3.0] - 2026-11-16
 
 FrameLy aktualisiert sich jetzt selbst, und der Windows-Installer trägt das FrameLy-Design.

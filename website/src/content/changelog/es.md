@@ -1,3 +1,20 @@
+## [0.3.1] - 2026-11-16
+
+Instalador propio de FrameLy en Windows, títulos editables en las transcripciones y créditos completos.
+
+### Added
+
+- Las transcripciones tienen su propio título: haz clic en él en la transcripción para renombrarla (Enter guarda, Esc cancela). El archivo multimedia nunca se renombra; el título se usa en la lista, la búsqueda y los nombres de los archivos exportados.
+- Ajustes › Acerca de enumera cada componente de código abierto y modelo de IA que usa FrameLy, con su licencia y un enlace.
+
+### Changed
+
+- El instalador y el desinstalador de Windows son ahora de FrameLy de principio a fin: pantallas a ventana completa con los colores de la app, con ubicación de instalación, acceso directo en el escritorio y «Abrir FrameLy ahora». Una instalación existente se actualiza en su lugar y conserva ajustes, transcripciones y modelos de IA.
+
+### Known limitations
+
+- Las pantallas del instalador aún no se han comprobado con un escalado de pantalla superior al 100 %.
+
 ## [0.3.0] - 2026-11-16
 
 FrameLy ahora se actualiza solo, y el instalador de Windows tiene el aspecto de FrameLy.

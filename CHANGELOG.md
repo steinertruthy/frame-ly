@@ -8,6 +8,23 @@ for the website live in `website/src/content/changelog/`.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-16
+
+FrameLy's own Windows installer, editable transcript titles and full credits.
+
+### Added
+
+- Transcripts have their own title: click it in the transcript view to rename it (Enter saves, Esc cancels). The media file is never renamed; the title is used in the list, search and export file names.
+- Settings › About lists every open-source component and AI model FrameLy uses, with its license and a link.
+
+### Changed
+
+- The Windows installer and uninstaller are FrameLy's own, from start to finish: full-window screens in the app's colours, with install location, desktop shortcut and "Open FrameLy now". An existing installation is updated in place, keeping settings, transcripts and AI models.
+
+### Known limitations
+
+- The installer screens haven't been checked yet at display scaling above 100%.
+
 ## [0.3.0] - 2026-11-16
 
 FrameLy now updates itself, and the Windows installer has FrameLy's look.
@@ -70,7 +87,8 @@ First public version.
 - Speakers are not identified in transcripts.
 - A recording captures one display at a time.
 
-[Unreleased]: https://github.com/steinertruthy/frame-ly/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/steinertruthy/frame-ly/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/steinertruthy/frame-ly/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/steinertruthy/frame-ly/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/steinertruthy/frame-ly/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/steinertruthy/frame-ly/releases/tag/v0.1.0
