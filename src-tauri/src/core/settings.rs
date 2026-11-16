@@ -369,6 +369,22 @@ pub struct Settings {
     pub storage: Storage,
     #[serde(default)]
     pub intelligence: Intelligence,
+    #[serde(default)]
+    pub updates: Updates,
+}
+
+/// Automatic updates (see `crate::updates`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Updates {
+    /// Look for new versions in the background (never while "Local only" is on).
+    pub auto_check: bool,
+}
+
+impl Default for Updates {
+    fn default() -> Self {
+        Self { auto_check: true }
+    }
 }
 
 /// OS-dependent default locations, injected so defaults are testable.
@@ -401,6 +417,7 @@ impl Settings {
             shortcuts: super::shortcuts::defaults(),
             storage: Storage { recordings_dir: d.videos.clone(), screenshots_dir: d.pictures.clone() },
             intelligence: Intelligence::default(),
+            updates: Updates::default(),
         }
     }
 

@@ -1,0 +1,25 @@
+import type { updatesEn } from './en';
+
+export const updatesPtBR: Record<keyof typeof updatesEn, string> = {
+  'updates.available': 'O FrameLy {version} está disponível',
+  'updates.availableHint': 'Atualize agora ou continue trabalhando — nada muda até você escolher.',
+  'updates.notes': 'Novidades',
+  'updates.install': 'Atualizar e reiniciar',
+  'updates.later': 'Depois',
+  'updates.downloading': 'Baixando a versão {version}… {percent}',
+  'updates.downloadingUnknown': 'Baixando a versão {version}…',
+  'updates.waiting': 'O FrameLy {version} está pronto. Ele será instalado quando a gravação terminar.',
+  'updates.installing': 'Instalando o FrameLy {version}…',
+  'updates.retry': 'Tentar de novo',
+  'updates.error.local_only': 'O modo “Exclusivamente local” está ligado, então o FrameLy não procura atualizações.',
+  'updates.error.check_failed': 'Não foi possível verificar atualizações. Confira sua conexão e tente de novo.',
+  'updates.error.download_failed': 'O download falhou ou não pôde ser verificado. Tente de novo.',
+  'updates.error.install_failed': 'Não foi possível instalar a atualização. Tente de novo ou baixe pelo site.',
+  'updates.settings.check': 'Verificar atualizações',
+  'updates.settings.checking': 'Verificando…',
+  'updates.settings.upToDate': 'O FrameLy está atualizado.',
+  'updates.settings.lastChecked': 'Você está na versão mais recente (verificado {time}).',
+  'updates.settings.auto': 'Verificar atualizações automaticamente',
+  'updates.settings.auto.hint': 'Em segundo plano, algumas vezes por dia. As atualizações só são baixadas e instaladas quando você escolhe, nunca durante uma gravação.',
+  'updates.settings.idle': 'As atualizações vêm dos releases do FrameLy no GitHub e são verificadas antes de instalar.',
+};

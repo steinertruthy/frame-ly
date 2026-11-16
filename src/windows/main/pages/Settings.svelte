@@ -29,10 +29,35 @@
   import { settings } from '$lib/stores/settings.svelte';
   import { system } from '$lib/stores/system.svelte';
   import { library } from '$lib/stores/library.svelte';
+  import { updates } from '$lib/stores/updates.svelte';
   import { toast } from '$lib/stores/toasts.svelte';
   import { formatBytes } from '$lib/stores/format';
   import { applyAudioMode, audioMode, type AudioMode } from '$lib/recordSetup';
   import { RECORDING_ACTIONS, SHORTCUT_ACTIONS, type ShortcutAction } from '$lib/shortcuts';
+
+  // Settings › About › Updates: what the last check found.
+  const updateBusy = $derived(['checking', 'downloading', 'waitingForRecording', 'installing'].includes(updates.status.state));
+  const updateHint = $derived.by(() => {
+    const u = updates.status;
+    switch (u.state) {
+      case 'upToDate':
+        return t('updates.settings.lastChecked', {
+          time: new Date(u.checkedAt * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+        });
+      case 'available':
+        return t('updates.available', { version: u.version });
+      case 'downloading':
+        return t('updates.downloadingUnknown', { version: u.version });
+      case 'waitingForRecording':
+        return t('updates.waiting', { version: u.version });
+      case 'installing':
+        return t('updates.installing', { version: u.version });
+      case 'error':
+        return t(`updates.error.${u.reason}`);
+      default:
+        return t('updates.settings.idle');
+    }
+  });
 
   let { info }: { info: AppInfo } = $props();
   const s = $derived(settings.value);
@@ -496,7 +521,14 @@
               </div>
             </div>
             <Section>
-              <SettingRow title={t('settings.about.updates')} hint={t('settings.about.updates.hint')}><span></span></SettingRow>
+              <SettingRow title={t('settings.about.updates')} hint={updateHint}>
+                <Button size="sm" busy={updates.status.state === 'checking'} disabled={updateBusy} onclick={() => updates.check()}>
+                  {updates.status.state === 'checking' ? t('updates.settings.checking') : t('updates.settings.check')}
+                </Button>
+              </SettingRow>
+              <SettingRow title={t('updates.settings.auto')} hint={t('updates.settings.auto.hint')}>
+                <Toggle label={t('updates.settings.auto')} checked={s.updates.autoCheck} onchange={(v) => set((d) => (d.updates.autoCheck = v))} />
+              </SettingRow>
               <SettingRow title={t('settings.logs')} hint={t('settings.logs.hint')}>
                 <Button size="sm" onclick={() => reveal('logs')}><FolderOpen size={14} />{t('settings.show')}</Button>
               </SettingRow>

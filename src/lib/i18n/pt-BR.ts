@@ -1,5 +1,6 @@
 import type { Messages } from './en';
 import { aiPtBR } from './ai/pt-BR';
+import { updatesPtBR } from './updates/pt-BR';
 
 export const ptBR: Messages = {
   'app.name': 'FrameLy',
@@ -350,7 +351,6 @@ export const ptBR: Messages = {
   'settings.logs.hint': 'Úteis se um dia você precisar relatar um problema.',
   'settings.about.version': 'Versão {version}',
   'settings.about.updates': 'Atualizações',
-  'settings.about.updates.hint': 'Você está com a versão de desenvolvimento mais recente. As atualizações automáticas chegam com a primeira versão pública.',
   'settings.about.credits': 'Créditos',
   'settings.about.builtWith': 'Feito com',
 
@@ -365,4 +365,5 @@ export const ptBR: Messages = {
   'error.not_found': 'Esse arquivo não está mais lá.',
   'error.invalid_name': 'Esse nome não pode ser usado. Evite caracteres como / : * ?',
   ...aiPtBR,
+  ...updatesPtBR,
 };

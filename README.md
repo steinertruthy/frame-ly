@@ -99,4 +99,5 @@ Alfred, Atalhos do macOS ou AutoHotkey:
 /Applications/FrameLy.app/Contents/MacOS/framely --show library      # home | library | transcripts | settings[:<categoria>]
 /Applications/FrameLy.app/Contents/MacOS/framely --show transcript:3:summary   # transcrição 3, aba resumo/tópicos
 /Applications/FrameLy.app/Contents/MacOS/framely --edit ~/Pictures/FrameLy/shot.png
+/Applications/FrameLy.app/Contents/MacOS/framely --update            # verifica e instala uma versão nova
 ```

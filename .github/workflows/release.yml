@@ -29,6 +29,14 @@ jobs:
       - id: version
         name: Tag, version files and changelog agree
         run: node scripts/release/check-version.mjs ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+      - name: Updater signing key is configured
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is missing: updates must be signed (docs/release.md)"
+            exit 1
+          fi
       - name: The release must not exist yet (never overwritten)
         if: github.ref_type == 'tag'
         env:
@@ -55,13 +63,11 @@ jobs:
           - name: macOS (Apple Silicon)
             os: macos-15
             target: aarch64-apple-darwin
-            bundles: dmg
-            pattern: dmg/*.dmg
+            bundles: app,dmg
           - name: Windows (x64)
             os: windows-latest
             target: x86_64-pc-windows-msvc
             bundles: nsis
-            pattern: nsis/*-setup.exe
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     env:
@@ -121,11 +127,16 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           FRAMELY_CLOUD_URL: ${{ vars.FRAMELY_CLOUD_URL }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           [ -n "$APPLE_SIGNING_IDENTITY" ] || unset APPLE_SIGNING_IDENTITY
           [ -n "$APPLE_ID" ] || unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
           [ -n "$FRAMELY_CLOUD_URL" ] || unset FRAMELY_CLOUD_URL
-          pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+          # Signed update packages (.app.tar.gz / setup.exe + .sig) only for releases, so local and
+          # CI builds don't need the private key.
+          pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} \
+            --config '{"bundle":{"createUpdaterArtifacts":true}}'
 
       - name: Sign Windows installer
         if: runner.os == 'Windows' && env.HAS_WINDOWS_CERT == 'true'
@@ -144,10 +155,17 @@ jobs:
       - name: Collect
         shell: bash
         run: |
+          v="${{ needs.validate.outputs.version }}"
+          b="src-tauri/target/${{ matrix.target }}/release/bundle"
           mkdir -p out
-          cp src-tauri/target/${{ matrix.target }}/release/bundle/${{ matrix.pattern }} out/
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            cp "$b"/dmg/*.dmg out/
+            cp "$b/macos/FrameLy.app.tar.gz" "out/FrameLy_${v}_aarch64.app.tar.gz"
+            cp "$b/macos/FrameLy.app.tar.gz.sig" "out/FrameLy_${v}_aarch64.app.tar.gz.sig"
+          else
+            cp "$b"/nsis/*-setup.exe "$b"/nsis/*-setup.exe.sig out/
+          fi
           ls -la out
-          test "$(find out -type f | wc -l)" -ge 1
       - uses: actions/upload-artifact@v4
         with:
           name: installer-${{ matrix.target }}
@@ -171,7 +189,17 @@ jobs:
           cp dist/installer-*/* files/
           test -f "files/FrameLy_${v}_aarch64.dmg" || { echo "::error::macOS installer missing"; exit 1; }
           test -f "files/FrameLy_${v}_x64-setup.exe" || { echo "::error::Windows installer missing"; exit 1; }
-          (cd files && sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+      - uses: actions/checkout@v4
+        with:
+          path: src
+      - name: Update manifest (latest.json) and checksums
+        run: |
+          v="${{ needs.validate.outputs.version }}"
+          node src/scripts/release/latest-json.mjs "$v" files \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME" \
+            dist/release-notes/release-notes.md > files/latest.json
+          cat files/latest.json
+          (cd files && sha256sum -- *.dmg *.exe *.tar.gz latest.json > SHA256SUMS.txt && cat SHA256SUMS.txt)
       - name: Create the release (fails if it already exists)
         env:
           GH_TOKEN: ${{ github.token }}

@@ -13,6 +13,7 @@ mod recording;
 mod screenshot;
 mod shortcuts;
 mod tray;
+mod updates;
 mod windows;
 
 use crate::core::settings::{DefaultDirs, SettingsStore};
@@ -43,11 +44,12 @@ enum CliAction {
     Show(String),
     Edit(std::path::PathBuf),
     Transcribe(std::path::PathBuf),
+    Update,
 }
 
 /// `framely --panel`, `framely --show home|library|transcripts|settings[:<category>[:<section>]]|transcript:<id>[:summary|topics]`,
 /// `framely --edit <image>`,
-/// `framely --transcribe <video or audio>`,
+/// `framely --transcribe <video or audio>`, `framely --update` (check and install a new version),
 /// `framely --capture region|window|screen|cancel` and
 /// `framely --record region|window|screen|stop|pause` (forwarded to the running instance) —
 /// lets people bind FrameLy in launchers and automation tools.
@@ -55,6 +57,9 @@ fn cli_action(argv: &[String]) -> Option<CliAction> {
     use screenshot::{Request, SelectMode};
     if argv.iter().any(|a| a == "--panel") {
         return Some(CliAction::Panel);
+    }
+    if argv.iter().any(|a| a == "--update") {
+        return Some(CliAction::Update);
     }
     if let Some(i) = argv.iter().position(|a| a == "--transcribe") {
         return argv.get(i + 1).map(|p| CliAction::Transcribe(p.into()));
@@ -119,6 +124,7 @@ fn run_cli_action(app: &tauri::AppHandle, action: CliAction) {
             let path = std::fs::canonicalize(&path).unwrap_or(path);
             let _ = app.emit_to(windows::MAIN, "main://transcribe", path.to_string_lossy().to_string());
         }
+        CliAction::Update => updates::check_and_install(app),
         CliAction::Show(page) => {
             windows::show_main(app);
             let _ = app.emit_to(windows::MAIN, "main://navigate", page);
@@ -137,6 +143,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(shortcuts::plugin())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Login item starts FrameLy quietly in the menu bar / tray.
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -186,6 +193,7 @@ pub fn run() {
             if let Err(e) = intelligence::init(&handle) {
                 tracing::error!(error = %e, "transcription unavailable");
             }
+            updates::start(&handle);
             windows::create_main(&handle, initial.appearance.theme)?;
             if let Some(action) = cli_action(&std::env::args().collect::<Vec<_>>()) {
                 run_cli_action(&handle, action);
@@ -220,6 +228,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::settings::get_settings,
+            commands::updates::updates_status,
+            commands::updates::updates_check,
+            commands::updates::updates_install,
+            commands::updates::updates_dismiss,
             commands::settings::update_settings,
             commands::settings::reset_shortcuts,
             commands::settings::reset_settings,

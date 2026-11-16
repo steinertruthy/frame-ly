@@ -1,0 +1,25 @@
+import type { updatesEn } from './en';
+
+export const updatesFr: Record<keyof typeof updatesEn, string> = {
+  'updates.available': 'FrameLy {version} est disponible',
+  'updates.availableHint': 'Mettez à jour maintenant ou continuez votre travail : rien ne change tant que vous ne l’avez pas décidé.',
+  'updates.notes': 'Nouveautés',
+  'updates.install': 'Mettre à jour et redémarrer',
+  'updates.later': 'Plus tard',
+  'updates.downloading': 'Téléchargement de {version}… {percent}',
+  'updates.downloadingUnknown': 'Téléchargement de {version}…',
+  'updates.waiting': 'FrameLy {version} est prêt. Il s’installera à la fin de l’enregistrement.',
+  'updates.installing': 'Installation de FrameLy {version}…',
+  'updates.retry': 'Réessayer',
+  'updates.error.local_only': '« Local uniquement » est activé : FrameLy ne recherche pas de mises à jour.',
+  'updates.error.check_failed': 'Impossible de rechercher des mises à jour. Vérifiez votre connexion et réessayez.',
+  'updates.error.download_failed': 'Le téléchargement a échoué ou n’a pas pu être vérifié. Réessayez.',
+  'updates.error.install_failed': 'La mise à jour n’a pas pu être installée. Réessayez ou téléchargez-la depuis le site.',
+  'updates.settings.check': 'Rechercher des mises à jour',
+  'updates.settings.checking': 'Recherche…',
+  'updates.settings.upToDate': 'FrameLy est à jour.',
+  'updates.settings.lastChecked': 'Vous avez la dernière version (vérifié {time}).',
+  'updates.settings.auto': 'Rechercher automatiquement les mises à jour',
+  'updates.settings.auto.hint': 'En arrière-plan, quelques fois par jour. Les mises à jour ne sont téléchargées et installées que sur votre demande, jamais pendant un enregistrement.',
+  'updates.settings.idle': 'Les mises à jour proviennent des versions de FrameLy sur GitHub et sont vérifiées avant l’installation.',
+};

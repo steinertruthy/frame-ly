@@ -20,6 +20,7 @@ export interface Settings {
   shortcuts: Record<ShortcutAction, string>;
   storage: { recordingsDir: string; screenshotsDir: string };
   intelligence: IntelligenceSettings;
+  updates: { autoCheck: boolean };
 }
 
 export interface IntelligenceSettings {

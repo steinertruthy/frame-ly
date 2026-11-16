@@ -1,0 +1,167 @@
+name: Updater end-to-end
+
+# Proves the whole update path on real macOS and Windows runners, with a throwaway signing key:
+# build an "old" app (0.0.1) and a signed "new" one (0.0.2), serve latest.json locally, run
+# `framely --update` in the old app and check that it downloaded, verified, installed and
+# restarted into the new version — keeping the user's data (Windows also checks the uninstaller).
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['src-tauri/src/updates.rs', 'src-tauri/installer/**', '.github/workflows/updater-e2e.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: updater-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (Apple Silicon)
+            os: macos-15
+          - name: Windows (x64)
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    env:
+      npm_config_script_shell: ${{ matrix.os == 'windows-latest' && 'C:\Program Files\Git\bin\bash.exe' || '' }}
+      UPDATE_URL: http://127.0.0.1:8765/latest.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri
+            src-tauri/llm-worker
+          key: e2e
+      - name: Xcode 26 and build tools (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          xc=$(find /Applications -maxdepth 1 -name "Xcode_26*.app" | sort -V | tail -1)
+          [ -n "$xc" ] && sudo xcode-select -s "$xc"
+          brew install ninja
+      - run: pnpm install --frozen-lockfile
+
+      - name: Throwaway signing key
+        shell: bash
+        run: |
+          pnpm -s tauri signer generate -w "$RUNNER_TEMP/e2e.key" -p e2e --ci
+          echo "E2E_PUBKEY=$(cat "$RUNNER_TEMP/e2e.key.pub")" >> "$GITHUB_ENV"
+
+      - name: Build old (0.0.1) and new (0.0.2, signed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = "macOS" ]; then bundles=app; else bundles=nsis; fi
+          conf() { # version, updater artifacts
+            printf '{"version":"%s","bundle":{"createUpdaterArtifacts":%s},"plugins":{"updater":{"pubkey":"%s","dangerousInsecureTransportProtocol":true}}}' "$1" "$2" "$E2E_PUBKEY"
+          }
+          b=src-tauri/target/release/bundle
+          mkdir -p "$RUNNER_TEMP/old" "$RUNNER_TEMP/serve"
+          pnpm tauri build --bundles $bundles --config "$(conf 0.0.1 false)"
+          if [ "$RUNNER_OS" = "macOS" ]; then cp -R "$b/macos/FrameLy.app" "$RUNNER_TEMP/old/"; else cp "$b"/nsis/*-setup.exe "$RUNNER_TEMP/old/setup.exe"; fi
+          TAURI_SIGNING_PRIVATE_KEY="$(cat "$RUNNER_TEMP/e2e.key")"
+          export TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD=e2e
+          pnpm tauri build --bundles $bundles --config "$(conf 0.0.2 true)"
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            pkg=FrameLy.app.tar.gz; key=darwin-aarch64
+            cp "$b/macos/$pkg" "$b/macos/$pkg.sig" "$RUNNER_TEMP/serve/"
+          else
+            pkg=FrameLy_0.0.2_x64-setup.exe; key=windows-x86_64
+            cp "$b/nsis/$pkg" "$b/nsis/$pkg.sig" "$RUNNER_TEMP/serve/"
+          fi
+          # shellcheck disable=SC2016  # JavaScript template literals, not shell
+          node -e '
+            const fs = require("fs"); const [dir, pkg, key] = process.argv.slice(1);
+            const signature = fs.readFileSync(`${dir}/${pkg}.sig`, "utf8").trim();
+            const entry = { signature, url: `http://127.0.0.1:8765/${pkg}` };
+            fs.writeFileSync(`${dir}/latest.json`, JSON.stringify({ version: "0.0.2", notes: "e2e", pub_date: new Date().toISOString(),
+              platforms: { [key]: entry } }, null, 2));
+          ' "$RUNNER_TEMP/serve" "$pkg" "$key"
+          cat "$RUNNER_TEMP/serve/latest.json"
+
+      - name: Serve latest.json
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/serve"
+          PY=$(command -v python3 || command -v python)
+          nohup "$PY" -m http.server 8765 --bind 127.0.0.1 > "$RUNNER_TEMP/http.log" 2>&1 &
+          sleep 3
+          curl -sf "$UPDATE_URL" > /dev/null
+
+      - name: Update the old app (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/old/FrameLy.app"
+          bin="$app/Contents/MacOS/framely"
+          version() { /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$app/Contents/Info.plist"; }
+          test "$(version)" = 0.0.1
+          FRAMELY_UPDATE_URL="$UPDATE_URL" nohup "$bin" > "$RUNNER_TEMP/app.log" 2>&1 &
+          sleep 20
+          FRAMELY_UPDATE_URL="$UPDATE_URL" "$bin" --update
+          for _ in $(seq 1 90); do
+            if [ "$(version)" = 0.0.2 ] && pgrep -f "$bin" > /dev/null; then
+              echo "updated to $(version) and running again"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::not updated: version $(version)"
+          cat "$RUNNER_TEMP/http.log"; tail -n 80 ~/Library/Logs/app.framely.desktop/*.log 2>/dev/null || true
+          exit 1
+
+      - name: Update the old app (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\FrameLy'
+          Start-Process "$env:RUNNER_TEMP\old\setup.exe" -ArgumentList '/S' -Wait
+          $dir = (Get-ItemProperty $key).InstallLocation.Trim('"')
+          if (-not $dir) { $dir = "$env:LOCALAPPDATA\FrameLy" }
+          $exe = Join-Path $dir 'framely.exe'
+          if ((Get-ItemProperty $key).DisplayVersion -ne '0.0.1') { throw 'old version not installed' }
+          $env:FRAMELY_UPDATE_URL = $env:UPDATE_URL
+          Start-Process $exe
+          Start-Sleep 20
+          # The user's data must survive the update.
+          $data = "$env:APPDATA\app.framely.desktop"
+          New-Item -ItemType Directory -Force $data | Out-Null
+          Set-Content "$data\e2e-marker.txt" 'keep me'
+          Start-Process $exe -ArgumentList '--update' -Wait
+          $ok = $false
+          for ($i = 0; $i -lt 90; $i++) {
+            $v = (Get-ItemProperty $key -ErrorAction SilentlyContinue).DisplayVersion
+            $running = Get-Process framely -ErrorAction SilentlyContinue
+            if ($v -eq '0.0.2' -and $running) { $ok = $true; break }
+            Start-Sleep 2
+          }
+          if (-not $ok) {
+            Get-Content "$env:RUNNER_TEMP\http.log" -ErrorAction SilentlyContinue
+            Get-ChildItem "$env:LOCALAPPDATA\app.framely.desktop\logs" -ErrorAction SilentlyContinue | Get-Content -Tail 80
+            throw "not updated: version $v"
+          }
+          Write-Host "updated to $v and running again"
+          if (-not (Test-Path "$data\e2e-marker.txt")) { throw 'user data was removed by the update' }
+
+          # Uninstall (data checkbox off by default): app gone, user data kept.
+          Get-Process framely, framely-llm -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Process (Join-Path $dir 'uninstall.exe') -ArgumentList '/S' -Wait
+          # NSIS uninstallers relaunch themselves from a temp copy, so wait for the files to go.
+          for ($i = 0; $i -lt 60 -and (Test-Path $exe); $i++) { Start-Sleep 1 }
+          if (Test-Path $exe) { throw 'app still installed after uninstall' }
+          if (Test-Path $key) { throw 'uninstall registry key left behind' }
+          if (-not (Test-Path "$data\e2e-marker.txt")) { throw 'uninstall removed user data without being asked' }
+          Write-Host 'uninstall clean; user data kept'

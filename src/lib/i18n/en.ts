@@ -1,4 +1,5 @@
 import { aiEn } from './ai/en';
+import { updatesEn } from './updates/en';
 
 /**
  * English strings. This file defines the canonical key set; every locale must provide all keys
@@ -365,7 +366,6 @@ export const en = {
   'settings.logs.hint': 'Helpful if you ever need to report a problem.',
   'settings.about.version': 'Version {version}',
   'settings.about.updates': 'Updates',
-  'settings.about.updates.hint': 'You have the latest development build. Automatic updates arrive with the first public release.',
   'settings.about.credits': 'Credits',
   'settings.about.builtWith': 'Made with',
 
@@ -381,6 +381,7 @@ export const en = {
   'error.not_found': 'That file isn’t there anymore.',
   'error.invalid_name': 'That name can’t be used. Avoid characters like / : * ?',
   ...aiEn,
+  ...updatesEn,
 } as const;
 
 export type MessageKey = keyof typeof en;

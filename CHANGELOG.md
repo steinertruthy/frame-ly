@@ -8,6 +8,19 @@ for the website live in `website/src/content/changelog/`.
 
 ## [Unreleased]
 
+### Added
+
+- Automatic updates: FrameLy checks GitHub Releases in the background (turn it off in Settings › About, never in "Local only" mode), shows a quiet notice with the release notes, and updates with one click — download progress, signature check, install and restart. A recording in progress is never interrupted: the update installs when it ends. `framely --update` checks and installs from the command line.
+
+### Changed
+
+- The Windows installer now has FrameLy's look, the app's five languages, FrameLy's own welcome and finish texts, and an uninstaller option that also removes saved API keys.
+
+### Known limitations
+
+- Versions 0.1.0 and 0.2.0 don't have the updater: download the first version with it once from the website.
+- macOS builds aren't notarized yet, so macOS may ask for the Screen Recording permission again after an update.
+
 ## [0.2.0] - 2026-11-16
 
 FrameLy AI Cloud is live and is now the default for summaries and topics.

@@ -8,3 +8,4 @@ pub mod recording;
 pub mod screenshot;
 pub mod settings;
 pub mod system;
+pub mod updates;

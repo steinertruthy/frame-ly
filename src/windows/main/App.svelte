@@ -4,6 +4,8 @@
   import Aurora from '$lib/components/Aurora.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
   import Toaster from '$lib/components/Toaster.svelte';
+  import UpdateNotice from '$lib/components/UpdateNotice.svelte';
+  import { updates } from '$lib/stores/updates.svelte';
   import { t, type MessageKey } from '$lib/i18n/index.svelte';
   import type { AppInfo } from '$lib/ipc/types';
   import { commands, events } from '$lib/ipc/commands';
@@ -33,6 +35,10 @@
   function toggleSidebar() {
     void settings.update((d) => (d.appearance.sidebarCollapsed = !d.appearance.sidebarCollapsed));
   }
+
+  $effect(() => {
+    void updates.init();
+  });
 
   // The quick panel and tray can open a specific page.
   $effect(() => {
@@ -128,6 +134,7 @@
 </div>
 
 <Toaster />
+<UpdateNotice />
 
 <style>
   .shell {

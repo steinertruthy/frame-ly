@@ -1,5 +1,6 @@
 import type { Messages } from './en';
 import { aiDe } from './ai/de';
+import { updatesDe } from './updates/de';
 
 export const de: Messages = {
   'app.name': 'FrameLy',
@@ -350,7 +351,6 @@ export const de: Messages = {
   'settings.logs.hint': 'Hilfreich, falls du einmal ein Problem melden musst.',
   'settings.about.version': 'Version {version}',
   'settings.about.updates': 'Updates',
-  'settings.about.updates.hint': 'Du nutzt die neueste Entwicklungsversion. Automatische Updates kommen mit der ersten öffentlichen Version.',
   'settings.about.credits': 'Mitwirkende',
   'settings.about.builtWith': 'Entwickelt mit',
 
@@ -365,4 +365,5 @@ export const de: Messages = {
   'error.not_found': 'Diese Datei ist nicht mehr da.',
   'error.invalid_name': 'Dieser Name geht nicht. Vermeide Zeichen wie / : * ?',
   ...aiDe,
+  ...updatesDe,
 };
