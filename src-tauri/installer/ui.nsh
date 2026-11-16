@@ -287,9 +287,9 @@ Function FlWelcome
 
   ; Where it goes (fixed when updating an existing installation).
   ${NSD_CreateLabel} 28u 138u -56u 30u ""
-  Pop $0
-  SetCtlColors $0 "" ${FL_SURFACE}
-  Push $0
+  Pop $R9
+  SetCtlColors $R9 "" ${FL_SURFACE}
+  Push $R9
   Call FlRound
   ${NSD_CreateLabel} 38u 142u 120u 10u "$(flLocation)"
   Pop $0
@@ -306,6 +306,8 @@ Function FlWelcome
     SetCtlColors $FlChangeLink ${FL_LINK} ${FL_SURFACE}
     ${NSD_OnClick} $FlChangeLink FlChangeFolder
   ${EndIf}
+  ; The panel goes under its texts (HWND_BOTTOM, no move/size).
+  System::Call "user32::SetWindowPos(p R9, p 1, i 0, i 0, i 0, i 0, i 0x13)"
 
   ${If} $FlState == "new"
     StrCpy $FlDesktop 1
@@ -399,13 +401,6 @@ FunctionEnd
   SendMessage $R1 ${PBM_SETBARCOLOR} 0 ${FL_BAR}
   SendMessage $R1 ${PBM_SETBKCOLOR} 0 ${FL_BAR_BG}
 !macroend
-
-Function FlProgressPre
-  !insertmacro FL_PREVIEW_PAGE "progress"
-FunctionEnd
-Function un.FlProgressPre
-  !insertmacro FL_PREVIEW_PAGE "removing"
-FunctionEnd
 
 Function FlProgressShow
   !insertmacro FL_PROGRESS_SHOW "" "$(flInstalling)"
@@ -514,13 +509,11 @@ FunctionEnd
 AutoCloseWindow true
 
 Page custom FlWelcome FlWelcomeLeave
-!define MUI_PAGE_CUSTOMFUNCTION_PRE FlProgressPre
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW FlProgressShow
 !insertmacro MUI_PAGE_INSTFILES
 Page custom FlFinish FlFinishLeave
 
 UninstPage custom un.FlConfirm un.FlConfirmLeave
-!define MUI_PAGE_CUSTOMFUNCTION_PRE un.FlProgressPre
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.FlProgressShow
 !insertmacro MUI_UNPAGE_INSTFILES
 UninstPage custom un.FlDone

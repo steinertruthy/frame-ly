@@ -66,11 +66,12 @@ jobs:
             Shot $exe "/PAGE=welcome /STATE=update /LANG=$lang" "$lang-2-welcome-update"
             Shot $exe "/PAGE=welcome /STATE=reinstall /LANG=$lang" "$lang-3-welcome-reinstall"
             Shot $exe "/PAGE=progress /LANG=$lang" "$lang-4-progress" 5
-            Shot $exe "/PAGE=finish /LANG=$lang" "$lang-5-finish"
+            Shot $exe "/PAGE=finish /LANG=$lang" "$lang-5-finish" 14
             Install-Quietly
             Shot "$dir\uninstall.exe" "/PAGE=uninstall /LANG=$lang" "$lang-6-uninstall"
-            Shot "$dir\uninstall.exe" "/PAGE=removed /LANG=$lang" "$lang-8-removed"
-            Shot "$dir\uninstall.exe" "/PAGE=removing /LANG=$lang" "$lang-7-removing" 2
+            Shot "$dir\uninstall.exe" "/PAGE=removing /LANG=$lang" "$lang-7-removing" 3
+            Install-Quietly
+            Shot "$dir\uninstall.exe" "/PAGE=removed /LANG=$lang" "$lang-8-removed" 9
           }
           Close-Preview
       - uses: actions/upload-artifact@v4

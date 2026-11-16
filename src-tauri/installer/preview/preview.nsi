@@ -3,6 +3,8 @@
 ;   makensis preview.nsi  →  framely-installer-preview.exe
 ;   framely-installer-preview.exe /PAGE=welcome|progress|finish /STATE=new|update|reinstall /LANG=en|pt
 ; Installing it (e.g. /S) writes uninstall.exe, which takes /PAGE=uninstall|removing|removed.
+; The progress pages can't be skipped: /PAGE=progress|removing skips the first screen and shows
+; the (simulated) progress, /PAGE=finish|removed also lets it run and then shows the last screen.
 Unicode true
 ManifestDPIAware true
 ManifestDPIAwareness PerMonitorV2
