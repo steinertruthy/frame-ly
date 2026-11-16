@@ -1,3 +1,20 @@
+## [0.3.0] - 2026-11-16
+
+O FrameLy agora se atualiza sozinho, e o instalador do Windows ganhou a cara do FrameLy.
+
+### Added
+
+- Atualização automática: o FrameLy verifica os releases do GitHub em segundo plano (dá para desligar em Ajustes › Sobre, e nunca no modo “Exclusivamente local”), mostra um aviso discreto com as novidades e atualiza com um clique — progresso do download, verificação da assinatura, instalação e reinício. Uma gravação em andamento nunca é interrompida: a atualização é instalada quando ela termina. `framely --update` verifica e instala pela linha de comando.
+
+### Changed
+
+- O instalador do Windows agora tem o visual do FrameLy, os cinco idiomas do app, textos próprios nas telas de boas-vindas e conclusão, e uma opção na desinstalação que também remove as chaves de API salvas.
+
+### Known limitations
+
+- As versões 0.1.0 e 0.2.0 não têm o atualizador: baixe uma vez, pelo site, a primeira versão que o inclui.
+- As versões para macOS ainda não são notarizadas, então o macOS pode pedir de novo a permissão de Gravação de Tela depois de uma atualização.
+
 ## [0.2.0] - 2026-11-16
 
 A FrameLy AI Cloud está no ar e agora é o padrão para resumos e tópicos.

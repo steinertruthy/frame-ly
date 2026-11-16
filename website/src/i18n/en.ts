@@ -386,6 +386,10 @@ export const en = {
         "a": "The installers aren’t signed with an Apple Developer ID or a Windows code-signing certificate yet. You can check each file against its SHA-256 checksum on the download section and on GitHub."
       },
       {
+        "q": "How do I update FrameLy?",
+        "a": "From version 0.3.0, FrameLy checks for new versions in the background and offers to update with one click, never during a recording; you can also check in Settings › About or turn this off. Earlier versions (0.1.0 and 0.2.0) don’t update themselves: download the latest version once from this page. On macOS, the system may ask for the Screen Recording permission again after an update, because the app isn’t notarized yet."
+      },
+      {
         "q": "Which languages does the app support?",
         "a": "The interface is available in English, Portuguese (Brazil), Spanish, French and German. Transcription detects the spoken language automatically."
       }

@@ -8,6 +8,10 @@ for the website live in `website/src/content/changelog/`.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-16
+
+FrameLy now updates itself, and the Windows installer has FrameLy's look.
+
 ### Added
 
 - Automatic updates: FrameLy checks GitHub Releases in the background (turn it off in Settings › About, never in "Local only" mode), shows a quiet notice with the release notes, and updates with one click — download progress, signature check, install and restart. A recording in progress is never interrupted: the update installs when it ends. `framely --update` checks and installs from the command line.
@@ -66,6 +70,7 @@ First public version.
 - Speakers are not identified in transcripts.
 - A recording captures one display at a time.
 
-[Unreleased]: https://github.com/steinertruthy/frame-ly/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/steinertruthy/frame-ly/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/steinertruthy/frame-ly/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/steinertruthy/frame-ly/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/steinertruthy/frame-ly/releases/tag/v0.1.0

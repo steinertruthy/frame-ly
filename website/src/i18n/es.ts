@@ -384,6 +384,10 @@ export const es: Messages = {
         "a": "Los instaladores aún no están firmados con un Developer ID de Apple ni con un certificado de firma de código de Windows. Puedes comprobar cada archivo con su suma SHA-256 en la sección de descarga y en GitHub."
       },
       {
+        "q": "¿Cómo actualizo FrameLy?",
+        "a": "Desde la versión 0.3.0, FrameLy busca nuevas versiones en segundo plano y ofrece actualizar con un clic, nunca durante una grabación; también puedes buscar en Ajustes › Acerca de o desactivarlo. Las versiones anteriores (0.1.0 y 0.2.0) no se actualizan solas: descarga una vez la versión más reciente desde esta página. En macOS, el sistema puede volver a pedir el permiso de Grabación de pantalla tras una actualización, porque la app aún no está notarizada."
+      },
+      {
         "q": "¿En qué idiomas está la app?",
         "a": "La interfaz está en español, inglés, portugués (Brasil), francés y alemán. La transcripción detecta automáticamente el idioma hablado."
       }
