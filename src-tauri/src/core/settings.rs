@@ -17,7 +17,7 @@ use std::{
     sync::RwLock,
 };
 
-pub const CURRENT_VERSION: u32 = 3;
+pub const CURRENT_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Language {
@@ -305,6 +305,22 @@ pub struct Intelligence {
     pub apple_enabled: bool,
 }
 
+/// Whether this build talks to a FrameLy AI Cloud (URL set at build time, or at run time in development).
+pub fn cloud_configured() -> bool {
+    option_env!("FRAMELY_CLOUD_URL").is_some_and(|u| !u.is_empty())
+        || std::env::var("FRAMELY_CLOUD_URL").is_ok_and(|u| !u.is_empty())
+}
+
+/// Summaries and topics run on FrameLy AI Cloud by default (nothing to download; consent is asked
+/// before the first send). Builds without the cloud fall back to FrameLy AI Local.
+pub fn default_generation_provider() -> ProviderId {
+    if cloud_configured() {
+        ProviderId::Cloud
+    } else {
+        ProviderId::Framely
+    }
+}
+
 impl Default for Intelligence {
     fn default() -> Self {
         Self {
@@ -313,10 +329,10 @@ impl Default for Intelligence {
             language: "auto".into(),
             summary_detail: Detail::Balanced,
             summary_auto: true,
-            summary_provider: ProviderId::Framely,
+            summary_provider: default_generation_provider(),
             topics_detail: Detail::Balanced,
             topics_auto: true,
-            topics_provider: ProviderId::Framely,
+            topics_provider: default_generation_provider(),
             local_only: false,
             external_enabled: false,
             anthropic_model: "claude-opus-5-5".into(),
@@ -459,7 +475,25 @@ fn migrate(value: &mut Value) {
             i.insert("topicsAuto".into(), Value::Bool(true));
         }
     }
+    if version < 4 {
+        // v3 → v4: FrameLy AI Cloud became the default for summaries and topics. Settings that
+        // still had the old default (FrameLy AI Local) move to it once; other choices are kept.
+        migrate_generation_provider(value, default_generation_provider());
+    }
     value["version"] = Value::from(CURRENT_VERSION);
+}
+
+fn migrate_generation_provider(value: &mut Value, to: ProviderId) {
+    if to != ProviderId::Cloud {
+        return;
+    }
+    if let Some(i) = value.get_mut("intelligence").and_then(Value::as_object_mut) {
+        for key in ["summaryProvider", "topicsProvider"] {
+            if i.get(key).and_then(Value::as_str) == Some("framely") {
+                i.insert(key.into(), Value::from("cloud"));
+            }
+        }
+    }
 }
 
 fn merge(base: &mut Value, overlay: Value) {
@@ -682,13 +716,15 @@ mod tests {
     }
 
     #[test]
-    fn intelligence_defaults_are_local_and_on_demand() {
+    fn intelligence_defaults_run_everything_with_consent() {
         let tmp = tempfile::tempdir().unwrap();
         let d = dirs_in(tmp.path());
         // Files from before the feature gain the section.
         let s = Settings::from_json(r#"{"version":2}"#, &d).unwrap();
         let i = &s.intelligence;
-        assert_eq!((i.summary_provider, i.topics_provider), (ProviderId::Framely, ProviderId::Framely));
+        // FrameLy AI Cloud when the build has it, FrameLy AI Local otherwise.
+        let p = default_generation_provider();
+        assert_eq!((i.summary_provider, i.topics_provider), (p, p));
         assert!(i.summary_auto && i.topics_auto, "everything in one go by default");
         assert!(!i.external_enabled && i.consents.is_empty());
         // The first release saved them off: v3 turns them on once; a v3 file keeps the choice.
@@ -712,5 +748,17 @@ mod tests {
     #[test]
     fn language_serializes_as_bcp47() {
         assert_eq!(serde_json::to_string(&Language::PtBr).unwrap(), r#""pt-BR""#);
+    }
+
+    #[test]
+    fn cloud_becomes_the_default_generation_provider_once() {
+        let mut v = serde_json::json!({"version": 3, "intelligence": {"summaryProvider": "framely", "topicsProvider": "anthropic"}});
+        migrate_generation_provider(&mut v, ProviderId::Cloud);
+        assert_eq!(v["intelligence"]["summaryProvider"], "cloud");
+        assert_eq!(v["intelligence"]["topicsProvider"], "anthropic", "other choices are kept");
+        // Builds without FrameLy AI Cloud keep FrameLy AI Local.
+        let mut v = serde_json::json!({"intelligence": {"summaryProvider": "framely"}});
+        migrate_generation_provider(&mut v, ProviderId::Framely);
+        assert_eq!(v["intelligence"]["summaryProvider"], "framely");
     }
 }

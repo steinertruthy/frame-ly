@@ -17,7 +17,16 @@ export function resolvePrecision(choice: Precision, defaultPrecision: Exclude<Pr
 export const isReady = (m: ModelStatus | undefined): boolean => m?.state === 'installed' || m?.state === 'update';
 
 /** Models the first-use setup installs for a profile, and how much is left to download. */
-export function setupPlan(models: ModelStatus[], speechId: string, languageId: string): { models: ModelStatus[]; remainingBytes: number; done: boolean } {
+/** Whether summaries or topics run on FrameLy AI Local (and so need its language model). */
+export function usesLocalGeneration(s: Settings['intelligence'] | undefined): boolean {
+  return !s || s.summaryProvider === 'framely' || s.topicsProvider === 'framely';
+}
+
+/**
+ * Models to download before first use: always the transcription model; the local summary model
+ * only when FrameLy AI Local generates summaries or topics (`languageId` null otherwise).
+ */
+export function setupPlan(models: ModelStatus[], speechId: string, languageId: string | null): { models: ModelStatus[]; remainingBytes: number; done: boolean } {
   const needed = models.filter((m) => m.id === speechId || m.id === languageId);
   const remainingBytes = needed.filter((m) => !isReady(m)).reduce((n, m) => n + m.size - (m.state === 'corrupt' ? 0 : m.received), 0);
   return { models: needed, remainingBytes, done: needed.length > 0 && needed.every(isReady) };

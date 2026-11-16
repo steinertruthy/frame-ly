@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { highlight, languageModelId, needsConsent, resolvePrecision, roughDuration, segmentAt, setupPlan, speechModelId } from './ai';
+import { highlight, languageModelId, needsConsent, resolvePrecision, roughDuration, segmentAt, setupPlan, speechModelId, usesLocalGeneration } from './ai';
 import type { ModelStatus } from '$lib/ipc/ai';
 import type { IntelligenceSettings } from '$lib/ipc/types';
 
@@ -36,6 +36,15 @@ describe('model mapping', () => {
     expect(plan.remainingBytes).toBe(60 + 300);
     expect(plan.done).toBe(false);
     expect(setupPlan([model('speech-balanced', 'installed', 1), model('language-balanced', 'update', 1)], 'speech-balanced', 'language-balanced').done).toBe(true);
+  });
+  it('skips the local summary model when summaries run elsewhere', () => {
+    const models = [model('speech-balanced', 'installed', 100), model('language-balanced', 'missing', 300)];
+    const cloud = { summaryProvider: 'cloud', topicsProvider: 'cloud' } as IntelligenceSettings;
+    expect(usesLocalGeneration(cloud)).toBe(false);
+    expect(usesLocalGeneration({ ...cloud, topicsProvider: 'framely' })).toBe(true);
+    const plan = setupPlan(models, 'speech-balanced', null);
+    expect(plan.models.map((m) => m.id)).toEqual(['speech-balanced']);
+    expect(plan.done).toBe(true);
   });
 });
 

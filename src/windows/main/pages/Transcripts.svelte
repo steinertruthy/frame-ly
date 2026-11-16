@@ -12,7 +12,8 @@
   import { ai } from '$lib/ipc/ai';
   import { aiStore } from '$lib/stores/ai.svelte';
   import { nav, type TranscriptTab } from '$lib/stores/nav.svelte';
-  import { languageModelId, setupPlan, speechModelId } from '$lib/ai';
+  import { languageModelId, setupPlan, speechModelId, usesLocalGeneration } from '$lib/ai';
+  import { settings } from '$lib/stores/settings.svelte';
 
   let detailId = $state<number | null>(null);
   let detailTab = $state<TranscriptTab>('transcript');
@@ -57,7 +58,9 @@
   }
 
   const o = $derived(aiStore.overview);
-  const plan = $derived(o ? setupPlan(o.models, speechModelId(o.defaultPrecision), languageModelId(o.profile)) : null);
+  const plan = $derived(
+    o ? setupPlan(o.models, speechModelId(o.defaultPrecision), usesLocalGeneration(settings.value?.intelligence) ? languageModelId(o.profile) : null) : null,
+  );
   $effect(() => {
     if (plan && !plan.done) setupShown = true;
   });
