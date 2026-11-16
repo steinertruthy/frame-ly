@@ -49,7 +49,27 @@
     },
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "headerImage": "installer/header.bmp",
+        "sidebarImage": "installer/sidebar.bmp",
+        "languages": [
+          "English",
+          "PortugueseBR",
+          "Spanish",
+          "French",
+          "German"
+        ],
+        "customLanguageFiles": {
+          "English": "installer/lang/English.nsh",
+          "PortugueseBR": "installer/lang/PortugueseBR.nsh",
+          "Spanish": "installer/lang/Spanish.nsh",
+          "French": "installer/lang/French.nsh",
+          "German": "installer/lang/German.nsh"
+        },
+        "displayLanguageSelector": false,
+        "installerHooks": "installer/hooks.nsh"
       }
     },
     "externalBin": [

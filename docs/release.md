@@ -40,3 +40,24 @@ como artefatos da execução).
 site ou o changelog, e depois de cada release. Os dados de download (`website/src/data/releases.json`)
 são gerados no build a partir da API do GitHub, então o site nunca aponta para arquivos que não
 existem. Veja [website/README.md](../website/README.md).
+
+## Instalador do Windows (NSIS)
+
+Usa o template oficial do Tauri com a identidade do FrameLy (`src-tauri/tauri.conf.json` ›
+`bundle.windows.nsis`), sem template próprio, para manter o fluxo de atualização do Tauri:
+
+- `src-tauri/installer/sidebar.bmp` (164×314) e `header.bmp` (150×57), gerados por
+  `node scripts/windows-installer-art.mjs` a partir de `assets/logo.svg`;
+- ícone do app no instalador e no desinstalador;
+- os 5 idiomas do app, escolhidos pelo idioma do Windows (`installer/lang/*.nsh`: textos do Tauri
+  + textos do FrameLy nas telas de boas-vindas e de conclusão);
+- `installer/hooks.nsh`: encerra o `framely-llm.exe` antes de instalar/desinstalar e, se a pessoa
+  marcar “apagar dados” ao desinstalar, remove também as credenciais `FrameLy/ai/*`.
+
+Instalar por cima de uma versão anterior atualiza no lugar: o desinstalador antigo roda em modo
+silencioso e nunca apaga `%APPDATA%\app.framely.desktop` (ajustes, biblioteca, transcrições e
+modelos baixados). Atalho no Menu Iniciar sempre; atalho na área de trabalho e “Abrir o FrameLy
+agora” como opções na última tela.
+
+Ao atualizar o `@tauri-apps/cli`, compare `installer/lang/*.nsh` com os arquivos de idioma do
+Tauri (novas chaves precisam ser copiadas).
