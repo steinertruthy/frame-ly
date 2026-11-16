@@ -12,6 +12,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+
+# Builds and links the Swift engine. Only needed (and only linkable) when the build runs on macOS.
+[target.'cfg(target_os = "macos")'.build-dependencies]
 swift-rs = { version = "1.0.9", features = ["build"] }
 
 [dependencies]

@@ -3,7 +3,7 @@ fn main() {
     // macOS: compile the Swift media engine (native/macos/FrameLyKit) as a static library and
     // link it together with the Swift runtime and system frameworks it uses.
     if os == "macos" {
-        swift_rs::SwiftLinker::new("14.0").with_package("FrameLyKit", "../native/macos/FrameLyKit/").link();
+        link_swift_engine();
         for fw in ["ScreenCaptureKit", "AVFoundation", "CoreMedia", "CoreGraphics", "AppKit", "Security"] {
             println!("cargo:rustc-link-lib=framework={fw}");
         }
@@ -21,6 +21,16 @@ fn main() {
     }
     ensure_llm_worker();
     tauri_build::build()
+}
+
+/// The Swift engine can only be built on a macOS host (swift-rs is a macOS-only build dependency).
+#[cfg(target_os = "macos")]
+fn link_swift_engine() {
+    swift_rs::SwiftLinker::new("14.0").with_package("FrameLyKit", "../native/macos/FrameLyKit/").link();
+}
+#[cfg(not(target_os = "macos"))]
+fn link_swift_engine() {
+    panic!("the macOS app must be built on macOS (Swift engine)");
 }
 
 /// The summary/topics runtime (`framely-llm`, built from llm-worker/ by

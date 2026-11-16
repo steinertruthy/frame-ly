@@ -84,6 +84,14 @@ jobs:
             src-tauri
             src-tauri/llm-worker
           key: release-${{ matrix.target }}
+      - name: Xcode 26 (macOS 26 SDK, needed for Apple Intelligence)
+        if: runner.os == 'macOS'
+        run: |
+          xc=$(find /Applications -maxdepth 1 -name "Xcode_26*.app" | sort -V | tail -1)
+          [ -n "$xc" ] || { echo "::error::Xcode 26 is required so the release includes Apple Intelligence"; exit 1; }
+          sudo xcode-select -s "$xc" && xcodebuild -version
+          sdk=$(xcrun --show-sdk-version); echo "SDK $sdk"; [ "${sdk%%.*}" -ge 26 ]
+
       - name: Native build tools (macOS)
         if: runner.os == 'macOS'
         run: brew install ninja

@@ -49,6 +49,13 @@ jobs:
             src-tauri
             src-tauri/llm-worker
 
+      - name: Xcode 26 (macOS 26 SDK, needed for Apple Intelligence)
+        if: runner.os == 'macOS'
+        run: |
+          xc=$(find /Applications -maxdepth 1 -name "Xcode_26*.app" | sort -V | tail -1)
+          if [ -z "$xc" ]; then echo "::warning::No Xcode 26 on this runner; Apple Intelligence code is compiled out"; exit 0; fi
+          sudo xcode-select -s "$xc" && xcodebuild -version && xcrun --show-sdk-version
+
       - name: Native build tools (macOS)
         if: runner.os == 'macOS'
         run: brew install ninja
@@ -66,7 +73,13 @@ jobs:
       - name: Swift engine tests (FrameLyKit)
         if: runner.os == 'macOS'
         working-directory: native/macos/FrameLyKit
-        run: swift test
+        # Skipped here: tests that need a visible window or real-time A/V timing, which hosted
+        # VMs don't provide. Run them locally (swift test).
+        run: >-
+          swift test
+          --skip AVSyncTests
+          --skip CaptureTests.testWindowCaptureWhenPermitted
+          --skip RecorderTests.testRecordsSingleWindow
 
       - name: Local AI worker (sidecar)
         shell: bash
