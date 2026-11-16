@@ -15,7 +15,8 @@ const modes = [
   { key: 'cloud', icon: 'cloud', data: a.modes.cloud },
   { key: 'apple', icon: 'spark', data: a.modes.apple },
 ] as const;
-const rows = ['where', 'connection', 'platforms', 'hardware', 'cost', 'setup'] as const;
+const rows = ['availability', 'where', 'connection', 'platforms', 'hardware', 'cost', 'setup'] as const;
+const cols = [a.table.columns.local, a.table.columns.cloud, a.table.columns.external, a.table.columns.apple];
 ---
 
 <section class="section ai" id="ai" aria-labelledby="ai-title">
@@ -40,6 +41,19 @@ const rows = ['where', 'connection', 'platforms', 'hardware', 'cost', 'setup'] a
             <h3 id={`mode-${md.key}`}>{md.data.name}</h3>
             <p class="label">{md.data.label}</p>
             <p class="body">{md.data.body}</p>
+            {'options' in md.data && (
+              <div class="options">
+                {md.data.options.map((o, j) => (
+                  <div class="option">
+                    <p class="opt-head">
+                      <strong>{o.name}</strong>
+                      <span class:list={['status', j === 0 ? 'pending' : 'ok']}>{o.status}</span>
+                    </p>
+                    <p class="opt-body">{o.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
             <ul>
               {md.data.points.map((p) => (
                 <li>
@@ -59,7 +73,7 @@ const rows = ['where', 'connection', 'platforms', 'hardware', 'cost', 'setup'] a
         <thead>
           <tr>
             <th scope="col">{a.table.feature}</th>
-            {modes.map((md) => <th scope="col">{md.data.name}</th>)}
+            {cols.map((c) => <th scope="col">{c.name}</th>)}
           </tr>
         </thead>
         <tbody>
@@ -67,9 +81,9 @@ const rows = ['where', 'connection', 'platforms', 'hardware', 'cost', 'setup'] a
             rows.map((r) => (
               <tr>
                 <th scope="row">{a.table.rows[r]}</th>
-                <td>{a.table.local[r]}</td>
-                <td>{a.table.cloud[r]}</td>
-                <td>{a.table.apple[r]}</td>
+                {cols.map((c, j) => (
+                  <td class:list={[r === 'availability' && j === 1 && 'pending']}>{c[r]}</td>
+                ))}
               </tr>
             ))
           }
@@ -127,9 +141,9 @@ const rows = ['where', 'connection', 'platforms', 'hardware', 'cost', 'setup'] a
     width: 42px;
     height: 42px;
     border-radius: 11px;
-    color: var(--blue-200);
-    background: var(--accent-soft);
-    border: 1px solid rgba(109, 151, 255, 0.2);
+    color: var(--icon-accent);
+    background: var(--icon-tile);
+    border: 1px solid var(--app-border);
   }
   .tag {
     font-size: 12px;
@@ -183,7 +197,7 @@ const rows = ['where', 'connection', 'platforms', 'hardware', 'cost', 'setup'] a
   }
   table {
     width: 100%;
-    min-width: 760px;
+    min-width: 880px;
     table-layout: fixed;
     border-collapse: collapse;
     font-size: 15px;
@@ -213,7 +227,7 @@ const rows = ['where', 'connection', 'platforms', 'hardware', 'cost', 'setup'] a
     border-top: none;
   }
   thead th:first-child {
-    width: 16%;
+    width: 14%;
   }
   tbody th {
     color: var(--text-3);
@@ -224,6 +238,48 @@ const rows = ['where', 'connection', 'platforms', 'hardware', 'cost', 'setup'] a
   }
   td:nth-of-type(1) {
     color: var(--text);
+  }
+  td.pending {
+    color: #e8cf9d;
+  }
+  .options {
+    display: grid;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .option {
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--app-border);
+  }
+  .opt-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    font-size: 14.5px;
+  }
+  .status {
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--app-border);
+  }
+  .status.ok {
+    color: #7fe0bd;
+    background: rgba(43, 211, 154, 0.08);
+  }
+  .status.pending {
+    color: #e8cf9d;
+    background: rgba(247, 178, 59, 0.08);
+  }
+  .opt-body {
+    margin-top: 6px;
+    color: var(--text-2);
+    font-size: 14px;
+    line-height: 1.5;
   }
   .note {
     display: flex;

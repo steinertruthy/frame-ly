@@ -20,11 +20,23 @@
   --blue-500: #3a6fe0;
   --blue-600: #2e62b8;
   --blue-800: #172e5c;
-  --accent: #6d97ff;
-  --accent-soft: rgba(91, 140, 255, 0.12);
-  --rec: #e25565;
+  /* Same interaction colors as the app (tokens.css). */
+  --accent: #4c7bd9;
+  --accent-soft: rgba(76, 123, 217, 0.14);
+  --accent-text: #e6edfa;
+  --link: #8bb0ee;
+  --icon-accent: #8bb0ee;
+  --primary-fill: #1f3459;
+  --primary-hover: #27416f;
+  --primary-border: #325188;
+  --surface-raised: #171d2a;
+  --surface-hover: #141925;
+  --app-border: rgba(255, 255, 255, 0.06);
+  --icon-tile: #161f30;
+  --seg-active: #1b273d;
+  --rec: #d94656;
   --ok: #2bd39a;
-  --focus: 0 0 0 2px var(--bg), 0 0 0 4px rgba(109, 151, 255, 0.85);
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px rgba(76, 123, 217, 0.75);
 
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', 'Inter', system-ui, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI Variable Display', 'Segoe UI', 'Inter', system-ui, sans-serif;
@@ -101,7 +113,7 @@ img {
 }
 
 a {
-  color: var(--blue-200);
+  color: var(--link);
   text-decoration: none;
 }
 a:hover {
@@ -218,65 +230,67 @@ kbd {
   color: transparent;
 }
 
-/* ── Buttons ──────────────────────────────────────────────── */
+/* ── Buttons — the app's Button component (primary / secondary), slightly larger ── */
 .btn {
-  --h: 46px;
+  --h: 40px;
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   height: var(--h);
-  padding: 0 20px;
-  border-radius: var(--r-md);
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
   font: inherit;
-  font-size: 15.5px;
-  font-weight: 560;
-  letter-spacing: -0.005em;
+  font-size: 15px;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  border: 1px solid transparent;
   transition:
-    background-color 200ms var(--ease),
-    border-color 200ms var(--ease),
-    color 200ms var(--ease),
-    transform 200ms var(--ease),
-    box-shadow 200ms var(--ease);
+    background-color 130ms var(--ease),
+    color 130ms var(--ease),
+    transform 130ms var(--ease);
+}
+.btn:active {
+  transform: translateY(1px) scale(0.985);
 }
 .btn svg {
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
   flex: none;
 }
 .btn-primary {
-  color: #fff;
-  background: linear-gradient(180deg, #4a7cf0 0%, #2f63d4 100%);
-  border-color: rgba(150, 185, 255, 0.35);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 8px 28px -10px rgba(58, 111, 224, 0.75);
+  color: var(--accent-text);
+  background: var(--primary-fill);
+  box-shadow: inset 0 0 0 1px var(--primary-border);
+}
+.btn-primary svg {
+  color: var(--icon-accent);
 }
 .btn-primary:hover {
-  color: #fff;
-  background: linear-gradient(180deg, #5687f4 0%, #3569dc 100%);
-  transform: translateY(-1px);
+  color: var(--accent-text);
+  background: var(--primary-hover);
 }
 .btn-ghost {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.03);
-  border-color: var(--hairline-strong);
+  background: var(--surface-raised);
+  box-shadow:
+    inset 0 0 0 1px var(--app-border),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 .btn-ghost:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(170, 195, 245, 0.26);
+  color: var(--text);
+  background: var(--surface-hover);
 }
 .btn-sm {
-  --h: 36px;
-  padding: 0 14px;
-  font-size: 14px;
+  --h: 32px;
+  padding: 0 13px;
+  font-size: 13.5px;
+  border-radius: 8px;
 }
 .btn[aria-disabled='true'] {
-  opacity: 0.55;
+  opacity: 0.45;
   pointer-events: none;
 }
 
