@@ -285,29 +285,23 @@ Function FlWelcome
   !insertmacro FL_TEXT 28u 66u -56u 22u "$1" $FlFontTitle ${FL_TEXT}
   !insertmacro FL_TEXT 28u 90u -68u 44u "$2" $FlFontBody ${FL_TEXT2}
 
-  ; Where it goes (fixed when updating an existing installation).
-  ${NSD_CreateLabel} 28u 138u -56u 30u ""
-  Pop $R9
-  SetCtlColors $R9 "" ${FL_SURFACE}
-  Push $R9
-  Call FlRound
-  ${NSD_CreateLabel} 38u 142u 120u 10u "$(flLocation)"
+  ; Where it goes (fixed when updating an existing installation). No overlapping controls: a
+  ; caption, the path and a "Change" link on the right.
+  ${NSD_CreateLabel} 28u 140u 150u 10u "$(flLocation)"
   Pop $0
   SendMessage $0 ${WM_SETFONT} $FlFontSmall 0
-  SetCtlColors $0 ${FL_TEXT2} ${FL_SURFACE}
-  nsDialogs::CreateControl STATIC ${__NSD_Label_STYLE}|${SS_PATHELLIPSIS} 0 38u 153u -132u 11u "$INSTDIR"
+  SetCtlColors $0 ${FL_TEXT2} ${FL_BG}
+  nsDialogs::CreateControl STATIC ${__NSD_Label_STYLE}|${SS_PATHELLIPSIS} 0 28u 151u -132u 12u "$INSTDIR"
   Pop $FlPathLabel
   SendMessage $FlPathLabel ${WM_SETFONT} $FlFontBody 0
-  SetCtlColors $FlPathLabel ${FL_TEXT} ${FL_SURFACE}
+  SetCtlColors $FlPathLabel ${FL_TEXT} ${FL_BG}
   ${If} $FlState == "new"
-    nsDialogs::CreateControl STATIC ${__NSD_Label_STYLE}|${SS_NOTIFY}|0x2 0 -86u 147u 48u 12u "$(flChange)"
+    nsDialogs::CreateControl STATIC ${__NSD_Label_STYLE}|${SS_RIGHT} 0 -96u 151u 68u 12u "$(flChange)"
     Pop $FlChangeLink
     SendMessage $FlChangeLink ${WM_SETFONT} $FlFontButton 0
-    SetCtlColors $FlChangeLink ${FL_LINK} ${FL_SURFACE}
+    SetCtlColors $FlChangeLink ${FL_LINK} ${FL_BG}
     ${NSD_OnClick} $FlChangeLink FlChangeFolder
   ${EndIf}
-  ; The panel goes under its texts (HWND_BOTTOM, no move/size).
-  System::Call "user32::SetWindowPos(p R9, p 1, i 0, i 0, i 0, i 0, i 0x13)"
 
   ${If} $FlState == "new"
     StrCpy $FlDesktop 1
