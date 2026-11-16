@@ -18,28 +18,35 @@
   let { title, body, points, note, confirm, cancel, danger = false, onconfirm, oncancel }: Props = $props();
   let dialog: HTMLDivElement | undefined = $state();
   onMount(() => dialog?.querySelector<HTMLButtonElement>('.primary-action button')?.focus());
+  /** Rendered at the top of the document, so it sits above sheets and page layers. */
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return { destroy: () => node.remove() };
+  }
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && (e.stopPropagation(), oncancel())} />
 
-<div class="scrim" role="presentation" onpointerdown={oncancel}></div>
-<div class="dialog" class:wide={!!points?.length} role="alertdialog" aria-modal="true" aria-label={title} bind:this={dialog}>
-  <h3>{title}</h3>
-  {#if body}<p>{body}</p>{/if}
-  {#if points?.length}
-    <ul class="points">
-      {#each points as pt (pt.text)}
-        <li class={pt.tone}>
-          {#if pt.tone === 'ok'}<Check size={15} />{:else if pt.tone === 'warn'}<TriangleAlert size={15} />{:else}<Info size={15} />{/if}
-          <span>{pt.text}</span>
-        </li>
-      {/each}
-    </ul>
-  {/if}
-  {#if note}<p class="note">{note}</p>{/if}
-  <div class="actions">
-    <Button variant="ghost" onclick={oncancel}>{cancel}</Button>
-    <span class="primary-action" class:danger><Button variant="primary" onclick={onconfirm}>{confirm}</Button></span>
+<div class="confirm-layer" use:portal>
+  <div class="scrim" role="presentation" onpointerdown={oncancel}></div>
+  <div class="dialog" class:wide={!!points?.length} role="alertdialog" aria-modal="true" aria-label={title} bind:this={dialog}>
+    <h3>{title}</h3>
+    {#if body}<p>{body}</p>{/if}
+    {#if points?.length}
+      <ul class="points">
+        {#each points as pt (pt.text)}
+          <li class={pt.tone}>
+            {#if pt.tone === 'ok'}<Check size={15} />{:else if pt.tone === 'warn'}<TriangleAlert size={15} />{:else}<Info size={15} />{/if}
+            <span>{pt.text}</span>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+    {#if note}<p class="note">{note}</p>{/if}
+    <div class="actions">
+      <Button variant="ghost" onclick={oncancel}>{cancel}</Button>
+      <span class="primary-action" class:danger><Button variant="primary" onclick={onconfirm}>{confirm}</Button></span>
+    </div>
   </div>
 </div>
 

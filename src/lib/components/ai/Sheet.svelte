@@ -17,7 +17,8 @@
   }
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && (e.stopPropagation(), onclose())} />
+<!-- Escape closes a confirmation shown over the sheet first, not the sheet. -->
+<svelte:window onkeydown={(e) => e.key === 'Escape' && !document.querySelector('[role="alertdialog"]') && (e.stopPropagation(), onclose())} />
 
 <div class="layer" use:portal>
   <div class="scrim" role="presentation" onpointerdown={onclose}></div>
