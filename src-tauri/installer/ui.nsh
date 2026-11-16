@@ -461,7 +461,7 @@ Function un.FlConfirm
   ${NSD_CreateCheckbox} 28u 134u 10u 10u ""
   Pop $DeleteAppDataCheckbox
   SetCtlColors $DeleteAppDataCheckbox "" ${FL_BG}
-  ${NSD_CreateLabel} 42u 134u -82u 22u "$(deleteAppData)"
+  ${NSD_CreateLabel} 42u 134u -82u 34u "$(deleteAppData)"
   Pop $0
   SendMessage $0 ${WM_SETFONT} $FlFontBody 0
   SetCtlColors $0 ${FL_TEXT} ${FL_BG}
