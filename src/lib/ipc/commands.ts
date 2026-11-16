@@ -31,6 +31,8 @@ export const commands = {
   /** Restores the defaults of one Settings category, or of everything with "all". */
   resetSettings: (scope: string) => invoke<Settings>('reset_settings', { scope }),
   appInfo: () => invoke<AppInfo>('app_info'),
+  /** Opens an https page in the default browser. */
+  openLink: (url: string) => invoke<void>('open_link', { url }),
   openFolder: (folder: Folder) => invoke<void>('open_folder', { folder }),
   listDisplays: () => invoke<Display[]>('list_displays'),
   listWindows: () => invoke<WindowInfo[]>('list_windows'),

@@ -367,7 +367,14 @@ export const en = {
   'settings.about.version': 'Version {version}',
   'settings.about.updates': 'Updates',
   'settings.about.credits': 'Credits',
-  'settings.about.builtWith': 'Made with',
+  'credits.intro': 'FrameLy {version}. Built with open-source software, open models and third-party services. Thanks to everyone who maintains them.',
+  'credits.group.ai': 'Artificial intelligence',
+  'credits.group.app': 'App',
+  'credits.group.libs': 'Libraries',
+  'credits.group.platform': 'System frameworks',
+  'credits.license.system': 'Part of the OS',
+  'credits.license.service': 'Service',
+  'credits.open': 'Open page',
 
   // Errors — what happened, and what to do
   'error.generic': 'Something went wrong. Please try again.',

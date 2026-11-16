@@ -236,6 +236,7 @@ pub fn run() {
             commands::settings::reset_shortcuts,
             commands::settings::reset_settings,
             commands::system::app_info,
+            commands::system::open_link,
             commands::system::open_folder,
             commands::system::log_ui,
             commands::capture::list_displays,

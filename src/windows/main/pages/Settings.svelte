@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { open as openDialog } from '@tauri-apps/plugin-dialog';
-  import { Settings2, Scan, Video, AudioLines, Keyboard, Palette, HardDrive, Info, Check, FolderOpen, Sparkles, RotateCcw } from '@lucide/svelte';
+  import { Settings2, Scan, Video, AudioLines, Keyboard, Palette, HardDrive, Info, Check, FolderOpen, Sparkles, RotateCcw, ExternalLink } from '@lucide/svelte';
   import IntelligenceSettings from '$lib/components/ai/IntelligenceSettings.svelte';
   import { nav } from '$lib/stores/nav.svelte';
   import type { Component } from 'svelte';
@@ -32,6 +32,7 @@
   import { updates } from '$lib/stores/updates.svelte';
   import { toast } from '$lib/stores/toasts.svelte';
   import { formatBytes } from '$lib/stores/format';
+  import { creditsFor } from '$lib/credits';
   import { applyAudioMode, audioMode, type AudioMode } from '$lib/recordSetup';
   import { RECORDING_ACTIONS, SHORTCUT_ACTIONS, type ShortcutAction } from '$lib/shortcuts';
 
@@ -160,6 +161,15 @@
       await refreshCache();
     } catch {
       toast('error', t('error.io'));
+    }
+  }
+
+  // ── Credits ────────────────────────────────────────────────────────────
+  async function openLink(url: string) {
+    try {
+      await commands.openLink(url);
+    } catch {
+      toast('error', t('error.generic'));
     }
   }
 
@@ -533,9 +543,19 @@
                 <Button size="sm" onclick={() => reveal('logs')}><FolderOpen size={14} />{t('settings.show')}</Button>
               </SettingRow>
             </Section>
-            <Section title={t('settings.about.credits')}>
-              <SettingRow title={t('settings.about.builtWith')} hint="Tauri · Rust · Svelte · Swift · ScreenCaptureKit · AVFoundation · SQLite"><span></span></SettingRow>
-            </Section>
+            <p class="lead credits-lead">{t('credits.intro', { version: info.version })}</p>
+            {#each creditsFor(info.platform) as [group, list] (group)}
+              <Section title={t(`credits.group.${group}` as MessageKey)}>
+                {#each list as c (c.name)}
+                  <SettingRow title={c.name} hint={c.by}>
+                    <span class="license">{c.license ?? t(group === 'platform' || c.by === 'Apple' ? 'credits.license.system' : 'credits.license.service')}</span>
+                    <Button size="sm" variant="ghost" title={`${t('credits.open')} · ${c.url}`} aria-label={`${t('credits.open')}: ${c.name}`} onclick={() => openLink(c.url)}>
+                      <ExternalLink size={14} />
+                    </Button>
+                  </SettingRow>
+                {/each}
+              </Section>
+            {/each}
           {/if}
         </div>
       {/key}
@@ -647,6 +667,15 @@
   }
   .lead {
     margin: -4px 0 var(--space-4) 4px;
+  }
+  .credits-lead {
+    margin-top: 4px;
+  }
+  .license {
+    color: var(--text-2);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    white-space: nowrap;
   }
   .reset-row {
     display: flex;

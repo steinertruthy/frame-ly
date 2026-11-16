@@ -1,4 +1,7 @@
-use crate::{core::errors::AppResult, AppState};
+use crate::{
+    core::errors::{AppError, AppResult},
+    AppState,
+};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 use tauri_plugin_opener::OpenerExt;
@@ -22,6 +25,19 @@ pub fn app_info(state: State<'_, AppState>, app: AppHandle) -> AppInfo {
         log_dir: state.log_dir.display().to_string(),
         supports_recording: state.backend.supports_recording(),
     }
+}
+
+/// Opens a web page (credits, licenses) in the default browser. HTTPS only.
+#[tauri::command]
+pub fn open_link(app: AppHandle, url: String) -> AppResult<()> {
+    if !is_web_link(&url) {
+        return Err(AppError::Platform("only https links can be opened".into()));
+    }
+    app.opener().open_url(url, None::<&str>).map_err(|e| AppError::Platform(e.to_string()))
+}
+
+fn is_web_link(url: &str) -> bool {
+    url.strip_prefix("https://").is_some_and(|rest| !rest.is_empty() && !rest.contains(char::is_whitespace))
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -160,4 +176,17 @@ pub fn storage_cleanup(app: AppHandle, state: State<'_, AppState>) -> AppResult<
 #[tauri::command]
 pub fn preview_sound() {
     crate::platform::sound::play_wav(crate::core::sounds::wav_bytes(crate::core::sounds::Cue::Shutter));
+}
+
+#[cfg(test)]
+mod link_tests {
+    #[test]
+    fn only_https_pages_open() {
+        assert!(super::is_web_link("https://github.com/ggml-org/whisper.cpp"));
+        for bad in
+            ["http://example.com", "file:///etc/passwd", "javascript:alert(1)", "https://", "https://a b"]
+        {
+            assert!(!super::is_web_link(bad), "{bad}");
+        }
+    }
 }
