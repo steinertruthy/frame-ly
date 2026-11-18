@@ -1,45 +1,46 @@
-# Assinatura de código e notarização
+# Code signing and notarization
 
-Estado atual (v0.1.0): **nenhum certificado configurado**.
+Current state: **no certificates configured.**
 
-| Plataforma | Hoje | Efeito para quem instala |
+| Platform | Today | Effect for people installing |
 |---|---|---|
-| macOS | Assinatura *ad hoc* (`APPLE_SIGNING_IDENTITY=-`), sem notarização | O Gatekeeper bloqueia a primeira abertura; o usuário libera em Ajustes do Sistema › Privacidade e Segurança › “Abrir Mesmo Assim”. As permissões de Gravação de Tela/Microfone ficam atreladas à assinatura e podem ser pedidas de novo a cada atualização. |
-| Windows | Sem assinatura Authenticode | O SmartScreen pode avisar (“Mais informações › Executar assim mesmo”) até o arquivo ganhar reputação. |
+| macOS | Ad-hoc signature (`APPLE_SIGNING_IDENTITY=-`), not notarized | Gatekeeper blocks the first launch; the user allows it in System Settings › Privacy & Security › "Open Anyway". Screen Recording/Microphone permissions are tied to the signature and may be asked again after each update. |
+| Windows | No Authenticode signature | SmartScreen may warn ("More info › Run anyway") until the file gains reputation. |
 
-O workflow de release já está preparado: quando os *secrets* abaixo existirem no repositório
-(*Settings › Secrets and variables › Actions*), ele assina (e no macOS notariza) sem outras mudanças.
+The release workflow is ready: once the secrets below exist (*Settings › Secrets and variables ›
+Actions*), it signs (and on macOS notarizes) with no other change. Updater signing is separate and
+already required — see [release.md](release.md#signing-keys).
 
-## macOS — Developer ID + notarização
+## macOS — Developer ID + notarization
 
-Requer conta no Apple Developer Program (pago, anual).
+Requires an Apple Developer Program membership.
 
-| Secret | Conteúdo |
+| Secret | Contents |
 |---|---|
-| `APPLE_CERTIFICATE` | Certificado **Developer ID Application** exportado como `.p12`, em base64 (`base64 -i cert.p12`) |
-| `APPLE_CERTIFICATE_PASSWORD` | Senha do `.p12` |
-| `APPLE_SIGNING_IDENTITY` | Ex.: `Developer ID Application: Nome (TEAMID)` |
-| `APPLE_ID` | Apple ID usado na notarização |
-| `APPLE_PASSWORD` | Senha de app específica desse Apple ID |
+| `APPLE_CERTIFICATE` | **Developer ID Application** certificate exported as `.p12`, base64 (`base64 -i cert.p12`) |
+| `APPLE_CERTIFICATE_PASSWORD` | `.p12` password |
+| `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: Name (TEAMID)` |
+| `APPLE_ID` | Apple ID used for notarization |
+| `APPLE_PASSWORD` | App-specific password for that Apple ID |
 | `APPLE_TEAM_ID` | Team ID |
 
-O Tauri assina com *hardened runtime* e `src-tauri/Entitlements.plist`, envia para o serviço de
-notarização e grampeia o ticket no `.dmg`.
+Tauri signs with the Hardened Runtime and `src-tauri/Entitlements.plist`, submits for notarization
+and staples the ticket to the `.dmg`.
 
 ## Windows — Authenticode
 
-Requer um certificado de assinatura de código (OV/EV) de uma autoridade certificadora ou um serviço
-de assinatura em nuvem (ex.: Azure Trusted Signing). Com um `.pfx`:
+Requires a code-signing certificate (OV/EV) from a CA or a cloud signing service (e.g. Azure
+Trusted Signing). With a `.pfx`:
 
-| Secret | Conteúdo |
+| Secret | Contents |
 |---|---|
-| `WINDOWS_CERTIFICATE` | `.pfx` em base64 |
-| `WINDOWS_CERTIFICATE_PASSWORD` | Senha do `.pfx` |
+| `WINDOWS_CERTIFICATE` | `.pfx`, base64 |
+| `WINDOWS_CERTIFICATE_PASSWORD` | `.pfx` password |
 
-O passo *Sign Windows installer* usa `signtool` com carimbo de tempo SHA-256. Certificados EV em
-token físico/HSM ou assinatura em nuvem exigem adaptar esse passo.
+The *Sign Windows installer* step uses `signtool` with a SHA-256 timestamp. EV certificates on a
+hardware token/HSM or cloud signing need that step adapted.
 
-## Verificação
+## Verification
 
-Independente da assinatura, cada release publica `SHA256SUMS.txt`, e o site mostra o SHA-256 de
-cada instalador.
+Regardless of signing, every release publishes `SHA256SUMS.txt`, and the website shows each
+installer's SHA-256.

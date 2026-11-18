@@ -1,39 +1,36 @@
 # Roadmap
 
-| Etapa | Escopo | Estado |
+| Stage | Scope | State |
 |---|---|---|
-| 0 | Toolchain, esqueleto Tauri + Svelte, design tokens, janela principal, bandeja, ajustes, logs, CI | ✅ |
-| 1 | `CaptureBackend`, FrameLyKit (Swift), listagem de monitores/janelas/áudio, permissões | ✅ |
-| 2 | Screenshots ponta a ponta (tela, monitor, janela, região), clipboard, preview | ✅ |
-| 3 | Gravação de vídeo no macOS (SCK + AVAssetWriter), pausa, recuperação | ✅ |
-| 4 | Gravação de vídeo no Windows (WGC + Media Foundation) | ✅ (tela inteira validada em hardware Windows x64 pela GPU; janela, área, pausa e áudio ainda por conferir) |
-| 5 | Áudio: microfone, sistema, mix, sincronização (macOS e Windows) | ✅ |
-| 6 | Painel rápido da bandeja + atalhos globais | ✅ |
-| 7 | Biblioteca + Dashboard | ✅ |
-| 8 | Editor de screenshots | ✅ |
-| 8.5 | Redesign: identidade escura, edição inline na seleção, ajustes por categoria, 5 idiomas, iniciar com o sistema, notificações | ✅ |
-| 8.6 | FrameLy AI: transcrição, resumo e tópicos locais; Apple Intelligence e provedores externos opcionais | ✅ (Windows: compila e empacota; validar em hardware real) |
-| 8.7 | FrameLy Cloud: provedor na nuvem (Cloudflare Worker + Gemini por padrão, DeepSeek como alternativa), registro anônimo de aparelho, limites | ✅ (local; publicar exige a conta Cloudflare e a chave do provedor) |
-| 9 | Ajustes completos, polimento, instaladores, assinatura | ⏳ |
+| 0 | Toolchain, Tauri + Svelte skeleton, design tokens, main window, tray, settings, logs, CI | ✅ |
+| 1 | `CaptureBackend`, FrameLyKit (Swift), display/window/audio listing, permissions | ✅ |
+| 2 | Screenshots end to end (screen, monitor, window, region), clipboard, preview | ✅ |
+| 3 | Video recording on macOS (SCK + AVAssetWriter), pause, recovery | ✅ |
+| 4 | Video recording on Windows (WGC + Media Foundation) | ✅ (full screen validated on x64 hardware; window, region, pause and audio still to verify on more machines) |
+| 5 | Audio: microphone, system, mix, sync (macOS and Windows) | ✅ |
+| 6 | Tray quick panel + global shortcuts | ✅ |
+| 7 | Library + dashboard | ✅ |
+| 8 | Screenshot editor | ✅ |
+| 8.5 | Redesign: dark identity, inline editing on the selection, settings by category, 5 languages, launch at login, notifications | ✅ |
+| 8.6 | FrameLy AI: local transcription, summaries and topics; Apple Intelligence and optional external providers | ✅ (Windows: builds and packages; validate on more hardware) |
+| 8.7 | FrameLy AI Cloud: FrameLy's own cloud provider, anonymous device registration, limits | ✅ (published; default for summaries/topics since 0.2.0) |
+| 8.8 | Automatic updates, FrameLy's own Windows installer | ✅ (0.3.0–0.3.1) |
+| 9 | Polish, Apple/Microsoft code signing | ⏳ |
 
-## Limitações conhecidas (v1)
+## Known limitations
 
-- Uma gravação captura um monitor por vez; regiões não atravessam monitores.
-- Windows 10 mostra uma borda amarela durante a captura (limitação do sistema; ausente no Windows 11).
-- Conteúdo protegido por DRM aparece preto / sem áudio — comportamento do SO, não contornado.
-- Vídeos com taxa de quadros variável: o ScreenCaptureKit só entrega quadros quando a tela muda, e
-  cada quadro é gravado com seu horário real (telas paradas quase não ocupam espaço). Todos os players
-  comuns lidam bem com isso; alguns editores de vídeo podem preferir converter para taxa constante.
-- H.264 é limitado a 4096×2304 pelo hardware: gravações nativas de telas 5K em H.264 são reduzidas
-  proporcionalmente (use HEVC para manter a resolução total).
-- Windows: HEVC depende da extensão "HEVC Video Extensions" da Microsoft Store; sem ela o FrameLy
-  grava em H.264 (telas acima de 4096 px de largura com HEVC escolhido podem falhar nesse caso).
-- Windows: o som do computador vem do loopback do dispositivo de saída padrão (inclui tudo o que toca
-  nele); os sons do FrameLy tocam fora da janela de captura.
-- A biblioteca lista os arquivos diretamente nas pastas de gravações e screenshots (sem subpastas) e
-  se atualiza ao abrir a biblioteca; não há monitoramento contínuo do sistema de arquivos.
-- FrameLy AI: sem separação de falantes (diarização) local; no Windows os modelos rodam só na CPU
-  (aceleração por Vulkan/CUDA é a próxima etapa, após testes em hardware real); a exportação em PDF
-  usa as fontes padrão e aceita apenas texto em alfabeto latino (TXT/Markdown cobrem os demais).
-- Próximos passos da FrameLy AI: GPU no Windows, diarização local, SpeechAnalyzer da Apple como
-  mecanismo alternativo de transcrição no macOS 26.
+- One monitor per recording; regions don't span monitors.
+- Windows 10 draws a yellow border during capture (absent on Windows 11).
+- DRM-protected content records black / silent — OS behavior, not worked around.
+- Variable frame rate: frames are recorded only when the screen changes, each with its real time.
+  Common players handle it; some video editors prefer converting to constant frame rate.
+- H.264 is limited to 4096×2304 by hardware: native 5K recordings in H.264 are scaled down (use HEVC).
+- Windows: HEVC needs Microsoft's "HEVC Video Extensions"; without them FrameLy records H.264.
+- The library lists files directly in the recordings and screenshots folders (no sub-folders) and
+  refreshes when opened; there is no continuous file-system watching.
+- FrameLy AI: no local speaker separation (diarization); on Windows models run on the CPU only
+  (Vulkan/CUDA after hardware testing); PDF export uses standard fonts and Latin script only
+  (TXT/Markdown cover the rest).
+- Installer screens not yet checked at display scaling above 100 %.
+- Next for FrameLy AI: Windows GPU, local diarization, Apple's SpeechAnalyzer as an alternative
+  transcription engine on macOS 26.

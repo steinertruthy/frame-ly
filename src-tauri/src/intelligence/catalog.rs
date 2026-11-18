@@ -1,6 +1,6 @@
 //! FrameLy AI model catalog: what each profile and precision level uses, where it comes from,
 //! its exact size and SHA-256, and its license. Chosen from a real evaluation on a pt-BR meeting
-//! recording (see docs/architecture.md › FrameLy AI). Bumping `version` (with new file, size and
+//! recording (see docs/ai.md). Bumping `version` (with new file, size and
 //! hash) offers the update to people who have the previous one.
 
 use crate::core::settings::{AiProfile, Precision};

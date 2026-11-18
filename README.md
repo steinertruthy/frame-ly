@@ -2,102 +2,70 @@
 
 # FrameLy
 
-Gravação de tela e screenshots para macOS e Windows, com transcrição, resumos e tópicos por IA que
-pode rodar inteiramente no seu computador.
+Screen recording and screenshots for macOS and Windows, with transcription, summaries and topics
+by AI that can run entirely on your computer.
 
-**[Site](https://steinertruthy.github.io/frame-ly/)** ·
+**[Website](https://steinertruthy.github.io/frame-ly/)** ·
 **[Download](https://github.com/steinertruthy/frame-ly/releases/latest)** ·
-**[Novidades](CHANGELOG.md)** · Licença [MIT](LICENSE)
+**[What's new](CHANGELOG.md)** · [MIT](LICENSE) license
 
-> *English:* FrameLy is a screen recorder and screenshot tool for macOS 14+ (Apple Silicon) and
-> Windows 10 22H2+ (x64) that transcribes recordings on-device and writes summaries and topics with
-> FrameLy AI Cloud (free, the default), local models, Apple Intelligence or your own
-> Anthropic/OpenAI key. See the
-> [website](https://steinertruthy.github.io/frame-ly/en/).
+> *Português:* o FrameLy grava a tela, tira screenshots e transcreve gravações no próprio
+> computador, com resumos e tópicos por IA. Veja o [site](https://steinertruthy.github.io/frame-ly/).
 
-## O que faz
+## What it does
 
-- **Screenshots** da tela, de uma janela ou de uma região, com edição direto na seleção (setas,
-  formas, texto, destaque, desfoque, recorte, desfazer/refazer).
-- **Gravação de tela** com áudio do sistema e microfone, pausa, contagem regressiva, H.264/HEVC.
-- **Transcrição** local (whisper.cpp) com detecção de idioma, tempo por palavra e exportação em
-  TXT, SRT, VTT, Markdown e PDF.
-- **Resumos e tópicos** com a FrameLy AI Cloud (padrão: gratuita, sem conta nem chave, com limite
-  diário; indisponível no EEE, Suíça e Reino Unido), a FrameLy AI Local (llama.cpp), o Apple
-  Intelligence (macOS 26+) ou Anthropic/OpenAI com a sua chave — sempre com autorização antes de
-  enviar qualquer texto.
-- Painel rápido, biblioteca, atalhos globais, linha de comando e interface em cinco idiomas
+- **Screenshots** of the screen, a window or a region, marked up right on the selection (arrows,
+  shapes, text, highlight, blur, crop, undo/redo).
+- **Screen recording** with system audio and microphone, pause, countdown, H.264/HEVC.
+- **Transcription** on device (whisper.cpp) with language detection, word timing and export to
+  TXT, SRT, VTT, Markdown and PDF.
+- **Summaries and topics** with FrameLy AI Cloud (default: free, no account or key, daily limit),
+  FrameLy AI Local (llama.cpp), Apple Intelligence (macOS 26+) or your own Anthropic/OpenAI key —
+  always with consent before any text leaves the computer.
+- Quick panel, library, global shortcuts, a command line, and a UI in five languages
   (pt-BR, en, es, fr, de).
 
-Limitações conhecidas e o estado de cada plataforma estão no [CHANGELOG](CHANGELOG.md) e em
-[docs/roadmap.md](docs/roadmap.md). Os instaladores ainda não têm assinatura Apple/Microsoft —
-veja [docs/signing.md](docs/signing.md).
-
-## Repositório
-
-| Pasta | Conteúdo |
+| | Requirement |
 |---|---|
-| `src/`, `src-tauri/`, `native/` | O app (Svelte 5 + TypeScript, Rust/Tauri 2, Swift no macOS); cada janela tem sua entrada HTML em `src/windows/<janela>.html` |
-| `cloud/` | Serviço FrameLy AI Cloud (Cloudflare Worker), publicado; a URL entra no build pela variável `FRAMELY_CLOUD_URL` do repositório |
-| `website/` | Site oficial (Astro, GitHub Pages) |
-| `docs/` | Arquitetura, desenvolvimento, plataformas, [releases](docs/release.md), [assinatura](docs/signing.md) |
-| `.github/workflows/` | CI do app, site e release |
+| macOS | 14 (Sonoma) or later, Apple Silicon |
+| Windows | 10 22H2 or later, x64 (11 recommended) |
 
-## Stack
+Installers aren't signed by Apple/Microsoft yet — see [docs/signing.md](docs/signing.md).
 
-Tauri 2 · Rust · Svelte 5 + TypeScript · APIs nativas (ScreenCaptureKit/AVFoundation no macOS,
-Windows.Graphics.Capture/WASAPI/Media Foundation no Windows). Sem FFmpeg. Detalhes e justificativas
-em [docs/architecture.md](docs/architecture.md).
-
-## Requisitos
-
-| | Versão |
-|---|---|
-| macOS | 14 (Sonoma) ou superior |
-| Windows | 10 22H2 ou superior (11 recomendado) |
-| Rust | stable (1.80+) |
-| Node | 22 LTS (`.nvmrc`) + pnpm 10 |
-| macOS dev | Xcode 15+ |
-| Windows dev | Visual Studio Build Tools (C++), WebView2 |
-
-## Desenvolvimento
+## Run it from source
 
 ```bash
 pnpm install
-pnpm tauri dev        # app com hot reload
-pnpm check            # svelte-check + tsc
-pnpm test             # testes da UI (Vitest)
-cd src-tauri && cargo test && cargo clippy --all-targets -- -D warnings
-pnpm tauri build      # pacote de release
+pnpm tauri dev
 ```
 
-Versões e releases: [docs/release.md](docs/release.md). Site: [website/README.md](website/README.md).
+Toolchain (Rust, Node 22, pnpm 10, Xcode, cmake/ninja), tests and the command line:
+[docs/development.md](docs/development.md).
 
-Mais em [docs/development.md](docs/development.md).
+## Documentation
 
-## Atalhos padrão
+| Doc | Covers |
+|---|---|
+| [AGENTS.md](AGENTS.md) | Start here: rules, commands and the doc map (for people and AI agents) |
+| [docs/architecture.md](docs/architecture.md) | Layers, data flows, where each thing lives |
+| [docs/development.md](docs/development.md) | Toolchain, build, run, tests, CLI, env vars |
+| [docs/contributing.md](docs/contributing.md) | Code standards, errors, logs, tests, commits, checklists |
+| [docs/platform-macos.md](docs/platform-macos.md) · [docs/platform-windows.md](docs/platform-windows.md) | Native engines and their pitfalls |
+| [docs/ai.md](docs/ai.md) | FrameLy AI: transcription, models, providers, consent |
+| [docs/ui.md](docs/ui.md) · [docs/settings.md](docs/settings.md) | Interface, i18n, settings and migrations |
+| [docs/release.md](docs/release.md) · [docs/signing.md](docs/signing.md) | Versioning, workflows, updater, installer |
+| [docs/cloud.md](docs/cloud.md) · [docs/website.md](docs/website.md) | FrameLy AI Cloud service, website |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Logs, crashes, known problems |
+| [docs/roadmap.md](docs/roadmap.md) | Stages and known limitations |
 
-| Ação | macOS | Windows |
-|---|---|---|
-| Abrir painel rápido | ⌥⇧⌘Space | Ctrl+Alt+Shift+Space |
-| Capturar tela inteira / região / janela | ⌥⇧⌘3 / 4 / 5 | Ctrl+Alt+Shift+3 / 4 / 5 |
-| Gravar região | ⌥⇧⌘R | Ctrl+Alt+Shift+R |
-| Parar gravação | ⌥⇧⌘S | Ctrl+Alt+Shift+S |
-| Pausar / retomar | ⌥⇧⌘P | Ctrl+Alt+Shift+P |
+## Repository
 
-Todos configuráveis em Ajustes › Atalhos de teclado (gravar janela/tela inteira começam sem atalho).
-
-## Linha de comando
-
-Com o FrameLy aberto, o executável repassa ações para a instância em execução — útil para Raycast,
-Alfred, Atalhos do macOS ou AutoHotkey:
-
-```bash
-/Applications/FrameLy.app/Contents/MacOS/framely --capture region   # region | window | screen | cancel
-/Applications/FrameLy.app/Contents/MacOS/framely --record screen     # region | window | screen | pause | stop
-/Applications/FrameLy.app/Contents/MacOS/framely --panel             # abre/fecha o painel rápido
-/Applications/FrameLy.app/Contents/MacOS/framely --show library      # home | library | transcripts | settings[:<categoria>]
-/Applications/FrameLy.app/Contents/MacOS/framely --show transcript:3:summary   # transcrição 3, aba resumo/tópicos
-/Applications/FrameLy.app/Contents/MacOS/framely --edit ~/Pictures/FrameLy/shot.png
-/Applications/FrameLy.app/Contents/MacOS/framely --update            # verifica e instala uma versão nova
-```
+| Folder | Contents |
+|---|---|
+| `src/` | UI: Svelte 5 + TypeScript; one HTML entry per window in `src/windows/` |
+| `src-tauri/` | Rust: Tauri app, shared core, Windows engine, `llm-worker/` sidecar, NSIS installer |
+| `native/macos/FrameLyKit/` | macOS media engine (Swift package) |
+| `cloud/` | FrameLy AI Cloud (Cloudflare Worker) |
+| `website/` | Official site (Astro, GitHub Pages) |
+| `scripts/` | Dev, build and release helpers |
+| `.github/workflows/` | CI, release, website, installer screens, updater end-to-end |

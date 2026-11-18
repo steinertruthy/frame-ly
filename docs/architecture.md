@@ -1,295 +1,181 @@
-# Arquitetura
+# Architecture
 
-## Visão geral
+## Overview
 
 ```
-UI (Svelte 5, WebView do sistema)  ──IPC tipado──  Core Rust (compartilhado)  ──trait──  Engines nativas
- janela principal, painel da bandeja,               settings, biblioteca, estado,           macOS: Swift (SCK, AVFoundation)
- overlay de seleção, editor                          recuperação, logs, i18n do tray        Windows: Rust (WGC, WASAPI, MF)
+┌──────────────────────────── UI (Svelte 5 in the system WebView) ────────────────────────────┐
+│ src/windows/<window>/   pages & window roots      src/lib/components   reusable components  │
+│ src/lib/stores          reactive state (runes)    src/lib/i18n         5 locales            │
+│ src/lib/ipc             typed invoke()/listen() wrappers ◄── the only door to the backend    │
+└──────────────────────────────────────────┬───────────────────────────────────────────────────┘
+                                 Tauri IPC │ commands (snake_case)  ▲ events ("area://name")
+┌──────────────────────────────────────────▼───────────────────────────────────────────────────┐
+│ src-tauri/src/commands/*    thin #[tauri::command] layer: parse, spawn_blocking, delegate     │
+│ src-tauri/src/*.rs          services with app state: screenshot, recording, library, editor, │
+│                             panel, tray, shortcuts, updates, windows, protocol (framely://)   │
+│ src-tauri/src/intelligence  FrameLy AI: jobs, speech, models, providers, cloud client         │
+│ src-tauri/src/core          pure, OS-free, unit-tested: settings, errors, logging, SQLite,    │
+│                             media timeline, image, video sizing, transcripts, export, locale  │
+└──────────────────────────────────────────┬───────────────────────────────────────────────────┘
+                     trait CaptureBackend   │   (+ keystore, clipboard, sound, disk helpers)
+┌──────────────────────────────────────────▼───────────────────────────────────────────────────┐
+│ src-tauri/src/platform/macos  → C ABI → native/macos/FrameLyKit (Swift: SCK, AVFoundation…)  │
+│ src-tauri/src/platform/windows (Rust: WGC, D3D11, WASAPI, Media Foundation, Credential Mgr)  │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+       sidecar process: src-tauri/llm-worker → `framely-llm` (llama.cpp), JSON over stdin/stdout
 ```
 
-**Princípio:** o pipeline de mídia (captura → codificação → mux) é 100% nativo por plataforma — é onde
-estão desempenho e qualidade. Tudo que não é mídia é compartilhado. Existe uma única abstração de
-plataforma (`CaptureBackend`, Etapa 1); não há outras camadas.
+**Principle:** the media pipeline (capture → encode → mux) is 100 % native per platform, because
+that is where performance and quality live. Everything else is shared. There is one platform
+abstraction (`CaptureBackend` in `src-tauri/src/platform/mod.rs`); don't add parallel ones.
 
-## Decisões de stack
+## Stack decisions
 
-| Decisão | Motivo |
+| Decision | Why |
 |---|---|
-| Tauri 2 em vez de Electron | WebView do sistema: ~30–60 MB de RAM em repouso, binário ~10 MB, inicialização rápida. |
-| Svelte 5 | Sem virtual DOM, runtime mínimo; o bundle da janela principal tem ~30 KB gzip. |
-| Engine macOS em Swift | ScreenCaptureKit/AVFoundation usam delegates, async e blocks; em Swift o código é idiomático e seguro. Ligado ao Rust por uma fronteira C pequena. |
-| Engine Windows em Rust (`windows` crate) | Acesso direto a WinRT/COM sem outra linguagem. |
-| Sem FFmpeg na v1 | Codificadores de hardware nativos (VideoToolbox, Media Foundation) já produzem MP4 H.264/HEVC + AAC. Evita ~60 MB, licenças GPL/LGPL e processos extras. |
-| SQLite para a biblioteca, JSON para ajustes | Consultas rápidas de busca/ordenação; ajustes legíveis e migráveis. |
+| Tauri 2, not Electron | System WebView: ~30–60 MB RAM idle, ~10 MB binary, fast start. |
+| Svelte 5 (runes) | No virtual DOM, tiny runtime; each window loads only what it uses. |
+| macOS engine in Swift | ScreenCaptureKit/AVFoundation are delegate/async APIs; Swift is idiomatic and safe there. Linked through a small C boundary. |
+| Windows engine in Rust (`windows` crate) | Direct WinRT/COM access without a third language. |
+| No FFmpeg | Hardware encoders (VideoToolbox, Media Foundation) already produce MP4 H.264/HEVC + AAC. Avoids ~60 MB, GPL/LGPL and extra processes. |
+| SQLite for indexes, JSON for settings | Fast search/sort; settings stay readable and migratable. |
+| llama.cpp in a separate process | whisper.cpp and llama.cpp vendor different `ggml` versions; linked together the linker silently mixes symbols (UB). See [ai.md](ai.md). |
 
-## Código
+## Where things live
 
-| Caminho | Responsabilidade |
+| Path | Responsibility |
 |---|---|
-| `src-tauri/src/core/` | Lógica sem SO: `errors` (AppError → `{code,message}`), `settings` (versionado, migração, escrita atômica, backup de arquivo corrompido), `paths` (nomes de arquivo), `locale`, `logging`. |
-| `src-tauri/src/commands/` | Camada IPC fina: valida, delega ao core, emite eventos. |
-| `src-tauri/src/platform/` | Trait `CaptureBackend` e tipos compartilhados; `macos/` (FFI para FrameLyKit) e `windows/` (Win32/WinRT). Ver [platform.md](platform.md). |
-| `native/macos/FrameLyKit/` | Engine macOS em Swift (biblioteca estática). |
-| `src-tauri/src/windows.rs` | Criação das janelas nativas e aparência por SO (vibrancy no macOS). |
-| `src-tauri/src/tray.rs` | Ícone da bandeja/menu bar com ações de captura. |
-| `src-tauri/src/screenshot.rs` | Sessão de captura, overlays, entrega (PNG, pasta, clipboard) e prévia. |
-| `src-tauri/src/recording.rs` | Fluxo de gravação: alvo, contagem, controle, entrega, recuperação. |
-| `src-tauri/src/core/recorder.rs`, `core/video.rs` | Estado/relógio da gravação; tamanho de saída e bitrate (puros, testados). |
-| `src-tauri/src/library.rs`, `core/library.rs` | Serviço da biblioteca; índice SQLite puro e testado. |
-| `src-tauri/src/editor.rs`, `src/windows/editor/` | Janela do editor (sessão, salvar/copiar) e editor em canvas. |
-| `src-tauri/src/intelligence/`, `llm-worker/` | FrameLy AI: transcrição, resumo, tópicos, modelos e provedores (ver abaixo). |
-| `src-tauri/src/core/transcript*.rs`, `core/pdf.rs`, `core/resample.rs` | Modelo da transcrição, banco, exportações e reamostragem (puros, testados). |
-| `src-tauri/src/protocol.rs` | Protocolo `framely://` para imagens em memória. |
-| `src-tauri/src/core/image.rs` | Quadros BGRA, recorte, PNG e BMP (puro, testado). |
-| `src/lib/design/tokens.css` | Design tokens (cores, tipografia, raio, movimento) com temas claro/escuro. |
-| `src/lib/i18n/` | Dicionários tipados pt-BR/en; uma chave faltando quebra o type-check. |
-| `src/lib/ipc/` | Wrappers tipados de comandos e eventos; encaminhamento de erros da UI para o log. |
-| `src/lib/stores/` | Estado reativo (runes). A UI só reflete o que o backend salvou de fato. |
-| `src/windows/<janela>/` | Um entry HTML por tipo de janela; cada janela carrega só o que usa. |
+| `src-tauri/src/lib.rs` | App entry: plugins, `AppState`, setup order, window events, CLI (`--capture`, `--record`, `--show`…), **the list of registered IPC commands**. |
+| `src-tauri/src/commands/` | IPC layer, one file per area (`capture`, `screenshot`, `recording`, `library`, `editor`, `settings`, `system`, `intelligence`, `updates`). |
+| `src-tauri/src/core/` | OS-free logic: `errors` (`AppError`), `settings`, `logging`, `paths`, `locale` (tray strings), `library` (SQLite index), `recorder` (state machine), `video` (size/bitrate), `media_timeline` (pause timeline, audio mixer, resampler — Windows), `denoise` (RNNoise, both OSes), `yuv` (CPU NV12 fallback), `image` (BGRA/PNG/BMP), `transcript`/`transcripts` (model + SQLite), `pdf`, `resample`, `shortcuts`, `sounds`. |
+| `src-tauri/src/platform/` | `CaptureBackend` trait and shared types; `macos/` (FFI to FrameLyKit), `windows/`; cross-platform helpers `keystore.rs`, `clipboard.rs`, `sound.rs`, `disk.rs`. |
+| `src-tauri/src/screenshot.rs` | Capture session, overlays, delivery (file, clipboard), preview. |
+| `src-tauri/src/recording.rs` | Recording flow: target, countdown, controls bar, region frame, stop, delivery, crash recovery. |
+| `src-tauri/src/library.rs` | Library service over `core::library` (reconcile with folders, thumbnails, rename, trash). |
+| `src-tauri/src/editor.rs` | Screenshot editor window (open, source image, save/copy). |
+| `src-tauri/src/intelligence/` | FrameLy AI. See [ai.md](ai.md). |
+| `src-tauri/src/panel.rs`, `tray.rs`, `shortcuts.rs` | Quick panel, tray/menu-bar icon, global shortcuts. |
+| `src-tauri/src/windows.rs` | Main window creation, theme, `show_main`/`hide_main`. |
+| `src-tauri/src/protocol.rs` | `framely://localhost/...` in-memory images (frozen frames, last capture, thumbnails, editor source). |
+| `src-tauri/src/updates.rs` | Auto-update (see [release.md](release.md#automatic-updates)). |
+| `src-tauri/src/notify.rs` | System notifications. |
+| `src-tauri/llm-worker/` | `framely-llm` sidecar (llama.cpp). |
+| `src-tauri/installer/` | Custom NSIS installer (see [release.md](release.md#windows-installer-nsis)). |
+| `src-tauri/capabilities/` | Tauri permissions per window group. |
+| `native/macos/FrameLyKit/` | Swift engine (static library). See [platform-macos.md](platform-macos.md). |
+| `src/lib/ipc/` | `commands.ts` (+ `ai.ts`, `updates.ts`): typed command and event wrappers; `types.ts`: shared types mirroring Rust serde; `log.ts`: UI errors → Rust log. |
+| `src/lib/stores/` | Reactive state as classes with `$state` (`settings`, `recording`, `library`, `ai`, `nav`…). |
+| `src/lib/components/` | Reusable components (`ai/`, `library/` sub-folders for feature components). |
+| `src/lib/design/tokens.css`, `src/app.css` | Design tokens and global styles. See [ui.md](ui.md). |
+| `src/windows/` | One HTML entry + folder per window: `main`, `panel`, `overlay`, `preview`, `editor`, `countdown`, `recbar`, `frame`. |
 
-## Fluxo de screenshot (`src-tauri/src/screenshot.rs`)
+## Runtime model
 
-```
-Tela inteira:  capture_display(monitor sob o cursor) ─────────────────────────────┐
-Região/Janela: capture_display(todos, em paralelo) → quadros congelados          │
-               → 1 overlay por monitor (overlay.html)                             │
-               → overlay carrega o quadro via framely://localhost/frame/<id>     │
-               → região: recorte do quadro congelado                              │
-                 janela: capture_window nativo (fallback: recorte do quadro) ─────┤
-                                                                                   ▼
-                     encode PNG → salvar (opcional) → clipboard (opcional) → prévia
-```
+- **One process** (plus the optional `framely-llm` child). `lib.rs::run` builds the app; `setup`
+  initializes, in order: logging + panic hook, settings, `AppState`, recording recovery, library,
+  intelligence, updater, main window, CLI action, tray, panel, shortcuts, autostart.
+- **`AppState`** (managed by Tauri) holds `SettingsStore`, the `CaptureBackend`, and the
+  `screenshot`, `recording`, `library` and `intelligence` services.
+- **Single instance:** a second launch forwards its CLI arguments to the running instance
+  (`tauri-plugin-single-instance`). That is how `framely --capture region` etc. work.
+- **Blocking work** (OS capture, disk, SQLite, FFI) runs in `tauri::async_runtime::spawn_blocking`
+  from the command layer. AI jobs run one at a time on their own background thread.
+- **Events** go backend → UI with `app.emit` / `emit_to`, named `area://name`
+  (`settings://changed`, `recording://status`, `library://changed`, `ai://job`, `updates://status`…).
+  Every window listens through `src/lib/ipc`.
+- **Closing the main window hides it** (default; app stays in the tray). With "close to tray" off,
+  closing quits — except during a recording, which always continues. Hiding in macOS full screen
+  uses `windows::hide_main` (alpha 0, leave full screen, then hide) to avoid a black Space.
 
-- **Quadro congelado:** o usuário seleciona sobre a imagem exata que será salva (menus abertos e
-  estados de hover são preservados) e a lupa mostra pixels reais.
-- **`framely://`:** protocolo próprio que serve imagens em memória (BMP sem compressão para os
-  overlays, PNG da última captura para a prévia). Nada vai para arquivos temporários e o asset
-  protocol continua desligado.
-- **Conversão de coordenadas:** o overlay envia a seleção em pixels CSS + o tamanho do viewport; o
-  Rust converte usando o tamanho real do quadro. Funciona igual com pontos (macOS) e DPI (Windows).
-- **Janelas do FrameLy nunca aparecem nas capturas:** o filtro do ScreenCaptureKit exclui o próprio
-  app (consultado com janelas fora da tela incluídas); no Windows, `WDA_EXCLUDEFROMCAPTURE` em cada
-  janela flutuante (overlay, prévia, painel, pílula, contagem, moldura) e a janela principal é
-  escondida antes do primeiro quadro de uma gravação.
-- **Desempenho (M-series, 3024×1964):** captura ~85 ms; PNG ~95 ms em release; clipboard ~0 ms
-  (o PNG já codificado vai direto para o NSPasteboard).
-
-## Fluxo de gravação (`src-tauri/src/recording.rs`)
+## Screenshot flow (`screenshot.rs`)
 
 ```
-alvo: tela (monitor sob o cursor) | janela/região (mesmo overlay das screenshots, em vermelho)
-  → contagem regressiva (janela própria; Esc/clique cancela)
-  → FrameLyKit: SCStream → AVAssetWriter (VideoToolbox) → MP4 fragmentado em cache/recordings/<id>.mp4
-     + manifesto <id>.json + miniatura <id>.jpg
-  → status a cada 500 ms → ícone/tempo na menu bar + banner na tela inicial
-  → parar (UI, menu, clique no ícone, CLI, ou o próprio sistema) → arquivo finalizado
-  → movido para a pasta de gravações → prévia do vídeo
+Full screen:   capture_display(monitor under the cursor) ───────────────────────────┐
+Region/Window: capture_display(all, in parallel) → frozen frames                    │
+               → one overlay window per monitor (overlay.html)                      │
+               → overlay loads its frame from framely://localhost/frame/<id>        │
+               → region: crop of the frozen frame                                   │
+                 window: native capture_window (fallback: crop of the frame) ───────┤
+                 inline edit (arrows, text, blur…) → finish_annotated (raw PNG body)│
+                                                                                    ▼
+            encode PNG/JPEG → save (optional) → clipboard (optional) → preview / notification
 ```
 
-- **Máquina de estados** (`core/recorder.rs`): `Idle → Countdown → Recording ⇄ Paused → Finalizing`,
-  com transições inválidas rejeitadas e relógio que desconta pausas (testado).
-- **Pausa** não para o stream: as amostras do intervalo pausado são descartadas e as seguintes são
-  re-temporizadas (`PauseTimeline.swift`, testado). Retomar é instantâneo.
-- **Tamanho e bitrate** (`core/video.rs`): resolução nativa/1080p/720p mantendo proporção, limite
-  do codec (H.264 ≤ 4096×2304), dimensões pares, bitrate por bits/pixel/quadro conforme a qualidade.
-- **Recuperação:** o MP4 é fragmentado a cada 2 s. Se o FrameLy encerrar inesperadamente, o próximo
-  início encontra o manifesto e move o arquivo para a pasta de gravações como "(recovered)" — testado
-  com `kill -9` durante a gravação.
-- **Parada pelo sistema** (janela fechada, monitor desconectado, botão "Parar" do macOS, permissão
-  revogada): o arquivo é finalizado e entregue normalmente.
+- The user selects on the exact image that will be saved (menus and hover states survive), and
+  the magnifier shows real pixels.
+- `framely://` serves in-memory images (BMP for overlays, PNG for the preview); nothing goes to
+  temp files and the asset protocol stays limited to the media folders.
+- The overlay sends the selection in CSS pixels + viewport size; Rust converts with the real
+  frame size, so points (macOS) and DPI (Windows) behave the same.
+- FrameLy windows never appear in captures: the ScreenCaptureKit filter excludes the app; on
+  Windows every floating window gets `WDA_EXCLUDEFROMCAPTURE`, and the main window is hidden
+  before the first recorded frame.
+- Inline editing reuses the editor's model and renderer (`src/windows/editor/model.ts`,
+  `render.ts`); the export is sent as a raw IPC body with header `x-framely-intent: copy|save`.
 
-## Áudio (macOS)
-
-```
-ScreenCaptureKit (áudio do sistema, sem o som do próprio FrameLy) ─┐
-AVCaptureSession (microfone escolhido, relógio convertido p/ host) ─┤→ AudioMixer → AAC 192 kbps
-                                                                     │  (48 kHz estéreo, ganhos,
-                     vídeo: primeiro quadro = tempo zero do mix ─────┘   soft-clip, pausa)
-```
-
-- **Uma única faixa AAC** com tudo mixado: toca igual em qualquer player (players que só leem a
-  primeira faixa não perdem o microfone).
-- **Sincronia:** cada buffer é posicionado pelo seu horário no relógio do host — o mesmo do vídeo.
-  Jitter de até 10 ms é colado de forma contínua (sem cliques); desvios maiores (deriva do relógio
-  do dispositivo) ressincronizam. O offset A/V fica limitado a ~10 ms em gravações de qualquer duração.
-- **Fontes lentas ou removidas** nunca travam as outras: a saída anda no máximo 250 ms atrás da fonte
-  mais adiantada; um microfone desconectado vira silêncio e a gravação continua.
-- **Medição real** (`AVSyncTests`): um tom agendado num horário exato do host aparece no arquivo a
-  +6–8 ms do esperado, já considerando a latência de saída do alto-falante (28 ms no MacBook Pro).
-- **Permissão e dispositivo:** com o microfone ligado, a permissão é pedida no início da gravação; se
-  negada, ou sem microfone, grava sem ele e avisa. Dispositivo escolhido ausente → padrão do sistema.
-
-## Painel rápido e atalhos
-
-- **Painel** (`panel.rs`, `windows/panel/`): janela criada oculta no início (abre instantaneamente),
-  ancorada ao ícone da bandeja — abaixo dele na barra de menus, acima numa barra de tarefas inferior —
-  e mantida dentro da área útil do monitor. Some ao perder o foco. No macOS é um `NSPanel` não
-  ativante com material nativo de popover: abrir o painel não traz a janela principal para frente.
-  Clique esquerdo no ícone abre o painel; clique direito abre o menu nativo (alternativa acessível).
-- **Atalhos** (`core/shortcuts.rs` + `shortcuts.rs`): modelo puro com normalização, exigência de
-  ⌘/Ctrl/Alt (para não sequestrar a digitação), lista de combinações reservadas por SO e detecção de
-  duplicatas; registro no SO via `tauri-plugin-global-shortcut`. Se outro app já usa a combinação, a
-  falha é reportada por ação e aparece nos Ajustes. Enquanto o usuário grava um novo atalho, os
-  atuais ficam suspensos.
-
-## Biblioteca
-
-- **Fonte da verdade são as pastas.** O índice SQLite (`core/library.rs`, em
-  `app_data_dir/library.sqlite3`) guarda metadados para busca, filtros e ordenação instantâneos.
-  `reconcile` adiciona, atualiza (tamanho/data mudaram) e remove itens comparando com o disco; só
-  arquivos novos ou alterados são sondados. Roda no início, ao abrir a biblioteca e ao mudar as pastas.
-- **Novas capturas entram na hora:** screenshots e gravações são registradas com os metadados que o
-  FrameLy já conhece, sem sondagem.
-- **Metadados e miniaturas:** vídeos via AVFoundation (duração, tamanho com rotação; quadro a ~1 s);
-  imagens via ImageIO no macOS e `image` no Windows. Miniaturas JPEG (≤ 480 px) geradas sob demanda
-  em `framely://localhost/thumb/<id>` e guardadas em cache (chave inclui o tamanho do arquivo).
-- **Reprodução:** o visualizador usa o asset protocol do Tauri (suporta *range requests*, necessário
-  para `<video>`), com escopo limitado às duas pastas de mídia.
-- **Excluir = mover para a Lixeira** (`trash`), sempre com confirmação. Renomear valida nomes que
-  funcionam em macOS e Windows e preserva a extensão.
-
-## Edição inline (overlay)
-
-- Depois de selecionar uma região ou janela, o overlay entra em modo de edição sobre o quadro
-  congelado: a barra contextual (seta, texto, retângulo, elipse, desfoque, destaque, recorte,
-  desfazer/refazer, copiar, salvar, cancelar) aparece abaixo da seleção, acima dela ou dentro dela,
-  conforme o espaço. Não há janela de editor separada nesse fluxo.
-- O modelo, o histórico e o renderizador são os mesmos do editor (`windows/editor/*`); as formas
-  ficam em pixels do quadro, então a exportação sai na resolução real.
-- Exportar: `exportPng` gera o PNG e `finish_annotated` o envia como corpo IPC bruto com o
-  cabeçalho `x-framely-intent` (`copy` | `save`). O Rust (`screenshot::finish_annotated`) decodifica
-  e entrega por `deliver`, que aplica as preferências: `Intent::Copy` também salva se "manter uma
-  cópia" estiver ligado; `Save` também copia se configurado; formato PNG ou JPEG (qualidade 50–100).
-- Teclas: Enter/⌘C copia, ⌘S salva, Esc cancela. Enquanto um monitor edita, os outros overlays
-  ficam bloqueados (`overlay://editing`).
-- Gravação de região/janela continua usando apenas a seleção (sem edição).
-
-## Interface e aparência
-
-- `lib/design/tokens.css`: paleta escura (#080D18 → #3978D7), tema claro opcional, tokens de
-  movimento zerados quando `data-motion="reduced"` ou quando o sistema pede menos movimento.
-- `Aurora.svelte`: luz ambiente com animação só de `transform` (barata para o compositor),
-  desligável em Ajustes › Aparência (`data-ambient="off"`).
-- Atributos `data-theme`, `data-motion` e `data-ambient` no `<html>` (via `applyAppearance`).
-- i18n: dicionários tipados em `lib/i18n/` (pt-BR, en, es, fr, de), `en.ts` define as chaves;
-  o teste de completude falha se qualquer idioma ficar sem uma chave. O menu da bandeja usa
-  `core/locale.rs` com os mesmos cinco idiomas. Idioma do sistema detectado e persistido.
-
-## Ajustes (schema v2)
-
-- `general`: idioma, iniciar com o sistema (`tauri-plugin-autostart`, abre com `--background`),
-  mostrar a janela ao abrir, continuar na bandeja ao fechar, notificações
-  (`tauri-plugin-notification`, usadas quando a prévia está desligada).
-- Sons (`general.sounds`, ligado por padrão): `core/sounds.rs` sintetiza três sinais curtos (captura,
-  início e fim da gravação) em WAV na memória — sem arquivos de áudio no pacote. Tocados via NSSound
-  (macOS) e `PlaySoundW` assíncrono (Windows). O áudio do próprio FrameLy é excluído do som do
-  sistema, mas o **microfone** capta o que sai dos alto-falantes; por isso nenhum sinal toca com a
-  captura ativa: o de início termina antes da gravação começar (é curto, ~0,35 s, e termina junto
-  com a contagem; sem contagem, a gravação espera essa duração — o início nativo leva mais ~0,2 s), o de fim toca depois que o arquivo foi fechado, e o de
-  screenshot fica mudo durante uma gravação. Verificado medindo o áudio do início dos vídeos.
-- Controles flutuantes (`recording.show_controls`, janela `recbar`): tempo, níveis de som, pausar
-  e parar, no centro inferior do monitor gravado, arrastáveis, sem foco e fora do vídeo.
-- Bandeja durante a gravação: só o ícone muda (vermelho/âmbar) e o tempo vai para a dica. Um
-  título de texto alargava o item e, em MacBooks com notch e barra cheia, ele era empurrado para
-  trás do notch e sumia.
-- `appearance`: tema (padrão escuro), movimento, luz ambiente. `capture`: formato, qualidade JPEG,
-  copiar/salvar/prévia. `recording`: alvo padrão, prévia ao terminar, além dos campos anteriores.
-- Migração v1 → v2 preserva o tema `system` de quem já tinha o app.
-- Armazenamento: `storage_cleanup` remove miniaturas em cache e sobras temporárias, nunca durante
-  uma gravação.
-
-## Editor de screenshots
-
-- **Modelo** (`windows/editor/model.ts`, testado): formas em coordenadas da imagem original (seta,
-  retângulo, elipse, texto, destaque, desfoque), recorte e tamanho de saída; histórico por snapshots
-  para desfazer/refazer; *hit testing* (contorno vs. preenchimento, distância à seta).
-- **Renderização única** (`render.ts`): a mesma função desenha a tela e o arquivo exportado, então o
-  que se vê é o que se salva. Desfoque = pixelização em blocos (≈ 1/140 da imagem) aplicada na
-  exportação — os pixels originais não ficam no arquivo.
-- **Segurança:** o editor só abre imagens dentro das pastas do FrameLy; a imagem chega por
-  `framely://localhost/edit-source` com CORS (o canvas continua exportável — verificado na abertura).
-- **Exportar:** o PNG vai para o Rust como bytes brutos no corpo do IPC (não JSON). "Salvar" nunca
-  sobrescreve o original: cria "nome (edited).png" ao lado e o registra na biblioteca. "Copiar" põe
-  a imagem na área de transferência.
-- Entradas: botão de editar na prévia pós-captura, no visualizador e no menu de contexto da biblioteca.
-
-## FrameLy AI: transcrição, resumo e tópicos (`src-tauri/src/intelligence/`)
+## Recording flow (`recording.rs`)
 
 ```
-mídia (gravação, vídeo ou áudio importado)
-  → 1 decodificação nativa → PCM 16 kHz mono num temporário privado (AVAssetReader | IMFSourceReader + core/resample)
-  → 2 whisper.cpp em blocos de ~5 min cortados no ponto mais silencioso → SQLite a cada bloco (retomável)
-  → 7 transcripts.sqlite3 (transcrição ligada ao arquivo por caminho + tamanho + data)
-  → 6 geração (prompts fiéis + JSON schema estrito; map-reduce quando não cabe no contexto)
-      → 5 provedor: FrameLy AI (3: processo framely-llm, llama.cpp) | Apple Intelligence | Anthropic | OpenAI
-  → 8 exportação: TXT, SRT, VTT, Markdown, PDF
-4 gerenciador de modelos: catálogo versionado, download retomável (HTTP Range), SHA-256, espaço, reparo
+target: screen (monitor under cursor) | window/region (same overlay, red)
+  → countdown window (Esc/click cancels)
+  → native engine: frames + audio → hardware encoder → fragmented MP4 in <cache>/recordings/<id>.mp4
+    + manifest <id>.json + thumbnail <id>.jpg
+  → status every 500 ms → tray icon/tooltip, controls bar (recbar), home banner
+  → stop (UI, tray, shortcut, CLI, or the OS: window closed, display gone, permission revoked)
+  → file finalized → moved to the recordings folder → library → preview
 ```
 
-- **Dois runtimes, dois processos.** whisper.cpp (`whisper-rs`) roda no app; llama.cpp roda no
-  `framely-llm` (`src-tauri/llm-worker`, sidecar do Tauri, JSON por stdin/stdout). Os dois embutem
-  versões diferentes do `ggml` (0.9 e 0.26) e, ligados no mesmo binário, o linker mistura os
-  símbolos sem erro — comportamento indefinido. O processo separado também devolve a memória do modelo
-  ao terminar, cancela na hora (o app encerra o processo) e isola falhas.
-- **Modelos** (avaliados numa reunião pt-BR real; detalhes em `intelligence/catalog.rs`): transcrição
-  whisper small (Rápida, 190 MB), large-v3-turbo (Equilibrada, 574 MB) e large-v3 com busca em feixe
-  (Máxima, 1,08 GB), licença MIT; resumos/tópicos Gemma 4 E2B (Básico, 2,8 GB), Qwen3.5-4B
-  (Equilibrado, 3,0 GB) e Qwen3.5-9B (Avançado, 5,7 GB), Apache 2.0. Qwen3.5-2B e Granite 4.2 3B foram
-  descartados por inventarem decisões e responsáveis. Arquivos em `<app data>/models`, nunca no instalador.
-- **Perfil por hardware** (`hardware.rs`): RAM, Apple Silicon (Metal), AVX2, GPU/VRAM (DXGI, informativo).
-  Só a GPU da Apple é usada; no Windows tudo roda na CPU (AVX2 obrigatório, verificado em runtime).
-- **Progresso real**: etapas (preparar áudio, carregar modelo, transcrever, gerar, juntar partes),
-  percentual vindo do decodificador, do callback do whisper e da avaliação do prompt; tempo restante
-  pela vazão medida da própria execução. Carregar o modelo mostra só atividade (não é mensurável).
-- **Estimativas** (`estimate.rs`): mediana das últimas execuções nesta máquina (tabela `perf`); sem
-  histórico, taxas de referência medidas, marcadas como aproximadas na UI.
-- **Retomada e cache**: blocos persistidos; ao reabrir, o que estava rodando vira "interrompida" e
-  continua do próximo bloco (o PCM temporário é reaproveitado se completo). O mesmo arquivo com os
-  mesmos ajustes nunca é processado de novo.
-- **Provedores** (`providers.rs`): cada um declara local/externo, internet, chave, contexto, custo e
-  disponibilidade (com o motivo). Anthropic usa a Messages API (`anthropic-version: 2026-10-21`,
-  `output_config.format`), OpenAI usa Chat Completions com `json_schema` estrito. Chaves só no Keychain
-  (Swift `Keychain.swift`) ou no Gerenciador de Credenciais (`CredWriteW`). Envio externo exige
-  provedores externos ligados, chave e consentimento explícito por provedor; o modo exclusivamente local
-  (`net.rs`) bloqueia qualquer requisição, inclusive downloads. Não há fallback silencioso.
-- **Apple Intelligence** (`Intelligence.swift`): Foundation Models com geração guiada (`@Generable`) no
-  mesmo formato dos outros provedores; contexto de 4096 tokens → partes menores. `FoundationModels` é
-  weak-linked, então o app segue abrindo no macOS 14/15. Não aparece no Windows.
-- **FrameLy Cloud** (`intelligence/cloud.rs` + serviço em `cloud/`): provedor na nuvem do próprio
-  FrameLy, sem chave nem modelo para o usuário. O app envia a requisição estruturada (texto da
-  transcrição, idioma, detalhe, parte) — nunca prompts nem mídia — assinada com uma identidade
-  Ed25519 anônima guardada no Keychain/Gerenciador de Credenciais (registro com prova de trabalho).
-  O serviço monta os prompts, chama o provedor configurado nele (Gemini por padrão; DeepSeek como
-  alternativa), valida e devolve o mesmo JSON dos outros provedores. O app não sabe qual provedor
-  nem qual modelo processa o texto: `/v1/status` informa só disponibilidade, limites e a política
-  de uso de dados. É externo para fins de privacidade: consentimento antes do primeiro envio (citando
-  "um provedor de IA parceiro" e a política de dados) e bloqueio no modo exclusivamente local. A URL
-  vem do build (`FRAMELY_CLOUD_URL`); sem ela o provedor aparece como indisponível. Detalhes:
-  `cloud/README.md`.
-- **Diarização**: não há separação de falantes local (whisper.cpp só tem `tinydiarize`, inglês) e as
-  gravações do FrameLy têm uma faixa mixada; o ajuste aparece indisponível, com explicação.
+- **State machine** `core/recorder.rs`: `Idle → Countdown → Recording ⇄ Paused → Finalizing`;
+  invalid transitions are rejected; the clock subtracts pauses.
+- **Pause** never stops the stream: samples inside a pause are dropped and later ones are
+  re-timed (`PauseTimeline.swift` / `core::media_timeline`). Resume is instant.
+- **Size/bitrate** `core/video.rs`: native/1080p/720p keeping aspect, codec limits (H.264 ≤
+  4096×2304), even dimensions, bitrate by bits/pixel/frame per quality.
+- **Recovery:** MP4 fragments every 2 s. If FrameLy dies, the next start finds the manifest and
+  moves the file to the recordings folder as "(recovered)".
+- **Audio:** system audio + microphone mixed into **one** AAC track (48 kHz stereo, gains,
+  soft-clip, RNNoise on the mic), positioned by the same clock as video. Platform specifics:
+  [platform-macos.md](platform-macos.md#audio), [platform-windows.md](platform-windows.md#audio).
+- **Sounds** (`core/sounds.rs`, synthesized in memory) never play while capture is live, because
+  the mic would record them.
 
-## Comportamento de ciclo de vida
+## Transcription and AI flow
 
-- Fechar a janela principal a **esconde** (padrão) e o app continua na bandeja; com a opção
-  desligada, fechar encerra o app — exceto durante uma gravação, que sempre continua.
-- Esconder a janela principal (fechar, iniciar gravação) usa `windows::hide_main`: em tela cheia no
-  macOS ela fica invisível (alpha 0, sem animação de janela), sai da tela cheia e é escondida ao fim
-  da transição. O usuário vê só o Space deslizando, como ao fechar um app em tela cheia; esconder
-  direto deixava o Space vazio e preto.
-- Uma segunda instância apenas foca a existente (`tauri-plugin-single-instance`).
-- A janela é criada oculta e exibida após o primeiro render (sem flash em branco).
+```
+media → native decode → 16 kHz mono PCM → whisper.cpp in ~5 min blocks → transcripts.sqlite3
+      → summary/topics: provider (FrameLy AI Local | Cloud | Apple | Anthropic | OpenAI)
+      → export TXT/SRT/VTT/Markdown/PDF
+```
 
-## Erros e logs
+Details, consent and providers: [ai.md](ai.md).
 
-- Comandos retornam `AppResult<T>`; a UI traduz `error.<code>`.
-- Logs JSON com rotação diária (7 arquivos) em `~/Library/Logs/app.framely.desktop/` ou
-  `%LOCALAPPDATA%\app.framely.desktop\logs\`. Nível via `FRAMELY_LOG` (ex.: `FRAMELY_LOG=debug`).
-- Erros não tratados de qualquer janela da UI também vão para esse log.
+## Library
 
-## Segurança
+- **The folders are the source of truth.** The SQLite index (`core/library.rs`,
+  `<app data>/library.sqlite3`) holds metadata for instant search/sort. `reconcile` adds, updates
+  and removes items by comparing with disk; only new or changed files are probed. Runs at start,
+  when opening the library and when the folders change.
+- New captures are registered immediately with the metadata FrameLy already knows.
+- Thumbnails (JPEG ≤ 480 px) are generated on demand at `framely://localhost/thumb/<id>` and cached.
+- Playback uses Tauri's asset protocol (range requests for `<video>`), scoped to the two media
+  folders (`library::allow_media_dirs`).
+- Delete = move to the Trash (`trash` crate), always confirmed. Rename validates names valid on
+  both OSes and keeps the extension.
 
-- CSP restritiva; o asset protocol só alcança as pastas de gravações e screenshots.
-- A UI não tem permissão genérica de abrir caminhos: `open_folder` só aceita as pastas do FrameLy, e
-  as ações da prévia só operam sobre a última captura feita pelo próprio app.
+## Screenshot editor
+
+- `src/windows/editor/model.ts` (tested): shapes in original-image coordinates, crop, output size,
+  snapshot history for undo/redo, hit testing.
+- `render.ts`: one function draws both the canvas and the exported file (WYSIWYG). Blur is block
+  pixelation applied at export; the original pixels don't stay in the file.
+- The editor only opens images inside FrameLy's folders; "Save" never overwrites: it writes
+  `name (edited).png` and registers it in the library.
+
+## Security model
+
+- Restrictive CSP; the asset protocol reaches only the recordings and screenshots folders.
+- The UI has no generic "open path": `open_folder` accepts only FrameLy's folders, `open_link`
+  only `https` URLs, preview actions only the last capture made by the app.
+- Capabilities per window group in `src-tauri/capabilities/` (`main.json` for `main`/`editor`,
+  `capture.json` for overlays, preview, countdown, frame, recbar, panel).
+- Secrets live only in the OS keychain (`platform/keystore.rs`). See [ai.md](ai.md#privacy-rules).

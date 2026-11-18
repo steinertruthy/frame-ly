@@ -1,115 +1,122 @@
-# Versionamento e releases
+# Versioning and releases
 
 ## SemVer
 
-O FrameLy segue o [Versionamento Semântico](https://semver.org/lang/pt-BR/): `MAJOR.MINOR.PATCH`.
-Enquanto a versão for `0.y.z`, mudanças de comportamento podem acontecer em versões `MINOR`.
-Pré-lançamentos usam sufixo (`0.2.0-beta.1`) e saem como *pre-release* no GitHub.
+FrameLy follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`. While the version is
+`0.y.z`, behavior may change in `MINOR` versions. Pre-releases use a suffix (`0.2.0-beta.1`) and are
+published as GitHub pre-releases.
 
-A versão fica em três arquivos, que precisam concordar (o CI confere):
+The version lives in three files that must agree (CI and the release workflow check with
+`scripts/release/check-version.mjs`):
 
 - `package.json`
 - `src-tauri/Cargo.toml` (`[package] version`)
-- `src-tauri/tauri.conf.json` (a versão exibida em Ajustes › Sobre)
+- `src-tauri/tauri.conf.json` (shown in Settings › About)
 
-## Publicar uma versão
+## Publish a version
 
-1. Atualize a versão nos três arquivos.
-2. Em `CHANGELOG.md`, mova o que estiver em `[Unreleased]` para `## [X.Y.Z] - AAAA-MM-DD` e
-   atualize os links do rodapé. Traduza a seção em `website/src/content/changelog/<idioma>.md`
-   (opcional: sem tradução, o site mostra o texto em inglês).
-3. Confira localmente: `node scripts/release/check-version.mjs vX.Y.Z`.
-4. Commit, `git tag -a vX.Y.Z -m "FrameLy X.Y.Z"` e `git push origin main vX.Y.Z`.
+1. Bump the version in the three files.
+2. In `CHANGELOG.md`, move `[Unreleased]` into `## [X.Y.Z] - YYYY-MM-DD` (with a one-line summary)
+   and update the link references at the bottom. Translate the section into
+   `website/src/content/changelog/<locale>.md` (optional: without a translation the site shows English).
+3. Check: `node scripts/release/check-version.mjs vX.Y.Z`.
+4. Commit (`FrameLy X.Y.Z: <summary>`), `git tag -a vX.Y.Z -m "FrameLy X.Y.Z"`,
+   `git push origin main vX.Y.Z`.
 
-O workflow **Release** (`.github/workflows/release.yml`) então:
+The **Release** workflow (`.github/workflows/release.yml`, on `v*` tags) then:
 
-1. valida a tag, os três arquivos e o changelog, e falha se já existir um release com essa tag
-   (releases nunca são sobrescritos — corrija com uma nova versão);
-2. compila os instaladores em runners próprios: `macos-15` → `FrameLy_X.Y.Z_aarch64.dmg`,
-   `windows-latest` → `FrameLy_X.Y.Z_x64-setup.exe` (NSIS);
-3. só se **todos** os builds passarem, gera `SHA256SUMS.txt` e cria o release com as notas do
-   changelog;
-4. chama o workflow **Website**, que lê a API de Releases e republica a área de download.
+1. checks the tag, the three files and the changelog; checks that the updater signing key secret
+   exists; fails if a release with that tag already exists (**releases are never overwritten** —
+   fix forward with a new version);
+2. builds the installers: `macos-15` + Xcode 26 → `FrameLy_X.Y.Z_aarch64.dmg` and the updater
+   bundle; `windows-latest` → `FrameLy_X.Y.Z_x64-setup.exe` (NSIS); signs them when signing
+   secrets exist ([signing.md](signing.md));
+3. only if **every** build passed: `SHA256SUMS.txt`, `latest.json` (`scripts/release/latest-json.mjs`,
+   requires both platforms and their signatures), release notes from the changelog
+   (`scripts/release/notes.mjs`), and the GitHub release;
+4. triggers the **Website** workflow on `main` so the download page lists the new files
+   ([website.md](website.md)).
 
-Para testar os builds sem publicar nada: *Actions › Release › Run workflow* (os instaladores ficam
-como artefatos da execução).
+Dry run without publishing: *Actions › Release › Run workflow* (installers kept as run artifacts).
 
-## Site
+### Release assets
 
-`website/` é publicado no GitHub Pages pelo workflow **Website** a cada push em `main` que toque o
-site ou o changelog, e depois de cada release. Os dados de download (`website/src/data/releases.json`)
-são gerados no build a partir da API do GitHub, então o site nunca aponta para arquivos que não
-existem. Veja [website/README.md](../website/README.md).
+`FrameLy_X.Y.Z_aarch64.dmg`, `FrameLy_X.Y.Z_aarch64.app.tar.gz` + `.sig` (macOS updater),
+`FrameLy_X.Y.Z_x64-setup.exe` + `.sig`, `latest.json`, `SHA256SUMS.txt`.
 
-## Instalador do Windows (NSIS)
+## Workflows
 
-Instalador próprio do FrameLy, do início ao fim, sobre o NSIS do Tauri:
+| Workflow | Trigger | Does |
+|---|---|---|
+| `ci.yml` (CI) | push to `main`, PRs (not docs/website/`*.md`) | Checks and tests on macOS and Windows ([development.md](development.md#everyday-commands)) |
+| `release.yml` (Release) | tag `v*`, manual | Builds, signs, publishes ([above](#publish-a-version)) |
+| `site.yml` (Website) | push touching `website/**` or `CHANGELOG.md`, after a release, manual | Builds and deploys GitHub Pages |
+| `installer-ui.yml` (Installer screens) | PRs touching `src-tauri/installer/**`, manual | Screenshots of every installer screen |
+| `updater-e2e.yml` (Updater end-to-end) | PRs touching the updater or installer, manual | Installs an old build and updates it to a new one |
 
-- `src-tauri/installer/installer.nsi` — o template do Tauri (tauri-cli 2.12.4) com as páginas
-  trocadas pelas telas do FrameLy; toda a lógica de instalação, atualização (`/UPDATE`), modo
-  passivo (`/P`), silencioso (`/S`) e desinstalação é a do Tauri (mudanças marcadas `FrameLy:`).
-  Ao atualizar o `@tauri-apps/cli`, compare com o template novo.
-- `src-tauri/installer/ui.nsh` — as telas, em janela inteira, nas cores do app: boas-vindas (com
-  local de instalação, atalho na área de trabalho e o estado: nova instalação, atualização,
-  reinstalação ou versão anterior), progresso com barra própria, conclusão com “Abrir o FrameLy
-  agora”; no desinstalador, confirmação (com a opção de apagar dados), progresso e conclusão.
-  Botões planos e arredondados na cor primária do app; os botões nativos ficam ocultos, mas Enter
-  e Esc continuam funcionando. Barra de título escura no Windows 10 2004+/11.
-- `installer/lang/*.nsh` — textos do Tauri + do FrameLy nos 5 idiomas do app.
-- `installer/hooks.nsh` — encerra o `framely-llm.exe` antes de instalar/desinstalar e, com “apagar
-  dados”, remove as credenciais `FrameLy/ai/*`.
-- `installer/logo.bmp` — gerado por `node scripts/windows-installer-art.mjs`.
+Repository configuration (names only — values never go in the repo): secrets
+`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, the optional signing secrets in
+[signing.md](signing.md), and the variable `FRAMELY_CLOUD_URL`.
 
-Instalar por cima de uma versão anterior atualiza no lugar (como o updater): ajustes, biblioteca,
-transcrições e modelos em `%APPDATA%\app.framely.desktop` são mantidos.
+## Automatic updates
 
-**Telas:** *Actions › Installer screens* compila `installer/preview/preview.nsi` (as mesmas telas
-com uma instalação simulada; `/PAGE=` e `/STATE=` abrem cada tela) num runner Windows e publica
-screenshots. *Updater end-to-end* também fotografa a tela inicial do instalador real.
+`tauri-plugin-updater`, wired in `src-tauri/src/updates.rs` (UI: `src/lib/stores/updates.svelte.ts`,
+`UpdateNotice.svelte`):
 
-**Build local no macOS:** o makensis do Homebrew quebra no macOS 26; use o do Docker:
-`ln -s "$PWD/scripts/makensis-docker.sh" ~/bin/makensis` (com `~/bin` primeiro no `PATH`) e
-`pnpm build:windows`.
+- reads `https://github.com/steinertruthy/frame-ly/releases/latest/download/latest.json`
+  (`FRAMELY_UPDATE_URL` overrides it for tests);
+- checks ~45 s after launch and every 6 h, unless turned off (Settings › About) or in "Local only"
+  mode; `framely --update` checks and installs now;
+- downloads only when the person chooses "Update and restart"; the package signature is verified
+  against the public key in `tauri.conf.json › plugins.updater.pubkey`;
+- never interrupts a recording: it installs when the recording ends;
+- macOS replaces the `.app` and relaunches; Windows runs the NSIS installer in passive `/UPDATE`
+  mode, which updates in place, keeps data and reopens FrameLy.
 
-## Atualização automática
+### Signing keys
 
-O app usa o `tauri-plugin-updater` (`src-tauri/src/updates.rs`):
+- Public key: `src-tauri/tauri.conf.json › plugins.updater.pubkey`.
+- Private key and password: **never in git**. Repository secrets `TAURI_SIGNING_PRIVATE_KEY` and
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, plus an offline copy outside the repo
+  (`~/.tauri/framely-updater.key`, `~/.tauri/framely-updater.password`). Without the private key no
+  update that installed versions accept can ever be published — keep a safe backup.
 
-- lê `https://github.com/steinertruthy/frame-ly/releases/latest/download/latest.json`;
-- verifica 45 s depois de abrir e a cada 6 h (desligável em Ajustes › Sobre; nunca com o modo
-  “Exclusivamente local”); `framely --update` verifica e instala na hora;
-- só baixa quando a pessoa escolhe “Atualizar e reiniciar”; a assinatura do pacote é conferida
-  com a chave pública em `tauri.conf.json` (`plugins.updater.pubkey`);
-- nunca interrompe uma gravação: com uma gravação em andamento, instala quando ela termina;
-- macOS: substitui o `.app` e reinicia; Windows: roda o instalador NSIS em modo passivo
-  (`/UPDATE`), que atualiza no lugar, mantém os dados e reabre o FrameLy.
+### End-to-end test
 
-### Chaves de assinatura
+*Actions › Updater end-to-end*: generates a throwaway key, builds 0.0.1 and a signed 0.0.2, serves
+`latest.json` on `127.0.0.1`, runs `framely --update` on the old one and checks it downloaded,
+verified, installed and reopened as 0.0.2. On Windows it also checks that user data survives and
+that uninstalling is clean.
 
-- Pública: `src-tauri/tauri.conf.json` › `plugins.updater.pubkey`.
-- Privada e senha: **nunca no git**. Ficam nos secrets do repositório `TAURI_SIGNING_PRIVATE_KEY`
-  e `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, e numa cópia local fora do repositório
-  (`~/.tauri/framely-updater.key` e `~/.tauri/framely-updater.password`). Sem a chave privada não é
-  possível publicar atualizações que as versões instaladas aceitem — guarde um backup seguro.
-- O workflow de release falha se os secrets não existirem, e só publica se `latest.json` tiver o
-  pacote e a assinatura das duas plataformas (`scripts/release/latest-json.mjs`).
+### Limitations
 
-### Arquivos extras de cada release
+- Versions without the updater (0.1.0, 0.2.0) must download the first updater-enabled version by hand.
+- macOS without Developer ID: the ad-hoc signature changes with every version, so macOS may ask
+  for Screen Recording (and Microphone) again after an update.
 
-`FrameLy_X.Y.Z_aarch64.app.tar.gz` + `.sig` (macOS), `FrameLy_X.Y.Z_x64-setup.exe.sig` (Windows) e
-`latest.json`.
+## Windows installer (NSIS)
 
-### Teste de ponta a ponta
+FrameLy's own installer, start to finish, on top of Tauri's NSIS support:
 
-*Actions › Updater end-to-end* (também roda em PRs que mexem no updater): gera uma chave
-descartável, compila uma versão 0.0.1 e uma 0.0.2 assinada, serve o `latest.json` em
-`127.0.0.1`, roda `framely --update` na versão antiga e confere que ela baixou, verificou,
-instalou e reabriu já na 0.0.2. No Windows também confere que os dados do usuário sobrevivem à
-atualização e que a desinstalação é limpa.
+- `src-tauri/installer/installer.nsi` — Tauri's template (tauri-cli 2.12.4) with the pages replaced
+  by FrameLy's screens. All install/update (`/UPDATE`), passive (`/P`), silent (`/S`) and uninstall
+  logic is Tauri's; FrameLy changes are marked `FrameLy:`. **When upgrading `@tauri-apps/cli`,
+  diff against the new template.**
+- `src-tauri/installer/ui.nsh` — full-window screens in the app's colors: welcome (install location,
+  desktop shortcut, state: new install / update / reinstall / older version), progress, finish with
+  "Open FrameLy now"; uninstaller confirmation (with "delete data"), progress and finish. Flat
+  rounded buttons; native buttons hidden but Enter/Esc still work; dark title bar on Windows 10
+  2004+/11.
+- `src-tauri/installer/lang/*.nsh` — Tauri + FrameLy strings in the app's five languages.
+- `src-tauri/installer/hooks.nsh` — stops `framely-llm.exe` before install/uninstall; with "delete
+  data" removes the `FrameLy/ai/*` credentials.
+- `src-tauri/installer/logo.bmp` — generated by `node scripts/windows-installer-art.mjs`.
+- `src-tauri/installer/preview/preview.nsi` — the same screens with a simulated install
+  (`/PAGE=`, `/STATE=` open each screen); the *Installer screens* workflow screenshots them.
 
-### Limitações
+Installing over an older version updates in place: settings, library, transcripts and models in
+`%APPDATA%\app.framely.desktop` are kept.
 
-- Quem tem uma versão sem o updater (0.1.0 e 0.2.0) precisa baixar manualmente, uma vez, a
-  primeira versão que o inclui.
-- macOS sem Developer ID/notarização: a assinatura *ad hoc* muda a cada versão, então o macOS
-  pode pedir de novo a permissão de Gravação de Tela (e Microfone) depois de atualizar.
+**Local build on macOS:** Homebrew's `makensis` crashes on macOS 26; use the Docker wrapper:
+`ln -s "$PWD/scripts/makensis-docker.sh" ~/bin/makensis` (with `~/bin` first on `PATH`), then
+`pnpm build:windows` ([development.md](development.md#windows)).

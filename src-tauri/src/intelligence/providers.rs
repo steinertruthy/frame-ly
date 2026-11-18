@@ -2,7 +2,9 @@
 //! external, internet, key, cost, context window, availability) and runs a prompt into JSON
 //! that matches `generation::schema`. Callers never touch SDKs, HTTP or runtimes directly.
 //!
-//! - FrameLy AI: local model in the framely-llm process (default; no account, no key, offline).
+//! - FrameLy AI Cloud: FrameLy's own service (`cloud.rs`; the default when the build has a
+//!   cloud URL, see `core::settings::default_generation_provider`), consent required.
+//! - FrameLy AI Local: local model in the framely-llm process (no account, no key, offline).
 //! - Apple Intelligence: on-device Foundation Models (macOS 26+ only).
 //! - Anthropic and OpenAI: optional, external, need an API key and explicit consent.
 
