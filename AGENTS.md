@@ -27,6 +27,10 @@ comments, commit messages and `CHANGELOG.md` are too. The UI ships in five langu
 
 ## Commands (run from the repo root unless noted)
 
+**New machine or fresh clone?** Follow [docs/development.md › Set up a new machine](docs/development.md#set-up-a-new-machine-macos-apple-silicon).
+Most important: run `pnpm install` and `pnpm llm:build` before any `cargo` command, or
+`build.rs` stops with `missing binaries/framely-llm-<target>`.
+
 The login shell may be fish and may not have Node or cargo on `PATH`. In bash:
 
 ```bash

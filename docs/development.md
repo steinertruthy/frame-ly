@@ -1,5 +1,63 @@
 # Development
 
+## Set up a new machine (macOS, Apple Silicon)
+
+Verified from a fresh clone: these steps end with every check in [AGENTS.md](../AGENTS.md) passing.
+
+```bash
+# 1. System tools (Xcode from the App Store first, then open it once to accept its license)
+xcode-select -p                      # must print the Xcode path
+brew install rustup cmake ninja mingw-w64 nvm
+export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH"   # Homebrew's rustup is keg-only
+rustup default stable
+rustup component add clippy rustfmt
+rustup target add x86_64-pc-windows-gnu x86_64-pc-windows-msvc
+
+# 2. Node 22 + pnpm
+. ~/.nvm/nvm.sh && nvm install 22 && nvm use 22
+corepack enable
+
+# 3. Repository
+git clone git@github.com:steinertruthy/frame-ly.git && cd frame-ly
+pnpm install
+pnpm llm:build                       # REQUIRED before any cargo command (see below)
+cd cloud && pnpm install && cd ../website && pnpm install && cd ..
+
+# 4. Run it
+pnpm tauri dev
+```
+
+- `pnpm llm:build` compiles the `framely-llm` sidecar (llama.cpp, a few minutes). Without it every
+  `cargo build/test/clippy` in `src-tauri` stops in `build.rs` with
+  `missing binaries/framely-llm-<target>`. `pnpm tauri dev/build` run it automatically.
+- `src-tauri/.cargo/config.toml` points bindgen at Homebrew's mingw-w64 under `/opt/homebrew`
+  (Apple Silicon layout) for the Windows lint target.
+- Testing permissions (Screen Recording, Microphone): run `./scripts/macos-dev-cert.sh` once, then
+  use `pnpm app:mac` ([below](#macos-permissions-and-the-dev-signature)).
+- Windows cross-build: also `brew install nsis llvm lld` and `cargo install --locked cargo-xwin`
+  ([Windows](#windows)); for the installer step on macOS 26, Docker for `scripts/makensis-docker.sh`.
+
+### What is not in the repository
+
+| Thing | Needed for | Where to get it |
+|---|---|---|
+| FrameLy AI Cloud URL | Summaries/topics through the real Cloud in a local build | `gh variable get FRAMELY_CLOUD_URL`, then `FRAMELY_CLOUD_URL=<url> pnpm tauri dev`. Or run the service locally ([cloud.md](cloud.md#run-test-deploy)). Without it the Cloud provider just shows as unavailable. |
+| `cloud/.dev.vars` | Running the Worker locally | Create it (one line, see [cloud.md](cloud.md#run-test-deploy)); git-ignored. |
+| Cloud provider API keys, `TOKEN_SECRET` | Deploying the Worker | Cloudflare secrets; never on dev machines unless deploying. |
+| Updater private key (`~/.tauri/framely-updater.key` + `.password`) | Only for signed release builds made locally | The owner's offline backup. CI has it as a secret; normal development and tags don't need it locally. |
+| AI models | Transcription / FrameLy AI Local | Downloaded by the app at run time (Settings › Intelligence) into the app data folder. |
+| `.claude/` (e.g. `launch.json`, agent permissions) | Claude Code previews and settings | Git-ignored: recreate per machine if wanted. |
+| GitHub access | Pushing, `gh` | `gh auth login` and an SSH key with access to the repo. |
+
+### Developing on Windows directly
+
+Install Visual Studio Build Tools (C++ workload), the WebView2 runtime, Git for Windows, rustup
+(MSVC toolchain), Node 22, pnpm and CMake. The pnpm scripts are bash scripts: run them through Git
+Bash, e.g. `npm config set script-shell "C:\Program Files\Git\bin\bash.exe"` (CI does the same with
+`npm_config_script_shell`). Then `pnpm install`, `pnpm llm:build`, `pnpm tauri dev`. On Windows the
+Rust unit-test binary can't start (missing Common Controls v6 manifest), so CI only compiles it:
+`cargo test --lib --no-run`.
+
 ## Toolchain
 
 | Tool | Version / install |

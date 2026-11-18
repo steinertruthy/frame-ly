@@ -13,7 +13,8 @@ pnpm test           # vitest (OS detection, release parsing, i18n parity, change
 pnpm build          # fetches release data, then builds to dist/ (pnpm build:offline skips the fetch)
 ```
 
-`.claude/launch.json` defines a `website` preview (the dev server on port 4321) for Claude Code.
+For a Claude Code preview, add a `website` entry to `.claude/launch.json` (git-ignored, per
+machine) that runs `cd website && pnpm exec astro dev --port 4321 --host 127.0.0.1`.
 
 ## Structure
 
